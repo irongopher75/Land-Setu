@@ -69,3 +69,9 @@ export const getRawSamples = async () => {
   const res = await client.get('/adapter/raw-samples');
   return res.data;
 };
+
+export const createCustomParcel = async (parcelData) => {
+  const res = await client.post('/parcels/custom', parcelData);
+  return res.data;
+};
+

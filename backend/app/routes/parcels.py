@@ -2,6 +2,7 @@ import json
 import jwt
 from datetime import datetime, timedelta
 from typing import List, Optional
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -197,3 +198,95 @@ def get_parcel_passport(ulpin: str, db: Session = Depends(get_db)):
         "passport_url": f"http://localhost:5173/passport/{parcel.ulpin}?token={signed_token}",
         "payload": payload
     }
+
+class CreateCustomParcelRequest(BaseModel):
+    ulpin: str
+    state: str
+    owner_name: str
+    geometry: dict
+    area_sqm: float
+
+@router.post("/custom")
+def create_custom_parcel(req: CreateCustomParcelRequest, db: Session = Depends(get_db)):
+    from app.db import IS_SQLITE
+    from shapely.geometry import shape
+
+    s_shape = shape(req.geometry)
+    if not IS_SQLITE:
+        from geoalchemy2.shape import from_shape
+        geom_val = from_shape(s_shape, srid=4326)
+    else:
+        geom_val = req.geometry
+
+    layers = {
+        "ror": {
+            "owner_name": req.owner_name,
+            "khata_no": f"KH-MANUAL-{req.ulpin[-4:]}",
+            "source": "manual_gis_entry",
+            "last_verified": datetime.utcnow().strftime("%Y-%m-%d"),
+            "confidence": "verified"
+        },
+        "registration": {
+            "last_transaction_id": f"REG-MANUAL-{req.ulpin[-4:]}",
+            "date": datetime.utcnow().strftime("%Y-%m-%d"),
+            "buyer_name": req.owner_name,
+            "source": "sub_registrar",
+            "confidence": "verified"
+        },
+        "zoning": {
+            "land_use": "residential",
+            "permitted_fsi": 1.5,
+            "source": "master_plan_2021",
+            "confidence": "verified"
+        },
+        "building_permit": {
+            "status": "approved",
+            "permit_id": f"BP-MANUAL-{req.ulpin[-4:]}",
+            "approved_fsi": 1.5,
+            "source": "municipal_corp",
+            "confidence": "self_declared"
+        },
+        "tax": {
+            "annual_value": 45000,
+            "source": "revenue_dept",
+            "confidence": "verified",
+            "last_verified": datetime.utcnow().strftime("%Y-%m-%d")
+        },
+        "encumbrance": {
+            "active": False,
+            "source": "sub_registrar",
+            "confidence": "verified"
+        }
+    }
+
+    # Check if ULPIN already exists
+    existing = db.query(Parcel).filter(Parcel.ulpin == req.ulpin).first()
+    if existing:
+        existing.geometry = geom_val
+        existing.area_sqm = req.area_sqm
+        existing.layers = layers
+        db.commit()
+        db.refresh(existing)
+        parcel_model = existing
+    else:
+        parcel_model = Parcel(
+            ulpin=req.ulpin,
+            state=req.state,
+            area_sqm=req.area_sqm,
+            geometry=geom_val,
+            layers=layers,
+            raw_record={"ulpin": req.ulpin, "owner": req.owner_name, "source": "Manual GIS Drawer"}
+        )
+        db.add(parcel_model)
+        db.commit()
+        db.refresh(parcel_model)
+
+    flags = RuleEngine.evaluate_parcel_rules(db, parcel_model)
+    return {
+        "ulpin": parcel_model.ulpin,
+        "state": parcel_model.state,
+        "area_sqm": parcel_model.area_sqm,
+        "layers": parcel_model.layers,
+        "flags": flags
+    }
+
