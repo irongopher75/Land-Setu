@@ -125,8 +125,18 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
       return;
     }
 
-    // Immediately persist selected role to prevent async auth state race conditions
-    localStorage.setItem('landsetu_role', selectedRole);
+    const lowerEmail = email.toLowerCase().trim();
+    let effectiveRole = selectedRole;
+    if (lowerEmail.includes('admin') || lowerEmail.includes('state') || lowerEmail.includes('governance')) {
+      effectiveRole = 'state_admin';
+    } else if (lowerEmail.includes('officer') || lowerEmail.includes('village') || lowerEmail.includes('tehsildar')) {
+      effectiveRole = 'village_officer';
+    } else if (lowerEmail.includes('auditor') || lowerEmail.includes('inspector') || lowerEmail.includes('compliance')) {
+      effectiveRole = 'auditor';
+    }
+
+    // Immediately persist effective role to prevent async auth state race conditions
+    localStorage.setItem('landsetu_role', effectiveRole);
 
     let user = null;
     try {
@@ -160,10 +170,10 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
     }
 
     try {
-      await mockLogin(selectedRole);
+      await mockLogin(effectiveRole);
     } catch (fErr) {}
 
-    onLoginSuccess(selectedRole, user || { email, displayName: email.split('@')[0] });
+    onLoginSuccess(effectiveRole, user || { email, displayName: email.split('@')[0] });
     setLoading(false);
   };
 
@@ -358,7 +368,18 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setEmail(val);
+                  const lower = val.toLowerCase().trim();
+                  if (lower.includes('admin') || lower.includes('state') || lower.includes('governance')) {
+                    setSelectedRole('state_admin');
+                  } else if (lower.includes('officer') || lower.includes('village') || lower.includes('tehsildar')) {
+                    setSelectedRole('village_officer');
+                  } else if (lower.includes('auditor') || lower.includes('inspector') || lower.includes('compliance')) {
+                    setSelectedRole('auditor');
+                  }
+                }}
                 placeholder={`user@domain.com`}
                 style={{
                   width: '100%',
