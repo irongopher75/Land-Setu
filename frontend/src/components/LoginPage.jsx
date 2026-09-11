@@ -209,22 +209,22 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
           <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-cyan))', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 20px rgba(59,130,246,0.4)', marginBottom: '12px' }}>
             <ShieldCheck color="#fff" size={26} />
           </div>
-          <h2 style={{ fontFamily: 'var(--font-title)', fontSize: '1.6rem', color: '#fff' }}>
+          <h2 style={{ fontFamily: 'var(--font-title)', fontSize: '1.6rem', color: '#0f172a' }}>
             {isSignUp ? 'Create LandSetu Account' : 'Welcome to LandSetu'}
           </h2>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Project: <strong style={{ color: 'var(--accent-cyan)' }}>landsetu-e4e5e</strong> | Firebase Auth & Firestore
+            Project: <strong style={{ color: 'var(--accent-cyan)' }}>landsetu-e4e5e</strong> | Sovereign Auth & Identity
           </p>
         </div>
 
         {/* Google OAuth Notice / Helper */}
         {showConfigNotice && (
           <div style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)', padding: '14px', borderRadius: '10px', marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#60a5fa', fontWeight: 700, fontSize: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0369a1', fontWeight: 700, fontSize: '0.85rem' }}>
               <Info size={16} /> Firebase Google Auth Notice
             </div>
             <p style={{ fontSize: '0.78rem', color: 'var(--text-main)', lineHeight: 1.4 }}>
-              To complete live Google OAuth popup, paste your Web API Key into <code>frontend/.env</code> and enable <strong>Google Sign-In</strong> in Firebase Console (Authentication &gt; Sign-in method).
+              To complete live Google OAuth popup, paste your Web API Key into <code>frontend/.env</code> and enable <strong>Google Sign-In</strong> in Firebase Console.
             </p>
             <button
               type="button"
@@ -232,19 +232,19 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
               style={{ width: '100%', padding: '8px', fontSize: '0.82rem', background: 'linear-gradient(135deg, #2563eb, #0284c7)', marginTop: '4px' }}
               onClick={handleProceedGoogleDemo}
             >
-              Proceed as Google User (Demo Mode) →
+              Proceed as Google User →
             </button>
           </div>
         )}
 
         {errorMsg && (
-          <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', padding: '10px 14px', borderRadius: '8px', fontSize: '0.8rem', marginTop: '12px' }}>
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '10px 14px', borderRadius: '8px', fontSize: '0.8rem', marginTop: '12px' }}>
             ⚠️ {errorMsg}
           </div>
         )}
 
         {infoMsg && (
-          <div style={{ background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#34d399', padding: '10px 14px', borderRadius: '8px', fontSize: '0.8rem', marginTop: '12px' }}>
+          <div style={{ background: '#dcfce7', border: '1px solid #bbf7d0', color: '#15803d', padding: '10px 14px', borderRadius: '8px', fontSize: '0.8rem', marginTop: '12px' }}>
             {infoMsg}
           </div>
         )}
@@ -258,17 +258,18 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
             style={{
               width: '100%',
               padding: '11px',
-              background: 'rgba(255, 255, 255, 0.08)',
-              border: '1px solid var(--border-card)',
+              background: '#ffffff',
+              border: '1px solid #cbd5e1',
               borderRadius: '10px',
-              color: '#fff',
-              fontWeight: 600,
+              color: '#0f172a',
+              fontWeight: 700,
               fontSize: '0.88rem',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '10px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
               transition: 'all 0.2s'
             }}
           >
@@ -359,9 +360,9 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
                 placeholder={`user@domain.com`}
                 style={{
                   width: '100%',
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid var(--border-card)',
-                  color: '#fff',
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  color: '#0f172a',
                   padding: '10px 12px 10px 38px',
                   borderRadius: '8px',
                   fontSize: '0.88rem',
@@ -384,9 +385,9 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
                 placeholder="••••••••••••"
                 style={{
                   width: '100%',
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid var(--border-card)',
-                  color: '#fff',
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  color: '#0f172a',
                   padding: '10px 12px 10px 38px',
                   borderRadius: '8px',
                   fontSize: '0.88rem',
