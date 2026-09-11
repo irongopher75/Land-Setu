@@ -1,0 +1,196 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "ulpin": "TN-CHN-0042-1187",
+        "type": "parcel"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [80.2700, 13.0820],
+            [80.2725, 13.0820],
+            [80.2725, 13.0840],
+            [80.2700, 13.0840],
+            [80.2700, 13.0820]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "ulpin": "TN-CHN-0042-1188",
+        "type": "parcel"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [80.2720, 13.0830],
+            [80.2745, 13.0830],
+            [80.2745, 13.0850],
+            [80.2720, 13.0850],
+            [80.2720, 13.0830]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "ulpin": "TN-CHN-0042-1189",
+        "type": "parcel"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [80.2750, 13.0820],
+            [80.2770, 13.0820],
+            [80.2770, 13.0840],
+            [80.2750, 13.0840],
+            [80.2750, 13.0820]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "ulpin": "TN-CHN-0042-1190",
+        "type": "parcel"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [80.2700, 13.0845],
+            [80.2725, 13.0845],
+            [80.2725, 13.0865],
+            [80.2700, 13.0865],
+            [80.2700, 13.0845]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "ulpin": "TN-CHN-0042-1191",
+        "type": "parcel"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [80.2730, 13.0855],
+            [80.2755, 13.0855],
+            [80.2755, 13.0875],
+            [80.2730, 13.0875],
+            [80.2730, 13.0855]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "ulpin": "TN-CHN-0042-1192",
+        "type": "parcel"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [80.2760, 13.0845],
+            [80.2785, 13.0845],
+            [80.2785, 13.0865],
+            [80.2760, 13.0865],
+            [80.2760, 13.0845]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "ulpin": "TN-CHN-0042-1193",
+        "type": "parcel"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [80.2670, 13.0820],
+            [80.2695, 13.0820],
+            [80.2695, 13.0840],
+            [80.2670, 13.0840],
+            [80.2670, 13.0820]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "ulpin": "TN-CHN-0042-1194",
+        "type": "parcel"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [80.2670, 13.0845],
+            [80.2695, 13.0845],
+            [80.2695, 13.0865],
+            [80.2670, 13.0865],
+            [80.2670, 13.0845]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "ulpin": "TN-CHN-0042-1195",
+        "type": "parcel"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [80.2790, 13.0820],
+            [80.2815, 13.0820],
+            [80.2815, 13.0840],
+            [80.2790, 13.0840],
+            [80.2790, 13.0820]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zone_id": "ECO-ZONE-TN-01",
+        "name": "Guindy Forest Buffer Zone",
+        "type": "protected_zone"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [80.2650, 13.0800],
+            [80.2850, 13.0800],
+            [80.2850, 13.0815],
+            [80.2650, 13.0815],
+            [80.2650, 13.0800]
+          ]
+        ]
+      }
+    }
+  ]
+}

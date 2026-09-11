@@ -1,0 +1,9 @@
+ulpin,owner_full_name,record_no,area_sqyd,ownership_type,deed_number,deed_date,deed_owner,zone_category,max_fsi,building_license_no,license_status,approved_fsi,property_tax_value,tax_year,mortgage_status
+CHD-SEC-0017-0201,Harpreet Singh,CHD-201,550.0,Full,DEED-2021-998,2021-06-15,Harpreet Singh,residential,1.2,BL-2021-088,approved,1.2,65000,2024-03-01,false
+CHD-SEC-0017-0202,Gurpreet Kaur,CHD-202,600.0,Full,DEED-2020-412,2020-04-10,Gurpreet Kaur,residential,1.2,BL-2020-142,approved,1.2,72000,2024-02-15,false
+CHD-SEC-0017-0203,Rajesh Sharma,CHD-203,480.0,Full,DEED-2019-110,2019-11-20,Rajesh Sharma,eco_sensitive,0.5,BL-2022-301,approved,1.8,55000,2023-10-10,false
+CHD-SEC-0017-0204,Simranjeet Singh,CHD-204,520.0,Full,DEED-2022-781,2022-09-05,Simranjeet Singh,residential,1.2,BL-2023-012,approved,1.2,68000,2024-04-20,true
+CHD-SEC-0017-0205,Amit Verma,CHD-205,750.0,Full,DEED-2018-009,2018-01-14,Vikram Malhotra,commercial,2.0,BL-2018-990,approved,2.0,120000,2016-08-11,false
+CHD-SEC-0017-0206,Neha Gupta,CHD-206,420.0,Full,DEED-2023-221,2023-03-18,Neha Gupta,residential,1.2,BL-2023-411,approved,1.2,50000,2024-01-10,false
+CHD-SEC-0017-0207,Kuldeep Malhotra,CHD-207,680.0,Full,DEED-2021-552,2021-12-01,Kuldeep Malhotra,residential,1.2,BL-2022-105,approved,1.2,81000,2023-12-05,false
+CHD-SEC-0017-0208,Manpreet Kaur,CHD-208,510.0,Full,DEED-2022-901,2022-07-22,Manpreet Kaur,residential,1.2,BL-2022-887,approved,1.2,62000,2024-05-01,false

@@ -1,0 +1,10 @@
+ulpin,pattadar_peyar,khatha_num,extent_hectares,patta_type,transaction_ref,transaction_date,registration_owner,land_use_code,fsi_permitted,permit_ref,permit_status,permit_fsi_approved,tax_annual_value,tax_last_updated,encumbrance_flag
+TN-CHN-0042-1187,R. Kannan,KH-1187,0.0452,Patta,REG-2019-88213,2019-03-14,R. Kannan,residential,1.5,BP-2022-441,approved,1.5,42000,2016-01-01,false
+TN-CHN-0042-1188,M. Selvam,KH-1188,0.0520,Patta,REG-2021-90112,2021-08-20,M. Selvam,residential,1.5,BP-2022-490,approved,1.5,38000,2024-02-10,false
+TN-CHN-0042-1189,V. Ramanathan,KH-1189,0.0610,Patta,REG-2020-55410,2020-11-05,A. Sundaram,residential,1.5,BP-2021-102,approved,1.5,51000,2023-11-15,true
+TN-CHN-0042-1190,S. Lakshmi,KH-1190,0.0380,Patta,REG-2022-33219,2022-04-12,S. Lakshmi,commercial,2.0,BP-2023-088,approved,2.8,75000,2024-01-05,false
+TN-CHN-0042-1191,P. Murugan,KH-1191,0.0490,Patta,REG-2018-12490,2018-09-01,P. Murugan,residential,1.5,BP-2019-301,approved,1.5,32000,2015-06-20,false
+TN-CHN-0042-1192,K. Jayaraman,KH-1192,0.0750,Patta,REG-2023-10042,2023-01-25,K. Jayaraman,commercial,2.0,BP-2023-402,approved,2.0,88000,2024-05-12,false
+TN-CHN-0042-1193,D. Anitha,KH-1193,0.0410,Patta,REG-2022-77182,2022-10-18,D. Anitha,residential,1.5,BP-2023-119,approved,1.5,45000,2024-03-30,false
+TN-CHN-0042-1194,G. Balaji,KH-1194,0.0580,Patta,REG-2021-44019,2021-02-14,G. Balaji,residential,1.5,BP-2021-994,approved,1.5,49000,2023-09-01,false
+TN-CHN-0042-1195,T. Radhakrishnan,KH-1195,0.0630,Patta,REG-2017-09112,2017-05-10,T. Radhakrishnan,residential,1.5,BP-2018-005,approved,1.5,41000,2017-05-10,true

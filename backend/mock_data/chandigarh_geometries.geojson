@@ -1,0 +1,177 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "ulpin": "CHD-SEC-0017-0201",
+        "type": "parcel"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [76.7750, 30.7320],
+            [76.7775, 30.7320],
+            [76.7775, 30.7340],
+            [76.7750, 30.7340],
+            [76.7750, 30.7320]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "ulpin": "CHD-SEC-0017-0202",
+        "type": "parcel"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [76.7780, 30.7320],
+            [76.7805, 30.7320],
+            [76.7805, 30.7340],
+            [76.7780, 30.7340],
+            [76.7780, 30.7320]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "ulpin": "CHD-SEC-0017-0203",
+        "type": "parcel"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [76.7840, 30.7370],
+            [76.7860, 30.7370],
+            [76.7860, 30.7390],
+            [76.7840, 30.7390],
+            [76.7840, 30.7370]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "ulpin": "CHD-SEC-0017-0204",
+        "type": "parcel"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [76.7750, 30.7345],
+            [76.7775, 30.7345],
+            [76.7775, 30.7365],
+            [76.7750, 30.7365],
+            [76.7750, 30.7345]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "ulpin": "CHD-SEC-0017-0205",
+        "type": "parcel"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [76.7780, 30.7345],
+            [76.7805, 30.7345],
+            [76.7805, 30.7365],
+            [76.7780, 30.7365],
+            [76.7780, 30.7345]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "ulpin": "CHD-SEC-0017-0206",
+        "type": "parcel"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [76.7720, 30.7320],
+            [76.7745, 30.7320],
+            [76.7745, 30.7340],
+            [76.7720, 30.7340],
+            [76.7720, 30.7320]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "ulpin": "CHD-SEC-0017-0207",
+        "type": "parcel"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [76.7720, 30.7345],
+            [76.7745, 30.7345],
+            [76.7745, 30.7365],
+            [76.7720, 30.7365],
+            [76.7720, 30.7345]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "ulpin": "CHD-SEC-0017-0208",
+        "type": "parcel"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [76.7810, 30.7320],
+            [76.7830, 30.7320],
+            [76.7830, 30.7340],
+            [76.7810, 30.7340],
+            [76.7810, 30.7320]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zone_id": "ECO-ZONE-CHD-01",
+        "name": "Sukhna Lake Protected Eco-Zone",
+        "type": "protected_zone"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [76.7820, 30.7360],
+            [76.7880, 30.7360],
+            [76.7880, 30.7410],
+            [76.7820, 30.7410],
+            [76.7820, 30.7360]
+          ]
+        ]
+      }
+    }
+  ]
+}
