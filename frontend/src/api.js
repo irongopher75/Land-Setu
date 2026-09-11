@@ -1,4 +1,10 @@
 import axios from 'axios';
+import {
+  saveCustomParcelToFirestore,
+  saveBoundaryRequestToFirestore,
+  updateBoundaryRequestInFirestore,
+  getFirestorePendingRequests
+} from './firebaseFirestore';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -89,9 +95,10 @@ export const getRawSamples = async () => {
 export const createCustomParcel = async (parcelData) => {
   try {
     const res = await client.post('/parcels/custom', parcelData);
+    saveCustomParcelToFirestore(parcelData);
     return res.data;
   } catch (err) {
-    console.warn('Backend API connection notice, using local storage session fallback:', err.message);
+    console.warn('Backend API connection notice, using database session fallback:', err.message);
     const userRole = localStorage.getItem('landsetu_role') || 'citizen';
     
     if (userRole === 'village_officer') {
@@ -103,11 +110,15 @@ export const createCustomParcel = async (parcelData) => {
         owner_name: parcelData.owner_name,
         geometry: parcelData.geometry,
         area_sqm: parcelData.area_sqm,
+        requester_role: 'village_officer',
+        requested_by: parcelData.owner_name,
         status: 'PENDING',
         created_at: new Date().toISOString()
       };
       pendingReqs.push(newReq);
       localStorage.setItem('landsetu_pending_reqs', JSON.stringify(pendingReqs));
+      saveBoundaryRequestToFirestore(newReq);
+
       return {
         status: 'PENDING_APPROVAL',
         message: `Boundary change for parcel ${parcelData.ulpin} submitted for upper authority (State Admin Officer) approval.`,
@@ -115,7 +126,7 @@ export const createCustomParcel = async (parcelData) => {
       };
     } else {
       const customParcels = JSON.parse(localStorage.getItem('landsetu_custom_parcels') || '{}');
-      customParcels[parcelData.ulpin] = {
+      const pObj = {
         ulpin: parcelData.ulpin,
         state: parcelData.state,
         area_sqm: parcelData.area_sqm,
@@ -130,7 +141,10 @@ export const createCustomParcel = async (parcelData) => {
         },
         flags: []
       };
+      customParcels[parcelData.ulpin] = pObj;
       localStorage.setItem('landsetu_custom_parcels', JSON.stringify(customParcels));
+      saveCustomParcelToFirestore(pObj);
+
       return {
         status: 'SUCCESS',
         ulpin: parcelData.ulpin,
@@ -155,13 +169,21 @@ export const getPendingRequests = async () => {
     return res.data;
   } catch (err) {
     const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
-    return reqs.filter(r => r.status === 'PENDING');
+    const fsReqs = await getFirestorePendingRequests().catch(() => []);
+    const merged = [...reqs.filter(r => r.status === 'PENDING')];
+    for (const fsR of fsReqs) {
+      if (!merged.some(m => m.id === fsR.id)) {
+        merged.push(fsR);
+      }
+    }
+    return merged;
   }
 };
 
 export const approveBoundaryRequest = async (requestId) => {
   try {
     const res = await client.post(`/parcels/requests/${requestId}/approve`);
+    updateBoundaryRequestInFirestore(requestId, 'APPROVED', 'state_admin');
     return res.data;
   } catch (err) {
     const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
@@ -171,7 +193,7 @@ export const approveBoundaryRequest = async (requestId) => {
       localStorage.setItem('landsetu_pending_reqs', JSON.stringify(reqs));
       
       const customParcels = JSON.parse(localStorage.getItem('landsetu_custom_parcels') || '{}');
-      customParcels[req.ulpin] = {
+      const pObj = {
         ulpin: req.ulpin,
         state: req.state,
         area_sqm: req.area_sqm,
@@ -186,9 +208,14 @@ export const approveBoundaryRequest = async (requestId) => {
         },
         flags: []
       };
+      customParcels[req.ulpin] = pObj;
       localStorage.setItem('landsetu_custom_parcels', JSON.stringify(customParcels));
+      saveCustomParcelToFirestore(pObj);
+      updateBoundaryRequestInFirestore(requestId, 'APPROVED', 'state_admin');
+
       return { status: 'APPROVED', message: `Request ${requestId} approved successfully!`, ulpin: req.ulpin };
     }
+    updateBoundaryRequestInFirestore(requestId, 'APPROVED', 'state_admin');
     return { status: 'APPROVED', message: 'Request approved!' };
   }
 };
@@ -196,6 +223,7 @@ export const approveBoundaryRequest = async (requestId) => {
 export const rejectBoundaryRequest = async (requestId) => {
   try {
     const res = await client.post(`/parcels/requests/${requestId}/reject`);
+    updateBoundaryRequestInFirestore(requestId, 'REJECTED', 'state_admin');
     return res.data;
   } catch (err) {
     const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
@@ -204,6 +232,7 @@ export const rejectBoundaryRequest = async (requestId) => {
       req.status = 'REJECTED';
       localStorage.setItem('landsetu_pending_reqs', JSON.stringify(reqs));
     }
+    updateBoundaryRequestInFirestore(requestId, 'REJECTED', 'state_admin');
     return { status: 'REJECTED', message: `Request ${requestId} rejected.` };
   }
 };

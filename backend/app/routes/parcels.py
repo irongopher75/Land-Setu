@@ -28,11 +28,11 @@ def identify_state_by_coords(lat: float = Query(...), lng: float = Query(...)):
 def filter_fields_by_role(parcel_dict: dict, role: str) -> dict:
     if role == "citizen":
         public_fields = {
-            "ror": {"confidence", "last_verified", "patta_type"},
-            "registration": {"confidence", "date"},
+            "ror": {"owner_name", "owner_share", "khata_no", "confidence", "last_verified", "patta_type"},
+            "registration": {"confidence", "date", "transaction_type"},
             "zoning": {"confidence", "land_use", "permitted_fsi"},
             "building_permit": {"confidence", "status", "approved_fsi"},
-            "tax": {"confidence", "last_verified"},
+            "tax": {"confidence", "last_verified", "annual_value"},
             "encumbrance": {"confidence", "active"},
         }
         cleaned_layers = {}
