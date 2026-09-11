@@ -443,10 +443,6 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
             {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Register"}
           </button>
         </div>
-
-        <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '0.8rem', color: 'var(--accent-primary)', fontWeight: 700 }}>
-          Made by Vishnu Panicker
-        </div>
       </div>
 
       {showDigiLocker && (

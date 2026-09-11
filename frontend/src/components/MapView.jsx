@@ -714,11 +714,6 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
         </div>
       </div>
 
-      {/* Made by Vishnu Panicker Attribution Badge */}
-      <div style={{ position: 'absolute', bottom: '16px', right: '16px', zIndex: 900, background: '#ffffff', border: '1px solid #cbd5e1', padding: '6px 14px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--accent-primary)', boxShadow: '0 4px 12px rgba(15,23,42,0.1)' }}>
-        Made by Vishnu Panicker
-      </div>
-
       {/* Approval Queue Modal */}
       {showApprovalModal && (
         <ApprovalQueueModal

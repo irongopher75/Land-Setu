@@ -19,7 +19,6 @@ export default function Navbar({ activeView, setActiveView, selectedState, setSe
         </div>
         <div>
           <span className="brand-title">LandSetu</span>
-          <span className="brand-badge" style={{ marginLeft: '8px' }}>Sovereign GIS</span>
         </div>
       </div>
 

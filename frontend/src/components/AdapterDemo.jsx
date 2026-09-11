@@ -186,9 +186,6 @@ export default function AdapterDemo() {
           </pre>
         </div>
       </div>
-      <footer style={{ padding: '24px', textAlign: 'center', borderTop: '1px solid #cbd5e1', color: 'var(--accent-primary)', fontSize: '0.82rem', fontWeight: 700, marginTop: '24px' }}>
-        Made by Vishnu Panicker
-      </footer>
     </div>
   );
 }

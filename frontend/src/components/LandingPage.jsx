@@ -6,10 +6,6 @@ export default function LandingPage({ onLaunchMap, onLoginClick }) {
     <div style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--bg-dark)', color: 'var(--text-main)', overflowX: 'hidden' }}>
       {/* Hero Section */}
       <section style={{ padding: 'clamp(36px, 6vw, 80px) 16px clamp(30px, 5vw, 60px) 16px', maxWidth: '1200px', margin: '0 auto', textAlign: 'center', position: 'relative' }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 16px', borderRadius: '20px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)', color: 'var(--accent-primary)', fontSize: '0.82rem', fontWeight: 600, marginBottom: '20px' }}>
-          <Sparkles size={16} /> Unified Parcel-Centric GIS Platform
-        </div>
-
         <h1 style={{ fontFamily: 'var(--font-title)', fontSize: 'clamp(1.8rem, 5vw, 3.2rem)', fontWeight: 800, lineHeight: 1.18, color: '#12355b', maxWidth: '900px', margin: '0 auto 16px auto' }}>
           One Parcel, One Truth: Sovereign Land Governance Engine
         </h1>
@@ -114,7 +110,6 @@ export default function LandingPage({ onLaunchMap, onLoginClick }) {
       {/* CTA Footer */}
       <footer style={{ padding: '40px 24px', textAlign: 'center', borderTop: '1px solid var(--border-card)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
         <p style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.95rem' }}>LandSetu — Unified Land Governance Platform</p>
-        <p style={{ fontSize: '0.82rem', color: 'var(--accent-primary)', fontWeight: 700, marginTop: '6px' }}>Made by Vishnu Panicker</p>
       </footer>
     </div>
   );
