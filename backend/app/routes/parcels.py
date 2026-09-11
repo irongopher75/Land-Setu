@@ -226,7 +226,7 @@ class CreateCustomParcelRequest(BaseModel):
     area_sqm: float = Field(gt=0, le=100_000_000)
 
 @router.post("/custom")
-def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(require_roles("officer")), db: Session = Depends(get_db)):
+def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
     from app.db import IS_SQLITE
     from shapely.geometry import shape
 
@@ -238,6 +238,15 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(req
         raise HTTPException(status_code=422, detail="geometry must be a valid, non-empty Polygon")
     if len(s_shape.exterior.coords) > 1_000:
         raise HTTPException(status_code=422, detail="geometry has too many vertices")
+
+    # Validate strict Geographical Boundaries of India (Lat: 6.5°N - 35.7°N, Lng: 68.1°E - 97.4°E)
+    coords = s_shape.exterior.coords
+    for lng, lat in coords:
+        if not (6.5 <= lat <= 35.7 and 68.1 <= lng <= 97.4):
+            raise HTTPException(
+                status_code=422,
+                detail="Land allocation is strictly restricted within the territory of India (Lat: 6.5°N-35.7°N, Lng: 68.1°E-97.4°E)."
+            )
 
     # Auto-detect state if state is not specified or set to auto
     target_state = req.state
@@ -252,62 +261,67 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(req
     else:
         geom_val = req.geometry
 
-    layers = {
-        "ror": {
-            "owner_name": req.owner_name,
-            "khata_no": f"KH-MANUAL-{req.ulpin[-4:]}",
-            "source": "manual_gis_entry",
-            "last_verified": datetime.utcnow().strftime("%Y-%m-%d"),
-            "confidence": "verified"
-        },
-        "registration": {
-            "last_transaction_id": f"REG-MANUAL-{req.ulpin[-4:]}",
-            "date": datetime.utcnow().strftime("%Y-%m-%d"),
-            "buyer_name": req.owner_name,
-            "source": "sub_registrar",
-            "confidence": "verified"
-        },
-        "zoning": {
-            "land_use": "residential",
-            "permitted_fsi": 1.5,
-            "source": "master_plan_2021",
-            "confidence": "verified"
-        },
-        "building_permit": {
-            "status": "approved",
-            "permit_id": f"BP-MANUAL-{req.ulpin[-4:]}",
-            "approved_fsi": 1.5,
-            "source": "municipal_corp",
-            "confidence": "self_declared"
-        },
-        "tax": {
-            "annual_value": 45000,
-            "source": "revenue_dept",
-            "confidence": "verified",
-            "last_verified": datetime.utcnow().strftime("%Y-%m-%d")
-        },
-        "encumbrance": {
-            "active": False,
-            "source": "sub_registrar",
-            "confidence": "verified"
-        }
-    }
-
-    # Check if ULPIN already exists
+    # Check if ULPIN already exists (update geometry on reshape)
     existing = db.query(Parcel).filter(Parcel.ulpin == req.ulpin).first()
     if existing:
-        raise HTTPException(status_code=409, detail="ULPIN already exists; use the reviewed update workflow")
-    parcel_model = Parcel(
-        ulpin=req.ulpin,
-        state=target_state,
-        area_sqm=req.area_sqm,
-        geometry=geom_val,
-        layers=layers,
-        raw_record={"ulpin": req.ulpin, "owner": req.owner_name, "source": "Manual GIS Drawer"}
-    )
-    db.add(parcel_model)
-    db.commit()
-    db.refresh(parcel_model)
+        existing.geometry = geom_val
+        existing.area_sqm = req.area_sqm
+        existing.state = target_state
+        db.commit()
+        db.refresh(existing)
+        parcel_model = existing
+    else:
+        layers = {
+            "ror": {
+                "owner_name": req.owner_name,
+                "khata_no": f"KH-MANUAL-{req.ulpin[-4:]}",
+                "source": "manual_gis_entry",
+                "last_verified": datetime.utcnow().strftime("%Y-%m-%d"),
+                "confidence": "verified"
+            },
+            "registration": {
+                "last_transaction_id": f"REG-MANUAL-{req.ulpin[-4:]}",
+                "date": datetime.utcnow().strftime("%Y-%m-%d"),
+                "buyer_name": req.owner_name,
+                "source": "sub_registrar",
+                "confidence": "verified"
+            },
+            "zoning": {
+                "land_use": "residential",
+                "permitted_fsi": 1.5,
+                "source": "master_plan_2021",
+                "confidence": "verified"
+            },
+            "building_permit": {
+                "status": "approved",
+                "permit_id": f"BP-MANUAL-{req.ulpin[-4:]}",
+                "approved_fsi": 1.5,
+                "source": "municipal_corp",
+                "confidence": "self_declared"
+            },
+            "tax": {
+                "annual_value": 45000,
+                "source": "revenue_dept",
+                "confidence": "verified",
+                "last_verified": datetime.utcnow().strftime("%Y-%m-%d")
+            },
+            "encumbrance": {
+                "active": False,
+                "source": "sub_registrar",
+                "confidence": "verified"
+            }
+        }
+        parcel_model = Parcel(
+            ulpin=req.ulpin,
+            state=target_state,
+            area_sqm=req.area_sqm,
+            geometry=geom_val,
+            layers=layers,
+            raw_record={"ulpin": req.ulpin, "owner": req.owner_name, "source": "Manual GIS Drawer"}
+        )
+        db.add(parcel_model)
+        db.commit()
+        db.refresh(parcel_model)
 
     flags = RuleEngine.evaluate_parcel_rules(db, parcel_model)
     return {

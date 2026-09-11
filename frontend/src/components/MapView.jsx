@@ -17,22 +17,26 @@ const handleIcon = L.divIcon({
 });
 
 // Map Focus Handler that ONLY flies on explicit state focus change, preserving user zoom/resolution while editing
-function MapFocusHandler({ stateCenter, zoom }) {
+function MapFocusHandler({ stateCenter, zoom, selectedState }) {
   const map = useMap();
-  const lastState = useRef(null);
+  const lastState = useRef(selectedState);
 
   useEffect(() => {
-    if (stateCenter && lastState.current !== stateCenter.join(',')) {
-      lastState.current = stateCenter.join(',');
-      map.flyTo(stateCenter, zoom, { duration: 1.2 });
+    if (selectedState && lastState.current !== selectedState) {
+      lastState.current = selectedState;
+      const currentCenter = map.getCenter();
+      const dist = Math.hypot(currentCenter.lat - stateCenter[0], currentCenter.lng - stateCenter[1]);
+      if (dist > 2.0) {
+        map.flyTo(stateCenter, zoom, { duration: 1.2 });
+      }
     }
-  }, [stateCenter, zoom, map]);
+  }, [selectedState, stateCenter, zoom, map]);
 
   return null;
 }
 
 // Map Event Listener for click positioning and real-time state identification on map move
-function MapEventListener({ isDrawingMode, onMapClick, onMapMoveEnd }) {
+function MapEventListener({ isDrawingMode, onMapClick, onMapMoveEnd, onPointerMove }) {
   useMapEvents({
     click(e) {
       if (isDrawingMode) {
@@ -42,6 +46,11 @@ function MapEventListener({ isDrawingMode, onMapClick, onMapMoveEnd }) {
     moveend(e) {
       const center = e.target.getCenter();
       onMapMoveEnd(center.lat, center.lng);
+    },
+    mousemove(e) {
+      if (onPointerMove) {
+        onPointerMove(e.latlng.lat, e.latlng.lng);
+      }
     }
   });
   return null;
@@ -74,6 +83,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
   // Custom Interactive Boundary Drawer state
   const [isDrawingMode, setIsDrawingMode] = useState(false);
   const [vertices, setVertices] = useState([]);
+  const [reshapeError, setReshapeError] = useState('');
   const [customUlpin, setCustomUlpin] = useState('');
   const [customOwner, setCustomOwner] = useState('');
   const [saving, setSaving] = useState(false);
@@ -127,18 +137,26 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
     }
   };
 
-  // Real-time spatial identification on map move
-  const handleMapMoveEnd = async (lat, lng) => {
+  // Real-time spatial identification on map move or cursor hover
+  const processSpatialIdentification = (lat, lng) => {
     clearTimeout(stateLookupTimer.current);
     stateLookupTimer.current = setTimeout(async () => {
       try {
         const info = await identifyStateByCoords(lat, lng);
-        if (info && info.name) setDetectedStateInfo(info);
+        if (info && info.name) {
+          setDetectedStateInfo(info);
+          if (onAutoDetectState && info.name !== selectedState) {
+            onAutoDetectState(info.name);
+          }
+        }
       } catch (err) {
         console.error('Spatial auto-identification failed:', err);
       }
-    }, 350);
+    }, 150);
   };
+
+  const handleMapMoveEnd = (lat, lng) => processSpatialIdentification(lat, lng);
+  const handlePointerMove = (lat, lng) => processSpatialIdentification(lat, lng);
 
   // Start drawing boundary centered at CURRENT MAP VIEWPORT (preserves user zoom/resolution)
   const startDrawing = () => {
@@ -167,12 +185,14 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
     setCustomUlpin(`${statePrefix}-${randomNum}`);
     setCustomOwner('Citizen / Custom Owner');
     setVertices(initialRing);
+    setReshapeError('');
     setIsDrawingMode(true);
   };
 
   const cancelDrawing = () => {
     setIsDrawingMode(false);
     setVertices([]);
+    setReshapeError('');
     if (onClearEditingParcel) onClearEditingParcel();
   };
 
@@ -195,6 +215,18 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
   const saveCustomBoundary = async () => {
     if (vertices.length < 3) return;
     setSaving(true);
+    setReshapeError('');
+
+    // Strict India Geographical Bounds Validation (Lat: 6.5°N - 35.7°N, Lng: 68.1°E - 97.4°E)
+    const isInsideIndia = vertices.every(
+      ([lat, lng]) => lat >= 6.5 && lat <= 35.7 && lng >= 68.1 && lng <= 97.4
+    );
+
+    if (!isInsideIndia) {
+      setReshapeError('⚠️ Land allocation is strictly restricted within the territory of India (Lat: 6.5°-35.7°N, Lng: 68.1°-97.4°E).');
+      setSaving(false);
+      return;
+    }
 
     const geojsonCoordinates = vertices.map(([lat, lng]) => [lng, lat]);
     geojsonCoordinates.push([vertices[0][1], vertices[0][0]]);
@@ -206,7 +238,6 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
 
     const areaSqm = calculatePolygonAreaSqm(vertices);
 
-    // Compute polygon centroid for auto state identification
     const sumLat = vertices.reduce((acc, v) => acc + v[0], 0);
     const sumLng = vertices.reduce((acc, v) => acc + v[1], 0);
     const cLat = sumLat / vertices.length;
@@ -231,10 +262,13 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
       await loadMapData();
       setIsDrawingMode(false);
       setVertices([]);
+      setReshapeError('');
       if (onClearEditingParcel) onClearEditingParcel();
       onSelectParcel(result.ulpin);
     } catch (err) {
       console.error('Failed to save custom boundary:', err);
+      const msg = err.response?.data?.detail || err.message || 'Evaluation error';
+      setReshapeError(`⚠️ ${msg}`);
     } finally {
       setSaving(false);
     }
@@ -325,11 +359,12 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
         scrollWheelZoom={true}
         zoomControl={false}
       >
-        <MapFocusHandler stateCenter={currentFocus.center} zoom={currentFocus.zoom} />
+        <MapFocusHandler stateCenter={currentFocus.center} zoom={currentFocus.zoom} selectedState={selectedState} />
         <MapEventListener
           isDrawingMode={isDrawingMode}
           onMapClick={handleMapClickPosition}
           onMapMoveEnd={handleMapMoveEnd}
+          onPointerMove={handlePointerMove}
         />
 
         {/* Light, high-contrast basemap with CARTO API key */}
@@ -419,6 +454,12 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
             <div style={{ fontSize: '0.85rem', background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: '8px' }}>
               Computed Area: <strong style={{ color: '#4ade80' }}>{currentArea} sqm</strong>
             </div>
+
+            {reshapeError && (
+              <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#f87171', padding: '8px 10px', borderRadius: '6px', fontSize: '0.78rem', lineHeight: 1.4 }}>
+                {reshapeError}
+              </div>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <input

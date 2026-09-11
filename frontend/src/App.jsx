@@ -22,14 +22,16 @@ export default function App() {
     !!localStorage.getItem('landsetu_jwt_token')
   );
 
-  // Monitor Firebase Auth State
+  // Monitor Firebase Auth State & Auto Redirect to Map View
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setCurrentUser(user);
         setIsLoggedIn(true);
+        setActiveView((prev) => (prev === 'login' || prev === 'landing' ? 'map' : prev));
       } else {
         setCurrentUser(null);
+        setIsLoggedIn(false);
       }
     });
     return () => unsubscribe();

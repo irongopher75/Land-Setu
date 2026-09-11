@@ -45,17 +45,24 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
     e.preventDefault();
     setLoading(true);
     setErrorMsg('');
-    setShowConfigNotice(false);
 
-    const targetEmail = email || `user_${role}@landsetu.gov.in`;
-    const targetPass = password || 'LandSetuPass2026!';
+    if (!email) {
+      setErrorMsg('Please enter a valid email address.');
+      setLoading(false);
+      return;
+    }
+    if (!password) {
+      setErrorMsg('Please enter your password.');
+      setLoading(false);
+      return;
+    }
 
     try {
       let userCredential;
       if (isSignUp) {
-        userCredential = await createUserWithEmailAndPassword(auth, targetEmail, targetPass);
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
       } else {
-        userCredential = await signInWithEmailAndPassword(auth, targetEmail, targetPass);
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
       }
 
       const user = userCredential.user;
@@ -63,14 +70,18 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
       await mockLogin(role);
       onLoginSuccess(role, user);
     } catch (err) {
-      console.error('Firebase Auth Notice:', err.code, err.message);
-      if (err.code === 'auth/invalid-api-key' || err.code === 'auth/network-request-failed' || err.message.includes('API key') || err.code === 'auth/invalid-credential') {
-        // Fallback demo sign in for unconfigured local environment
-        await mockLogin(role);
-        onLoginSuccess(role, { email: targetEmail, uid: `mock-${role}` });
-      } else {
-        setErrorMsg(err.message.replace('Firebase:', '').trim());
+      console.error('Firebase Auth Error:', err.code, err.message);
+      let msg = err.message.replace('Firebase:', '').trim();
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+        msg = 'Invalid email or password. Please check your credentials.';
+      } else if (err.code === 'auth/user-not-found') {
+        msg = 'No registered account found with this email. Please register first.';
+      } else if (err.code === 'auth/email-already-in-use') {
+        msg = 'An account with this email already exists. Please sign in.';
+      } else if (err.code === 'auth/weak-password') {
+        msg = 'Password should be at least 6 characters.';
       }
+      setErrorMsg(msg);
     } finally {
       setLoading(false);
     }
@@ -80,7 +91,6 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
   const handleGoogleSignIn = async () => {
     setLoading(true);
     setErrorMsg('');
-    setShowConfigNotice(false);
 
     try {
       const result = await signInWithPopup(auth, googleProvider);
@@ -89,29 +99,17 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
       await mockLogin(role);
       onLoginSuccess(role, user);
     } catch (err) {
-      console.error('Google Sign-In Exception:', err.code, err.message);
-      
+      console.error('Google Sign-In Error:', err.code, err.message);
       if (err.code === 'auth/cancelled-popup-request') {
         setErrorMsg('Google Sign-In request was cancelled. Please click "Continue with Google" again.');
       } else if (err.code === 'auth/popup-closed-by-user') {
         setErrorMsg('Sign-in popup was closed before completing. Please try again.');
-      } else if (err.code === 'auth/invalid-api-key' || err.code === 'auth/unauthorized-domain' || err.code === 'auth/operation-not-allowed' || err.message.includes('API key')) {
-        setShowConfigNotice(true);
       } else {
         setErrorMsg(err.message.replace('Firebase:', '').trim());
       }
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleProceedGoogleDemo = async () => {
-    await mockLogin(role);
-    onLoginSuccess(role, { 
-      email: 'google.user@landsetu.gov.in', 
-      displayName: 'Google Verified User', 
-      uid: 'google-demo-user' 
-    });
   };
 
   return (
@@ -306,21 +304,13 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
           </button>
         </form>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '18px', fontSize: '0.82rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: '18px', fontSize: '0.82rem' }}>
           <button
             type="button"
             onClick={() => setIsSignUp(!isSignUp)}
             style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', fontWeight: 600, cursor: 'pointer' }}
           >
             {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Register"}
-          </button>
-
-          <button
-            type="button"
-            onClick={onExploreDemo}
-            style={{ background: 'none', border: 'none', color: 'var(--accent-cyan)', fontWeight: 600, cursor: 'pointer' }}
-          >
-            Skip to Map →
           </button>
         </div>
       </div>

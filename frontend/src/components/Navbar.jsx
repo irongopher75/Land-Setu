@@ -1,7 +1,7 @@
 import React from 'react';
 import { Map, Cpu, MapPin, Home, LogIn } from 'lucide-react';
 
-export default function Navbar({ activeView, setActiveView, selectedState, setSelectedState, onRoleChange, isLoggedIn, onLogout }) {
+export default function Navbar({ activeView, setActiveView, selectedState, setSelectedState, onRoleChange, isLoggedIn, currentUser, onLogout }) {
   return (
     <header className="navbar">
       <div className="nav-brand" style={{ cursor: 'pointer' }} onClick={() => setActiveView('landing')}>
@@ -67,7 +67,9 @@ export default function Navbar({ activeView, setActiveView, selectedState, setSe
         {/* Role Switcher or Login Button */}
         {isLoggedIn ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Citizen demo session</span>
+            <span style={{ fontSize: '0.78rem', color: '#60a5fa', fontWeight: 600 }}>
+              {currentUser?.email || currentUser?.displayName || 'Firebase Verified'}
+            </span>
             <button
               onClick={onLogout}
               style={{
