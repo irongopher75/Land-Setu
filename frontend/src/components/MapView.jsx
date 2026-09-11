@@ -207,10 +207,32 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
   const loadMapData = async () => {
     try {
       const [parcelsData, zonesData] = await Promise.all([
-        SHOW_SEEDED_PARCELS ? getParcelsGeoJSON(selectedState) : Promise.resolve(null),
-        getProtectedZonesGeoJSON(selectedState),
+        SHOW_SEEDED_PARCELS ? getParcelsGeoJSON(selectedState).catch(() => null) : Promise.resolve(null),
+        getProtectedZonesGeoJSON(selectedState).catch(() => null),
       ]);
-      setParcelsGeoJSON(parcelsData);
+
+      const customParcels = JSON.parse(localStorage.getItem('landsetu_custom_parcels') || '{}');
+      const customFeatures = Object.values(customParcels)
+        .filter(p => (p.state === selectedState || !p.state) && p.geometry)
+        .map(p => ({
+          type: 'Feature',
+          properties: { ulpin: p.ulpin, state: p.state, area_sqm: p.area_sqm, owner_name: p.layers?.ror?.owner_name },
+          geometry: p.geometry
+        }));
+
+      let mergedParcels = parcelsData;
+      if (customFeatures.length > 0) {
+        if (!mergedParcels) {
+          mergedParcels = { type: 'FeatureCollection', features: customFeatures };
+        } else {
+          mergedParcels = {
+            ...mergedParcels,
+            features: [...(mergedParcels.features || []), ...customFeatures]
+          };
+        }
+      }
+
+      setParcelsGeoJSON(mergedParcels);
       setProtectedGeoJSON(zonesData);
     } catch (err) {
       console.error('Failed to load map GeoJSON layers:', err);
