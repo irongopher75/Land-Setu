@@ -332,10 +332,10 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
           onMapMoveEnd={handleMapMoveEnd}
         />
 
-        {/* Light, high-contrast basemap keeps GIS overlays readable. */}
+        {/* Light, high-contrast basemap with CARTO API key */}
         <TileLayer
           attribution='&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_3gmv_1_ce82e9ddc32b820ba54c3a97"
         />
 
         {/* Protected Eco-Zones Layer */}
