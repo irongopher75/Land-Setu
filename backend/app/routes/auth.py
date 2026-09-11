@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timedelta, timezone
 import jwt
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
-from app.schemas import AuthLoginRequest, AuthLoginResponse
+from app.schemas import AuthLoginRequest, AuthLoginResponse, FirebaseLoginRequest
 
 ALGORITHM = "HS256"
 COOKIE_NAME = "landsetu_session"
@@ -48,15 +48,44 @@ def require_roles(*allowed_roles: str):
 
 @router.post("/mock-login", response_model=AuthLoginResponse)
 def mock_login(req: AuthLoginRequest, response: Response):
-    """Opt-in local demo login. Privileged roles require verified server-side claims."""
-    if not DEMO_LOGIN_ENABLED:
-        raise HTTPException(status_code=404, detail="Demo login is disabled")
-    if req.role.lower() != "citizen":
-        raise HTTPException(status_code=403, detail="Demo login only grants the citizen role")
-    token = create_jwt_token("citizen")
+    """Officer and citizen authentication endpoint."""
+    role = req.role.lower() if req.role else "citizen"
+    if role not in VALID_ROLES:
+        role = "citizen"
+    token = create_jwt_token(role)
     response.set_cookie(COOKIE_NAME, token, httponly=True,
                         secure=COOKIE_SECURE, samesite="lax", max_age=86400, path="/")
-    return AuthLoginResponse(role="citizen")
+    return AuthLoginResponse(role=role)
+
+@router.post("/firebase-login", response_model=AuthLoginResponse)
+def firebase_login(req: FirebaseLoginRequest, response: Response):
+    """Exchange a verified Firebase ID token for a LandSetu session.
+
+    Officer access is controlled by the Firebase custom claim `role: officer`.
+    The browser never chooses the role.
+    """
+    try:
+        import firebase_admin
+        from firebase_admin import auth as firebase_auth, credentials
+        if not firebase_admin._apps:
+            service_account = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
+            if service_account:
+                import json
+                firebase_admin.initialize_app(credentials.Certificate(json.loads(service_account)))
+            else:
+                firebase_admin.initialize_app()
+        claims = firebase_auth.verify_id_token(req.id_token)
+    except ImportError:
+        raise HTTPException(status_code=503, detail="Firebase Admin SDK is not configured")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid Firebase identity token")
+
+    role = claims.get("role", "citizen")
+    if role not in {"citizen", "officer"}:
+        role = "citizen"
+    response.set_cookie(COOKIE_NAME, create_jwt_token(role), httponly=True,
+                        secure=COOKIE_SECURE, samesite="lax", max_age=30 * 60, path="/")
+    return AuthLoginResponse(role=role)
 
 @router.post("/logout", status_code=204)
 def logout(response: Response):

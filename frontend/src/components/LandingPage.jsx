@@ -10,7 +10,7 @@ export default function LandingPage({ onLaunchMap, onLoginClick }) {
           <Sparkles size={16} /> Unified Parcel-Centric GIS Platform
         </div>
 
-        <h1 style={{ fontFamily: 'var(--font-title)', fontSize: 'clamp(1.8rem, 5vw, 3.2rem)', fontWeight: 800, lineHeight: 1.18, background: 'linear-gradient(135deg, #ffffff 0%, #93c5fd 50%, #38bdf8 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', maxWidth: '900px', margin: '0 auto 16px auto' }}>
+        <h1 style={{ fontFamily: 'var(--font-title)', fontSize: 'clamp(1.8rem, 5vw, 3.2rem)', fontWeight: 800, lineHeight: 1.18, color: '#12355b', maxWidth: '900px', margin: '0 auto 16px auto' }}>
           One Parcel, One Truth: Sovereign Land Governance Engine
         </h1>
 
@@ -32,36 +32,36 @@ export default function LandingPage({ onLaunchMap, onLoginClick }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginTop: '48px', textAlign: 'left' }}>
           <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-card)', borderRadius: '16px', padding: '20px' }}>
             <div style={{ color: 'var(--accent-cyan)', fontSize: '2rem', fontWeight: 800, fontFamily: 'var(--font-title)' }}>100%</div>
-            <div style={{ fontWeight: 700, color: '#fff', marginTop: '4px', fontSize: '0.92rem' }}>Config-Driven Adapter</div>
+            <div style={{ fontWeight: 700, color: 'var(--text-main)', marginTop: '4px', fontSize: '0.92rem' }}>Config-Driven Adapter</div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>Zero-code YAML normalization of Tamil Nadu & Chandigarh raw records</div>
           </div>
 
           <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-card)', borderRadius: '16px', padding: '20px' }}>
             <div style={{ color: '#4ade80', fontSize: '2rem', fontWeight: 800, fontFamily: 'var(--font-title)' }}>5 Spatial Rules</div>
-            <div style={{ fontWeight: 700, color: '#fff', marginTop: '4px', fontSize: '0.92rem' }}>Explainable Rule Engine</div>
+            <div style={{ fontWeight: 700, color: 'var(--text-main)', marginTop: '4px', fontSize: '0.92rem' }}>Explainable Rule Engine</div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>Real-time ST_Overlaps, eco-zone containment, and FSI checking</div>
           </div>
 
           <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-card)', borderRadius: '16px', padding: '20px' }}>
             <div style={{ color: 'var(--accent-amber)', fontSize: '2rem', fontWeight: 800, fontFamily: 'var(--font-title)' }}>JWT Signed</div>
-            <div style={{ fontWeight: 700, color: '#fff', marginTop: '4px', fontSize: '0.92rem' }}>Verifiable QR Passport</div>
+            <div style={{ fontWeight: 700, color: 'var(--text-main)', marginTop: '4px', fontSize: '0.92rem' }}>Verifiable QR Passport</div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>Cryptographic verification token generated for every ULPIN</div>
           </div>
 
           <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-card)', borderRadius: '16px', padding: '20px' }}>
             <div style={{ color: '#c084fc', fontSize: '2rem', fontWeight: 800, fontFamily: 'var(--font-title)' }}>3 Access Roles</div>
-            <div style={{ fontWeight: 700, color: '#fff', marginTop: '4px', fontSize: '0.92rem' }}>Server-Side Field Scoping</div>
+            <div style={{ fontWeight: 700, color: 'var(--text-main)', marginTop: '4px', fontSize: '0.92rem' }}>Role-Based Access</div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>Tailored visibility for Citizen, Revenue Officer, and Bank Auditor</div>
           </div>
         </div>
       </section>
 
       {/* Core Technology Pillars */}
-      <section style={{ padding: '60px 24px', background: 'rgba(0, 0, 0, 0.3)', borderTop: '1px solid var(--border-card)' }}>
+      <section style={{ padding: '60px 24px', background: '#f1f6fa', borderTop: '1px solid var(--border-card)' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '48px' }}>
-            <h2 style={{ fontFamily: 'var(--font-title)', fontSize: '2.2rem', color: '#fff' }}>
-              Engineered for Hackathon Excellence
+            <h2 style={{ fontFamily: 'var(--font-title)', fontSize: '2.2rem', color: 'var(--text-main)' }}>
+              Built for Trusted Land Governance
             </h2>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginTop: '8px' }}>
               A working end-to-end GIS vertical slice built with PostGIS, FastAPI, React, and Leaflet
@@ -74,7 +74,7 @@ export default function LandingPage({ onLaunchMap, onLoginClick }) {
               <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(56, 189, 248, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
                 <Cpu color="var(--accent-cyan)" size={22} />
               </div>
-              <h3 style={{ fontSize: '1.2rem', color: '#fff', marginBottom: '8px', fontFamily: 'var(--font-title)' }}>
+              <h3 style={{ fontSize: '1.2rem', color: 'var(--text-main)', marginBottom: '8px', fontFamily: 'var(--font-title)' }}>
                 Config-Driven Schema Adapter
               </h3>
               <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
@@ -87,7 +87,7 @@ export default function LandingPage({ onLaunchMap, onLoginClick }) {
               <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
                 <ShieldCheck color="#f87171" size={22} />
               </div>
-              <h3 style={{ fontSize: '1.2rem', color: '#fff', marginBottom: '8px', fontFamily: 'var(--font-title)' }}>
+              <h3 style={{ fontSize: '1.2rem', color: 'var(--text-main)', marginBottom: '8px', fontFamily: 'var(--font-title)' }}>
                 Spatial & Record Rule Engine
               </h3>
               <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
@@ -100,7 +100,7 @@ export default function LandingPage({ onLaunchMap, onLoginClick }) {
               <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
                 <QrCode color="#34d399" size={22} />
               </div>
-              <h3 style={{ fontSize: '1.2rem', color: '#fff', marginBottom: '8px', fontFamily: 'var(--font-title)' }}>
+              <h3 style={{ fontSize: '1.2rem', color: 'var(--text-main)', marginBottom: '8px', fontFamily: 'var(--font-title)' }}>
                 Verifiable QR Parcel Passport
               </h3>
               <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
@@ -113,7 +113,7 @@ export default function LandingPage({ onLaunchMap, onLoginClick }) {
 
       {/* CTA Footer */}
       <footer style={{ padding: '40px 24px', textAlign: 'center', borderTop: '1px solid var(--border-card)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-        <p>LandSetu Sovereign GIS Platform — Hackathon Prototype 2026</p>
+        <p>LandSetu — Unified Land Governance Platform</p>
       </footer>
     </div>
   );

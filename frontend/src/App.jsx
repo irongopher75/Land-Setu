@@ -33,13 +33,6 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  const handleRoleChange = (newRole) => {
-    setCurrentRole(newRole);
-    if (newRole === 'citizen' && activeView === 'adapter') {
-      setActiveView('map');
-    }
-  };
-
   const handleLoginSuccess = (role, user) => {
     setCurrentRole(role);
     if (user) setCurrentUser(user);
@@ -68,7 +61,6 @@ export default function App() {
         selectedState={selectedState}
         setSelectedState={setSelectedState}
         currentRole={currentRole}
-        onRoleChange={handleRoleChange}
         isLoggedIn={isLoggedIn}
         currentUser={currentUser}
         onLogout={handleLogout}

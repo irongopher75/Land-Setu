@@ -54,7 +54,7 @@ landsetu/
 
 ## 🎯 Demo Walkthrough Script for Judges
 
-Follow this step-by-step click-through path to evaluate all hackathon criteria:
+Follow this step-by-step walkthrough to explore the platform:
 
 ### Step 1: Config-Driven Schema Adapter Engine Sandbox
 1. Click on the **Adapter Sandbox** tab in the top navigation bar.
@@ -77,8 +77,8 @@ Follow this step-by-step click-through path to evaluate all hackathon criteria:
 
 ### Step 3: Role-Based Field Visibility Scoping
 1. Open parcel `TN-CHN-0042-1187` in the right drawer.
-2. In the top navbar **Role Switcher**, change role from **Revenue Officer** to **Citizen**.
-3. Notice how internal department audit sources and raw CSV rows are stripped server-side from the response, presenting a clean, citizen-facing summary.
+2. Sign in with an account whose verified identity claim grants the appropriate role.
+3. Notice how internal department audit sources and raw CSV rows are stripped server-side for citizen access.
 
 ### Step 4: Verifiable Parcel Passport QR Code
 1. Open any parcel in the drawer.

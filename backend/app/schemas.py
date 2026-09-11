@@ -56,3 +56,6 @@ class AuthLoginRequest(BaseModel):
 
 class AuthLoginResponse(BaseModel):
     role: str
+
+class FirebaseLoginRequest(BaseModel):
+    id_token: str

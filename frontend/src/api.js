@@ -15,6 +15,11 @@ export const mockLogin = async (role) => {
   return res.data;
 };
 
+export const firebaseLogin = async (idToken) => {
+  const res = await client.post('/auth/firebase-login', { id_token: idToken });
+  return res.data;
+};
+
 export const logout = async () => client.post('/auth/logout');
 
 export const listParcels = async (state) => {
@@ -125,4 +130,3 @@ export const identifyStateByCoords = async (lat, lng) => {
     return closest;
   }
 };
-

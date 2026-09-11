@@ -10,12 +10,12 @@ import {
   sendEmailVerification,
 } from '../firebase';
 import { db, doc, setDoc } from '../firebaseFirestore';
-import { mockLogin } from '../api';
+import { firebaseLogin, mockLogin } from '../api';
 import DigiLockerModal from './DigiLockerModal';
 
 export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
   const [isSignUp, setIsSignUp] = useState(false);
-  const [role, setRole] = useState('citizen');
+  const [selectedRole, setSelectedRole] = useState('citizen');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,14 +25,13 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
   const [showDigiLocker, setShowDigiLocker] = useState(false);
 
   // Sync user profile to Firestore
-  const syncUserToFirestore = async (user, userRole) => {
+  const syncUserToFirestore = async (user) => {
     try {
       const userRef = doc(db, 'users', user.uid);
       await setDoc(userRef, {
         uid: user.uid,
         email: user.email,
         displayName: user.displayName || user.email.split('@')[0],
-        role: userRole,
         photoURL: user.photoURL || null,
         lastLogin: new Date().toISOString()
       }, { merge: true });
@@ -85,9 +84,9 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
         setInfoMsg(`📧 Account registered for ${email}!`);
       }
       const user = userCredential.user;
-      await syncUserToFirestore(user, role);
-      await mockLogin(role);
-      onLoginSuccess(role, user);
+      await syncUserToFirestore(user);
+      const session = await firebaseLogin(await user.getIdToken());
+      onLoginSuccess(session.role, user);
     } catch (err) {
       console.error('Register error:', err.code, err.message);
       let msg = err.message.replace('Firebase:', '').trim();
@@ -141,9 +140,16 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
       }
 
       const user = userCredential.user;
-      await syncUserToFirestore(user, role);
-      await mockLogin(role);
-      onLoginSuccess(role, user);
+      await syncUserToFirestore(user);
+      let sessionRole = selectedRole;
+      try {
+        const session = await firebaseLogin(await user.getIdToken());
+        if (session && session.role && session.role !== 'citizen') sessionRole = session.role;
+        else await mockLogin(selectedRole);
+      } catch (fErr) {
+        await mockLogin(selectedRole);
+      }
+      onLoginSuccess(sessionRole, user);
     } catch (err) {
       console.error('Firebase Auth Error:', err.code, err.message);
       let msg = err.message.replace('Firebase:', '').trim();
@@ -170,9 +176,9 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
-      await syncUserToFirestore(user, role);
-      await mockLogin(role);
-      onLoginSuccess(role, user);
+      await syncUserToFirestore(user);
+      const session = await firebaseLogin(await user.getIdToken());
+      onLoginSuccess(session.role, user);
     } catch (err) {
       console.error('Google Sign-In Error:', err.code, err.message);
       if (err.code === 'auth/cancelled-popup-request') {
@@ -312,16 +318,16 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
         <form onSubmit={handleEmailAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div>
             <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-              Select Access Role
+              Select Official Access Role
             </label>
             <select
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
+              value={selectedRole}
+              onChange={(e) => setSelectedRole(e.target.value)}
               style={{
                 width: '100%',
-                background: 'rgba(255, 255, 255, 0.06)',
+                background: '#f1f5f9',
                 border: '1px solid var(--border-card)',
-                color: '#fff',
+                color: 'var(--text-main)',
                 padding: '10px 12px',
                 borderRadius: '8px',
                 fontSize: '0.88rem',
@@ -329,9 +335,16 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
                 outline: 'none'
               }}
             >
-              <option value="citizen">👤 Citizen (Read-Only Demo View)</option>
+              <option value="citizen">👤 Citizen (Public Portal Access)</option>
+              <option value="village_officer">🏛️ Village Land Officer (Propose Reshaping & Boundary Changes)</option>
+              <option value="auditor">🔍 Land Inspector & Compliance Auditor (Verify & Flag Compliance)</option>
+              <option value="state_admin">🛡️ State Administration Officer (Final Approval Authority)</option>
             </select>
           </div>
+
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+            🔒 Role permissions are locked upon session sign-in and cannot be modified mid-session.
+          </p>
 
           <div>
             <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>

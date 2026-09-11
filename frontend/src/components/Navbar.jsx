@@ -1,8 +1,16 @@
 import React from 'react';
-import { Map, Cpu, MapPin, Home, LogIn } from 'lucide-react';
-import RoleSwitcher from './RoleSwitcher';
+import { Map, Cpu, MapPin, Home, LogIn, Lock } from 'lucide-react';
 
-export default function Navbar({ activeView, setActiveView, selectedState, setSelectedState, currentRole, onRoleChange, isLoggedIn, currentUser, onLogout }) {
+export default function Navbar({ activeView, setActiveView, selectedState, setSelectedState, currentRole, isLoggedIn, currentUser, onLogout }) {
+  const getRoleLabel = (role) => {
+    switch (role) {
+      case 'village_officer': return '🏛️ Village Land Officer';
+      case 'auditor': return '🔍 Land Auditor';
+      case 'state_admin': return '🛡️ State Admin Officer';
+      default: return '👤 Citizen Access';
+    }
+  };
+
   return (
     <header className="navbar">
       <div className="nav-brand" style={{ cursor: 'pointer' }} onClick={() => setActiveView('landing')}>
@@ -67,24 +75,25 @@ export default function Navbar({ activeView, setActiveView, selectedState, setSe
           </div>
         )}
 
-        {/* Role Switcher & User Account Header */}
-        <RoleSwitcher currentRole={currentRole} onRoleChange={onRoleChange} />
-
         {isLoggedIn ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '0.78rem', color: '#60a5fa', fontWeight: 600 }}>
-              {currentUser?.email || currentUser?.displayName || 'Firebase Verified'}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: '#e0f2fe', border: '1px solid #bae6fd', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700, color: '#0369a1' }} title="Role is locked during session. Sign out to switch roles.">
+              <Lock size={12} color="#0369a1" />
+              <span>{getRoleLabel(currentRole)} (Locked)</span>
+            </div>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-main)', fontWeight: 600 }}>
+              {currentUser?.email || currentUser?.displayName || 'Session Active'}
             </span>
             <button
               onClick={onLogout}
               style={{
-                background: 'rgba(239, 68, 68, 0.15)',
+                background: 'rgba(239, 68, 68, 0.12)',
                 border: '1px solid rgba(239, 68, 68, 0.3)',
-                color: '#f87171',
+                color: '#dc2626',
                 padding: '6px 12px',
                 borderRadius: '8px',
                 fontSize: '0.82rem',
-                fontWeight: 600,
+                fontWeight: 700,
                 cursor: 'pointer'
               }}
             >
@@ -94,10 +103,10 @@ export default function Navbar({ activeView, setActiveView, selectedState, setSe
         ) : (
           <button
             className={`tab-btn ${activeView === 'login' ? 'active' : ''}`}
-            style={{ background: activeView === 'login' ? 'var(--accent-primary)' : 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', color: '#fff' }}
+            style={{ background: activeView === 'login' ? 'var(--accent-primary)' : '#e2e8f0', border: '1px solid var(--border-card)', color: activeView === 'login' ? '#fff' : 'var(--text-main)', fontWeight: 700 }}
             onClick={() => setActiveView('login')}
           >
-            <LogIn size={15} /> Sign In
+            <LogIn size={15} /> Sign In / Officer Login
           </button>
         )}
       </div>
