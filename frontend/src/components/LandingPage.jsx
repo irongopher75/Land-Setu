@@ -113,7 +113,8 @@ export default function LandingPage({ onLaunchMap, onLoginClick }) {
 
       {/* CTA Footer */}
       <footer style={{ padding: '40px 24px', textAlign: 'center', borderTop: '1px solid var(--border-card)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-        <p>LandSetu — Unified Land Governance Platform</p>
+        <p style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.95rem' }}>LandSetu — Unified Land Governance Platform</p>
+        <p style={{ fontSize: '0.82rem', color: 'var(--accent-primary)', fontWeight: 700, marginTop: '6px' }}>Made by Vishnu Panicker</p>
       </footer>
     </div>
   );
