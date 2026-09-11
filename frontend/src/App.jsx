@@ -15,7 +15,7 @@ export default function App() {
   const [selectedUlpin, setSelectedUlpin] = useState(null);
   const [editingParcel, setEditingParcel] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
-  const [currentRole, setCurrentRole] = useState('citizen');
+  const [currentRole, setCurrentRole] = useState(() => localStorage.getItem('landsetu_role') || 'citizen');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   // Monitor Firebase Auth State & Auto Redirect to Map View
@@ -24,6 +24,10 @@ export default function App() {
       if (user) {
         setCurrentUser(user);
         setIsLoggedIn(true);
+        const savedRole = localStorage.getItem('landsetu_role');
+        if (savedRole) {
+          setCurrentRole(savedRole);
+        }
         setActiveView((prev) => (prev === 'login' || prev === 'landing' ? 'map' : prev));
       } else {
         setCurrentUser(null);
@@ -34,6 +38,7 @@ export default function App() {
   }, []);
 
   const handleLoginSuccess = (role, user) => {
+    localStorage.setItem('landsetu_role', role);
     setCurrentRole(role);
     if (user) setCurrentUser(user);
     setIsLoggedIn(true);
@@ -41,10 +46,12 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('landsetu_role');
     firebaseSignOut(auth).catch(() => {});
     logout().catch(() => {});
     setIsLoggedIn(false);
     setCurrentUser(null);
+    setCurrentRole('citizen');
     setActiveView('landing');
   };
 
