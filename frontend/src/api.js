@@ -1,31 +1,21 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 const client = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-});
-
-// Interceptor to attach JWT token
-client.interceptors.request.use((config) => {
-  const token = localStorage.getItem('landsetu_jwt_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
+  withCredentials: true,
 });
 
 export const mockLogin = async (role) => {
   const res = await client.post('/auth/mock-login', { role });
-  if (res.data && res.data.access_token) {
-    localStorage.setItem('landsetu_jwt_token', res.data.access_token);
-    localStorage.setItem('landsetu_role', res.data.role);
-  }
   return res.data;
 };
+
+export const logout = async () => client.post('/auth/logout');
 
 export const listParcels = async (state) => {
   const params = state ? { state } : {};
@@ -72,6 +62,16 @@ export const getRawSamples = async () => {
 
 export const createCustomParcel = async (parcelData) => {
   const res = await client.post('/parcels/custom', parcelData);
+  return res.data;
+};
+
+export const getAllStates = async () => {
+  const res = await client.get('/parcels/states/all');
+  return res.data;
+};
+
+export const identifyStateByCoords = async (lat, lng) => {
+  const res = await client.get('/parcels/identify-state', { params: { lat, lng } });
   return res.data;
 };
 

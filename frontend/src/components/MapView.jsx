@@ -1,27 +1,53 @@
-import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, GeoJSON, Marker, Polygon, useMap } from 'react-leaflet';
+import React, { useEffect, useState, useRef } from 'react';
+import { MapContainer, TileLayer, GeoJSON, Marker, Polygon, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { PlusCircle, Edit3, Check, X, ShieldAlert, Layers } from 'lucide-react';
-import { getParcelsGeoJSON, getProtectedZonesGeoJSON, createCustomParcel } from '../api';
+import { PlusCircle, Edit3, Check, X, MapPin, Sparkles, Search } from 'lucide-react';
+import { getParcelsGeoJSON, getProtectedZonesGeoJSON, createCustomParcel, identifyStateByCoords } from '../api';
+
+// Mock parcel rectangles are deliberately hidden by default. Set this only for
+// a controlled data demo, never for a public map with unreviewed mock records.
+const SHOW_SEEDED_PARCELS = import.meta.env.VITE_SHOW_SEEDED_PARCELS === 'true';
 
 // Draggable Vertex Handle Icon
 const handleIcon = L.divIcon({
   className: 'custom-vertex-marker',
-  html: '<div style="width: 16px; height: 16px; background: #06b6d4; border: 2.5px solid #ffffff; border-radius: 50%; box-shadow: 0 0 12px rgba(6,182,212,0.9); cursor: move;"></div>',
-  iconSize: [16, 16],
-  iconAnchor: [8, 8]
+  html: '<div style="width: 18px; height: 18px; background: #06b6d4; border: 3px solid #ffffff; border-radius: 50%; box-shadow: 0 0 14px rgba(6,182,212,0.9); cursor: grab;"></div>',
+  iconSize: [18, 18],
+  iconAnchor: [9, 9]
 });
 
-// Helper component to center map when state selection changes
-function MapFocusHandler({ center, zoom }) {
+// Map Focus Handler that ONLY flies on explicit state focus change, preserving user zoom/resolution while editing
+function MapFocusHandler({ stateCenter, zoom }) {
   const map = useMap();
+  const lastState = useRef(null);
+
   useEffect(() => {
-    map.flyTo(center, zoom, { duration: 1.2 });
-  }, [center, zoom, map]);
+    if (stateCenter && lastState.current !== stateCenter.join(',')) {
+      lastState.current = stateCenter.join(',');
+      map.flyTo(stateCenter, zoom, { duration: 1.2 });
+    }
+  }, [stateCenter, zoom, map]);
+
   return null;
 }
 
-// Area calculation helper (meters squared)
+// Map Event Listener for click positioning and real-time state identification on map move
+function MapEventListener({ isDrawingMode, onMapClick, onMapMoveEnd }) {
+  useMapEvents({
+    click(e) {
+      if (isDrawingMode) {
+        onMapClick([e.latlng.lat, e.latlng.lng]);
+      }
+    },
+    moveend(e) {
+      const center = e.target.getCenter();
+      onMapMoveEnd(center.lat, center.lng);
+    }
+  });
+  return null;
+}
+
+// Area calculation helper (sqm)
 function calculatePolygonAreaSqm(latLngs) {
   if (!latLngs || latLngs.length < 3) return 0;
   const radius = 6378137;
@@ -38,9 +64,12 @@ function calculatePolygonAreaSqm(latLngs) {
   return Math.abs(Math.round(area * 10) / 10);
 }
 
-export default function MapView({ selectedState, onSelectParcel, selectedUlpin }) {
+export default function MapView({ selectedState, onSelectParcel, selectedUlpin, editingParcel, onClearEditingParcel, onAutoDetectState }) {
   const [parcelsGeoJSON, setParcelsGeoJSON] = useState(null);
   const [protectedGeoJSON, setProtectedGeoJSON] = useState(null);
+
+  // Auto-detected state info
+  const [detectedStateInfo, setDetectedStateInfo] = useState({ label: 'Tamil Nadu', name: 'TamilNadu', capital: 'Chennai' });
 
   // Custom Interactive Boundary Drawer state
   const [isDrawingMode, setIsDrawingMode] = useState(false);
@@ -48,10 +77,23 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin }
   const [customUlpin, setCustomUlpin] = useState('');
   const [customOwner, setCustomOwner] = useState('');
   const [saving, setSaving] = useState(false);
+  const mapRef = useRef(null);
+  const stateLookupTimer = useRef(null);
 
   const stateCenters = {
     TamilNadu: { center: [13.084, 80.274], zoom: 15 },
-    Chandigarh: { center: [30.735, 76.778], zoom: 15 }
+    Chandigarh: { center: [30.735, 76.778], zoom: 15 },
+    Maharashtra: { center: [19.076, 72.877], zoom: 14 },
+    Karnataka: { center: [12.971, 77.594], zoom: 14 },
+    Delhi: { center: [28.613, 77.209], zoom: 14 },
+    Telangana: { center: [17.385, 78.486], zoom: 14 },
+    Kerala: { center: [9.931, 76.267], zoom: 14 },
+    WestBengal: { center: [22.572, 88.363], zoom: 14 },
+    Gujarat: { center: [23.022, 72.571], zoom: 14 },
+    Rajasthan: { center: [26.912, 75.787], zoom: 14 },
+    UttarPradesh: { center: [26.846, 80.946], zoom: 14 },
+    Punjab: { center: [30.901, 75.857], zoom: 14 },
+    MadhyaPradesh: { center: [23.259, 77.412], zoom: 14 }
   };
 
   const currentFocus = stateCenters[selectedState] || stateCenters.TamilNadu;
@@ -60,11 +102,23 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin }
     loadMapData();
   }, [selectedState]);
 
+  // Load existing parcel coordinates when user clicks "Reshape Boundary" from ParcelPanel
+  useEffect(() => {
+    if (editingParcel && editingParcel.geometry && editingParcel.geometry.coordinates) {
+      const coords = editingParcel.geometry.coordinates[0];
+      const leafletCoords = coords.slice(0, -1).map(([lng, lat]) => [lat, lng]);
+      setVertices(leafletCoords);
+      setCustomUlpin(editingParcel.ulpin);
+      setCustomOwner(editingParcel.layers?.ror?.owner_name || 'Parcel Owner');
+      setIsDrawingMode(true);
+    }
+  }, [editingParcel]);
+
   const loadMapData = async () => {
     try {
       const [parcelsData, zonesData] = await Promise.all([
-        getParcelsGeoJSON(selectedState),
-        getProtectedZonesGeoJSON(selectedState)
+        SHOW_SEEDED_PARCELS ? getParcelsGeoJSON(selectedState) : Promise.resolve(null),
+        getProtectedZonesGeoJSON(selectedState),
       ]);
       setParcelsGeoJSON(parcelsData);
       setProtectedGeoJSON(zonesData);
@@ -73,11 +127,32 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin }
     }
   };
 
-  // Start manual boundary drawing mode (places circle ring of 6 draggable handles)
+  // Real-time spatial identification on map move
+  const handleMapMoveEnd = async (lat, lng) => {
+    clearTimeout(stateLookupTimer.current);
+    stateLookupTimer.current = setTimeout(async () => {
+      try {
+        const info = await identifyStateByCoords(lat, lng);
+        if (info && info.name) setDetectedStateInfo(info);
+      } catch (err) {
+        console.error('Spatial auto-identification failed:', err);
+      }
+    }, 350);
+  };
+
+  // Start drawing boundary centered at CURRENT MAP VIEWPORT (preserves user zoom/resolution)
   const startDrawing = () => {
-    const [centerLat, centerLng] = currentFocus.center;
-    const numPoints = 6;
-    const radius = 0.0008; // ~90 meters radius circle
+    let centerLat = currentFocus.center[0];
+    let centerLng = currentFocus.center[1];
+
+    if (mapRef.current) {
+      const center = mapRef.current.getCenter();
+      centerLat = center.lat;
+      centerLng = center.lng;
+    }
+
+    const numPoints = 5;
+    const radius = 0.0006;
     const initialRing = [];
 
     for (let i = 0; i < numPoints; i++) {
@@ -87,7 +162,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin }
       initialRing.push([lat, lng]);
     }
 
-    const statePrefix = selectedState === 'TamilNadu' ? 'TN-CHN-MANUAL' : 'CHD-SEC-MANUAL';
+    const statePrefix = (detectedStateInfo.code || 'GIS') + '-MANUAL';
     const randomNum = Math.floor(1000 + Math.random() * 9000);
     setCustomUlpin(`${statePrefix}-${randomNum}`);
     setCustomOwner('Citizen / Custom Owner');
@@ -98,32 +173,29 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin }
   const cancelDrawing = () => {
     setIsDrawingMode(false);
     setVertices([]);
+    if (onClearEditingParcel) onClearEditingParcel();
   };
 
-  // Update vertex handle position on drag
+  // Add vertex handle at exact clicked position on map
+  const handleMapClickPosition = (latlng) => {
+    setVertices((prev) => [...prev, latlng]);
+  };
+
+  // Drag handle update
   const handleVertexDrag = (index, event) => {
     const { lat, lng } = event.target.getLatLng();
-    const updated = [...vertices];
-    updated[index] = [lat, lng];
-    setVertices(updated);
+    setVertices((prev) => {
+      const updated = [...prev];
+      updated[index] = [lat, lng];
+      return updated;
+    });
   };
 
-  // Add new vertex point
-  const addVertex = () => {
-    if (vertices.length < 3) return;
-    const p1 = vertices[0];
-    const p2 = vertices[1];
-    const midLat = (p1[0] + p2[0]) / 2;
-    const midLng = (p1[1] + p2[1]) / 2;
-    setVertices([[midLat, midLng], ...vertices]);
-  };
-
-  // Save drawn polygon boundary to platform & run spatial rules engine
+  // Save boundary changes & re-run spatial rules engine
   const saveCustomBoundary = async () => {
     if (vertices.length < 3) return;
     setSaving(true);
 
-    // Close polygon ring in GeoJSON format ([lng, lat])
     const geojsonCoordinates = vertices.map(([lat, lng]) => [lng, lat]);
     geojsonCoordinates.push([vertices[0][1], vertices[0][0]]);
 
@@ -134,21 +206,35 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin }
 
     const areaSqm = calculatePolygonAreaSqm(vertices);
 
+    // Compute polygon centroid for auto state identification
+    const sumLat = vertices.reduce((acc, v) => acc + v[0], 0);
+    const sumLng = vertices.reduce((acc, v) => acc + v[1], 0);
+    const cLat = sumLat / vertices.length;
+    const cLng = sumLng / vertices.length;
+
+    const detected = await identifyStateByCoords(cLat, cLng);
+    const targetState = detected?.name || selectedState;
+
     try {
       const result = await createCustomParcel({
         ulpin: customUlpin,
-        state: selectedState,
+        state: targetState,
         owner_name: customOwner,
         geometry: geojsonPolygon,
         area_sqm: areaSqm
       });
 
-      // Reload map data and open drawer for new parcel
+      if (onAutoDetectState && targetState !== selectedState) {
+        onAutoDetectState(targetState);
+      }
+
       await loadMapData();
       setIsDrawingMode(false);
+      setVertices([]);
+      if (onClearEditingParcel) onClearEditingParcel();
       onSelectParcel(result.ulpin);
     } catch (err) {
-      console.error('Failed to save boundary:', err);
+      console.error('Failed to save custom boundary:', err);
     } finally {
       setSaving(false);
     }
@@ -203,7 +289,6 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin }
     const tooltipContent = `
       <div style="font-family: sans-serif; font-size: 12px;">
         <strong style="color: #3b82f6;">ULPIN: ${props.ulpin}</strong><br/>
-        Owner: <strong>${props.ror_owner || 'N/A'}</strong><br/>
         Status: <span style="color: ${props.has_flags ? '#ef4444' : '#10b981'}; font-weight: bold;">
           ${props.has_flags ? `⚠️ Flagged (${props.flag_count} rules)` : '✅ Clean'}
         </span>
@@ -234,17 +319,23 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin }
   return (
     <div className="map-view-container">
       <MapContainer
+        ref={mapRef}
         center={currentFocus.center}
         zoom={currentFocus.zoom}
         scrollWheelZoom={true}
         zoomControl={false}
       >
-        <MapFocusHandler center={currentFocus.center} zoom={currentFocus.zoom} />
+        <MapFocusHandler stateCenter={currentFocus.center} zoom={currentFocus.zoom} />
+        <MapEventListener
+          isDrawingMode={isDrawingMode}
+          onMapClick={handleMapClickPosition}
+          onMapMoveEnd={handleMapMoveEnd}
+        />
 
-        {/* CartoDB Dark Tiles with API Key */}
+        {/* Light, high-contrast basemap keeps GIS overlays readable. */}
         <TileLayer
           attribution='&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_3gmv_1_ce82e9ddc32b820ba54c3a97"
+          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
         />
 
         {/* Protected Eco-Zones Layer */}
@@ -260,7 +351,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin }
         )}
 
         {/* Parcels Layer */}
-        {parcelsGeoJSON && (
+        {SHOW_SEEDED_PARCELS && parcelsGeoJSON && (
           <GeoJSON
             key={`parcels-${selectedState}`}
             data={parcelsGeoJSON}
@@ -269,7 +360,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin }
           />
         )}
 
-        {/* Interactive Custom Boundary Drawer Layer */}
+        {/* Interactive Custom Boundary Reshaper Layer */}
         {isDrawingMode && (
           <>
             <Polygon
@@ -277,7 +368,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin }
               pathOptions={{
                 color: '#06b6d4',
                 fillColor: '#06b6d4',
-                fillOpacity: 0.45,
+                fillOpacity: 0.5,
                 weight: 3,
                 dashArray: '4, 4'
               }}
@@ -297,23 +388,32 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin }
         )}
       </MapContainer>
 
-      {/* Top Map Action Bar */}
-      <div style={{ position: 'absolute', top: 20, left: 20, zIndex: 900, display: 'flex', gap: '10px' }}>
+      {/* Top Map Action Bar & Auto State Detection Pill */}
+      <div style={{ position: 'absolute', top: 20, left: 20, zIndex: 900, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {/* Real-Time Auto-Identified Location Pill */}
+        <div style={{ background: 'var(--bg-card)', backdropFilter: 'blur(12px)', border: '1px solid var(--border-card)', padding: '8px 14px', borderRadius: '20px', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#fff', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
+          <MapPin size={14} color="var(--accent-cyan)" />
+          <span>Auto-Identified State: <strong style={{ color: 'var(--accent-cyan)' }}>{detectedStateInfo.label || detectedStateInfo.name}</strong> ({detectedStateInfo.capital})</span>
+          <span style={{ fontSize: '0.7rem', background: 'rgba(16,185,129,0.2)', color: '#34d399', padding: '2px 6px', borderRadius: '10px', fontWeight: 700 }}>
+            AUTO SPATIAL
+          </span>
+        </div>
+
         {!isDrawingMode ? (
           <button className="passport-btn" style={{ width: 'auto', padding: '10px 18px', background: 'linear-gradient(135deg, #06b6d4, #3b82f6)' }} onClick={startDrawing}>
-            <Edit3 size={16} /> Draw Custom Boundary Handles
+            <Edit3 size={16} /> Draw / Reshape Boundary
           </button>
         ) : (
-          <div style={{ background: 'var(--bg-card)', backdropFilter: 'blur(12px)', border: '1px solid var(--border-card)', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px', width: '320px', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+          <div style={{ background: 'var(--bg-card)', backdropFilter: 'blur(12px)', border: '1px solid var(--border-card)', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px', width: '330px', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
             <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span>📐 Interactive Boundary Editor</span>
-              <span style={{ fontSize: '0.75rem', background: 'rgba(6,182,212,0.2)', color: '#38bdf8', padding: '2px 8px', borderRadius: '8px' }}>
-                {vertices.length} Vertices
-              </span>
+              <span>📐 Boundary Reshaper ({vertices.length} Handles)</span>
+              <button onClick={cancelDrawing} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                <X size={16} />
+              </button>
             </div>
 
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Drag the circular blue handles around on the map to adjust each boundary edge.
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', background: 'rgba(6,182,212,0.1)', padding: '8px', borderRadius: '6px', border: '1px solid rgba(6,182,212,0.2)' }}>
+              💡 Drag blue handles OR click anywhere on map to add vertex points at your exact current resolution!
             </div>
 
             <div style={{ fontSize: '0.85rem', background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: '8px' }}>
@@ -337,31 +437,23 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin }
               />
             </div>
 
-            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-              <button
-                className="passport-btn"
-                style={{ flex: 1, padding: '8px', fontSize: '0.8rem', background: 'rgba(255,255,255,0.1)', border: '1px solid var(--border-card)' }}
-                onClick={addVertex}
-              >
-                <PlusCircle size={14} /> Add Handle
-              </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 className="passport-btn"
                 style={{ flex: 1, padding: '8px', fontSize: '0.8rem', background: '#ef4444' }}
                 onClick={cancelDrawing}
               >
-                <X size={14} /> Cancel
+                Cancel
+              </button>
+              <button
+                className="passport-btn"
+                style={{ flex: 1.5, padding: '8px', fontSize: '0.85rem' }}
+                onClick={saveCustomBoundary}
+                disabled={saving}
+              >
+                <Check size={16} /> {saving ? 'Evaluating...' : 'Save & Evaluate'}
               </button>
             </div>
-
-            <button
-              className="passport-btn"
-              style={{ width: '100%', padding: '10px', fontSize: '0.85rem' }}
-              onClick={saveCustomBoundary}
-              disabled={saving}
-            >
-              <Check size={16} /> {saving ? 'Evaluating Rules...' : 'Save & Run Rule Engine'}
-            </button>
           </div>
         )}
       </div>

@@ -4,7 +4,7 @@ import ConfidenceBadge from './ConfidenceBadge';
 import ParcelPassportQR from './ParcelPassportQR';
 import { getParcelDetail, getParcelPassport } from '../api';
 
-export default function ParcelPanel({ ulpin, onClose, role }) {
+export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary }) {
   const [parcel, setParcel] = useState(null);
   const [loading, setLoading] = useState(true);
   const [passportData, setPassportData] = useState(null);
@@ -68,10 +68,19 @@ export default function ParcelPanel({ ulpin, onClose, role }) {
             </div>
           ) : (
             <>
-              {/* Passport Generation CTA */}
-              <button className="passport-btn" onClick={handlePassportClick}>
-                <QrCode size={18} /> Generate Verifiable QR Passport
-              </button>
+              {/* Passport Generation & Boundary Reshape CTAs */}
+              {role !== 'citizen' && <div style={{ display: 'flex', gap: '10px' }}>
+                <button className="passport-btn" style={{ flex: 1, padding: '10px 12px', fontSize: '0.82rem' }} onClick={handlePassportClick}>
+                  <QrCode size={16} /> QR Passport
+                </button>
+                <button
+                  className="passport-btn"
+                  style={{ flex: 1.2, padding: '10px 12px', fontSize: '0.82rem', background: 'linear-gradient(135deg, #06b6d4, #2563eb)' }}
+                  onClick={() => onReshapeBoundary && onReshapeBoundary(parcel)}
+                >
+                  ✏️ Reshape Boundary
+                </button>
+              </div>}
 
               {/* Active Flags Section */}
               {flags.length > 0 && (

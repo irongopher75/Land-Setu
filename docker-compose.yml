@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   db:
     image: postgis/postgis:15-3.3
@@ -27,7 +25,10 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://landsetu:landsetu_pass@db:5432/landsetu_db
-      - JWT_SECRET=landsetu_jwt_secret_hackathon_2026
+      - JWT_SECRET=${JWT_SECRET:?Set a random JWT_SECRET in your environment}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173}
+      - DEMO_LOGIN_ENABLED=${DEMO_LOGIN_ENABLED:-false}
+      - COOKIE_SECURE=${COOKIE_SECURE:-true}
     depends_on:
       db:
         condition: service_healthy
@@ -38,7 +39,7 @@ services:
       dockerfile: Dockerfile
     container_name: landsetu-frontend
     ports:
-      - "5173:5173"
+      - "5173:80"
     depends_on:
       - backend
 

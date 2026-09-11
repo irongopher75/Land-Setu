@@ -89,6 +89,10 @@ Follow this step-by-step click-through path to evaluate all hackathon criteria:
 
 ## 🛠️ Local Development (Without Docker)
 
+### Required security configuration
+
+Copy `.env.example` to `.env`, generate a random `JWT_SECRET`, and load those values before starting the backend. The local citizen-only demo login is disabled by default. For an isolated HTTP-only local demo, set `DEMO_LOGIN_ENABLED=true` and `COOKIE_SECURE=false`; never use those values in a deployed environment. Officer and bank roles now require a real identity-provider integration.
+
 ### Backend Setup:
 ```bash
 cd backend

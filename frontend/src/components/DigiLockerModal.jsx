@@ -33,10 +33,10 @@ export default function DigiLockerModal({ onClose, onProceedMock }) {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <CheckCircle size={14} color="#10b981" /> 256-bit Encrypted Government OAuth Token
+            <CheckCircle size={14} color="#10b981" /> Demonstration interface only — no identity data is collected
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <CheckCircle size={14} color="#10b981" /> Automatic Citizen Property Extraction from e-District
+            <CheckCircle size={14} color="#10b981" /> Production access requires approved DigiLocker OAuth integration
           </div>
         </div>
 

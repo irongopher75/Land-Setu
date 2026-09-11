@@ -55,6 +55,4 @@ class AuthLoginRequest(BaseModel):
     role: str  # citizen | officer | bank
 
 class AuthLoginResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
     role: str
