@@ -1,52 +1,40 @@
-import React, { useState, useEffect } from 'react';
-import { UserCheck, Shield, Building2 } from 'lucide-react';
-import { mockLogin } from '../api';
+import React from 'react';
+const ROLES = [
+  { id: 'citizen', label: '👤 Citizen (Read-Only)' },
+];
 
-export default function RoleSwitcher({ onRoleChange }) {
-  const [currentRole, setCurrentRole] = useState(
-    localStorage.getItem('landsetu_role') || 'officer'
-  );
+export default function RoleSwitcher({ currentRole, onRoleChange }) {
+  const activeRole = currentRole || 'citizen';
 
-  useEffect(() => {
-    // Initial login on mount to ensure valid token
-    handleRoleSelect(currentRole);
-  }, []);
-
-  const handleRoleSelect = async (role) => {
-    try {
-      await mockLogin(role);
-      setCurrentRole(role);
-      if (onRoleChange) {
-        onRoleChange(role);
-      }
-    } catch (err) {
-      console.error('Role login failed:', err);
-    }
+  const handleRoleSelect = (newRole) => {
+    if (onRoleChange) onRoleChange(newRole);
   };
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-      <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-        Role:
+      <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+        Mode:
       </label>
       <select
-        value={currentRole}
+        value={activeRole}
         onChange={(e) => handleRoleSelect(e.target.value)}
         style={{
-          background: 'rgba(255, 255, 255, 0.08)',
-          border: '1px solid var(--border-card)',
-          color: '#fff',
+          background: 'rgba(59, 130, 246, 0.12)',
+          border: '1px solid rgba(59, 130, 246, 0.3)',
+          color: '#60a5fa',
           padding: '6px 12px',
           borderRadius: '8px',
-          fontSize: '0.85rem',
-          fontWeight: 600,
+          fontSize: '0.82rem',
+          fontWeight: 700,
           outline: 'none',
           cursor: 'pointer'
         }}
       >
-        <option value="citizen">👤 Citizen (Redacted View)</option>
-        <option value="officer">🛡️ Revenue Officer (Full Access)</option>
-        <option value="bank">🏦 Bank Auditor (Full Access)</option>
+        {ROLES.map((r) => (
+          <option key={r.id} value={r.id} style={{ background: '#111827', color: '#fff' }}>
+            {r.label}
+          </option>
+        ))}
       </select>
     </div>
   );

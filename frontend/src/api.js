@@ -70,6 +70,21 @@ export const getAllStates = async () => {
   return res.data;
 };
 
+export const getPendingRequests = async () => {
+  const res = await client.get('/parcels/requests/pending');
+  return res.data;
+};
+
+export const approveBoundaryRequest = async (requestId) => {
+  const res = await client.post(`/parcels/requests/${requestId}/approve`);
+  return res.data;
+};
+
+export const rejectBoundaryRequest = async (requestId) => {
+  const res = await client.post(`/parcels/requests/${requestId}/reject`);
+  return res.data;
+};
+
 const LOCAL_STATES = [
   { name: "TamilNadu", label: "Tamil Nadu", code: "TN", capital: "Chennai", center: [13.0827, 80.2707], bbox: { min_lat: 8.0, max_lat: 13.6, min_lng: 76.2, max_lng: 80.4 } },
   { name: "Chandigarh", label: "Chandigarh", code: "CHD", capital: "Chandigarh", center: [30.7333, 76.7794], bbox: { min_lat: 30.65, max_lat: 30.80, min_lng: 76.70, max_lng: 76.85 } },

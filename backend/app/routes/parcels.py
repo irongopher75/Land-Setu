@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Parcel, ProtectedZone
+from app.models import Parcel, ProtectedZone, BoundaryChangeRequest
 from app.schemas import ParcelListItem, CanonicalParcelResponse, FlagItem
 from app.rules import RuleEngine, parse_geometry_shape
 from app.routes.auth import get_current_role, require_roles, SECRET_KEY, ALGORITHM
@@ -192,7 +192,7 @@ def get_parcel_flags(ulpin: str, role: str = Depends(get_current_role), db: Sess
     return RuleEngine.evaluate_parcel_rules(db, parcel)
 
 @router.get("/{ulpin}/passport")
-def get_parcel_passport(ulpin: str, role: str = Depends(require_roles("officer", "bank")), db: Session = Depends(get_db)):
+def get_parcel_passport(ulpin: str, role: str = Depends(require_roles("officer", "bank", "auditor", "state_admin")), db: Session = Depends(get_db)):
     parcel = db.query(Parcel).filter(Parcel.ulpin == ulpin).first()
     if not parcel:
         raise HTTPException(status_code=404, detail=f"Parcel with ULPIN '{ulpin}' not found")
@@ -227,6 +227,12 @@ class CreateCustomParcelRequest(BaseModel):
 
 @router.post("/custom")
 def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
+    if role == "citizen":
+        raise HTTPException(
+            status_code=403,
+            detail="Permission denied: Citizens are in Read-Only mode and cannot mark or reshape land boundaries. Please switch to Revenue Officer role."
+        )
+
     from app.db import IS_SQLITE
     from shapely.geometry import shape
 
@@ -255,13 +261,50 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get
         detected = detect_state_from_coords(centroid.y, centroid.x)
         target_state = detected["name"]
 
+    # Check if user role is village_officer (Lower Authority)
+    # Lower level authority cannot directly modify approved boundaries; they issue a request for change
+    if role == "village_officer":
+        change_req = BoundaryChangeRequest(
+            ulpin=req.ulpin,
+            state=target_state,
+            requester_role="village_officer",
+            requested_by=req.owner_name,
+            geometry=req.geometry,
+            area_sqm=req.area_sqm,
+            reason="Village Office boundary modification request",
+            status="PENDING_APPROVAL",
+            created_at=datetime.utcnow().isoformat()
+        )
+        db.add(change_req)
+        db.commit()
+        db.refresh(change_req)
+
+        return {
+            "status": "PENDING_APPROVAL",
+            "message": f"Boundary change request for ULPIN '{req.ulpin}' submitted successfully! Awaiting review and approval from State Administration / Auditor.",
+            "request_id": change_req.id,
+            "is_approval_pending": True,
+            "ulpin": req.ulpin,
+            "state": target_state
+        }
+
+    # Upper Authority (State Admin / Auditor / Officer) Direct Save & Auto Approval
     if not IS_SQLITE:
         from geoalchemy2.shape import from_shape
         geom_val = from_shape(s_shape, srid=4326)
     else:
         geom_val = req.geometry
 
-    # Check if ULPIN already exists (update geometry on reshape)
+    # Auto-approve any pending change request for this ULPIN
+    pending_reqs = db.query(BoundaryChangeRequest).filter(
+        BoundaryChangeRequest.ulpin == req.ulpin,
+        BoundaryChangeRequest.status == "PENDING_APPROVAL"
+    ).all()
+    for pr in pending_reqs:
+        pr.status = "APPROVED"
+        pr.approved_by = req.owner_name
+        pr.approver_role = role
+
     existing = db.query(Parcel).filter(Parcel.ulpin == req.ulpin).first()
     if existing:
         existing.geometry = geom_val
@@ -325,9 +368,104 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get
 
     flags = RuleEngine.evaluate_parcel_rules(db, parcel_model)
     return {
+        "status": "APPROVED",
         "ulpin": parcel_model.ulpin,
         "state": parcel_model.state,
         "area_sqm": parcel_model.area_sqm,
         "layers": parcel_model.layers,
         "flags": flags
     }
+
+@router.get("/requests/pending")
+def list_pending_requests(role: str = Depends(require_roles("officer", "bank", "auditor", "state_admin")), db: Session = Depends(get_db)):
+    """Lists all boundary change requests submitted by lower authorities awaiting approval."""
+    reqs = db.query(BoundaryChangeRequest).filter(
+        BoundaryChangeRequest.status == "PENDING_APPROVAL"
+    ).order_by(BoundaryChangeRequest.id.desc()).all()
+
+    result = []
+    for r in reqs:
+        result.append({
+            "id": r.id,
+            "ulpin": r.ulpin,
+            "state": r.state,
+            "requester_role": r.requester_role,
+            "requested_by": r.requested_by,
+            "area_sqm": r.area_sqm,
+            "reason": r.reason,
+            "status": r.status,
+            "created_at": r.created_at,
+            "geometry": r.geometry
+        })
+    return result
+
+@router.post("/requests/{request_id}/approve")
+def approve_boundary_request(request_id: int, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
+    """Upper authority approval endpoint to commit a lower authority boundary change request."""
+    if role in ("citizen", "village_officer"):
+        raise HTTPException(
+            status_code=403,
+            detail="Permission denied: Only upper authorities (State Administration or Auditor) can approve boundary change requests."
+        )
+
+    from app.db import IS_SQLITE
+    from shapely.geometry import shape
+
+    req = db.query(BoundaryChangeRequest).filter(BoundaryChangeRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Boundary change request not found")
+
+    try:
+        s_shape = shape(req.geometry)
+    except Exception:
+        raise HTTPException(status_code=422, detail="Invalid GeoJSON geometry in request")
+
+    if not IS_SQLITE:
+        from geoalchemy2.shape import from_shape
+        geom_val = from_shape(s_shape, srid=4326)
+    else:
+        geom_val = req.geometry
+
+    existing = db.query(Parcel).filter(Parcel.ulpin == req.ulpin).first()
+    if existing:
+        existing.geometry = geom_val
+        existing.area_sqm = req.area_sqm
+        existing.state = req.state
+    else:
+        layers = {
+            "ror": {"owner_name": req.requested_by, "khata_no": f"KH-MANUAL-{req.ulpin[-4:]}", "source": "village_office_approval", "confidence": "verified"},
+            "registration": {"last_transaction_id": f"REG-MANUAL-{req.ulpin[-4:]}", "date": datetime.utcnow().strftime("%Y-%m-%d"), "source": "sub_registrar", "confidence": "verified"},
+            "zoning": {"land_use": "residential", "permitted_fsi": 1.5, "source": "master_plan_2021", "confidence": "verified"},
+            "building_permit": {"status": "approved", "approved_fsi": 1.5, "source": "municipal_corp", "confidence": "self_declared"},
+            "tax": {"annual_value": 45000, "source": "revenue_dept", "confidence": "verified"},
+            "encumbrance": {"active": False, "source": "sub_registrar", "confidence": "verified"}
+        }
+        existing = Parcel(ulpin=req.ulpin, state=req.state, area_sqm=req.area_sqm, geometry=geom_val, layers=layers)
+        db.add(existing)
+
+    req.status = "APPROVED"
+    req.approved_by = "State Administration Officer"
+    req.approver_role = role
+    db.commit()
+
+    return {"status": "APPROVED", "message": f"Boundary change request #{request_id} for ULPIN '{req.ulpin}' approved and committed!"}
+
+@router.post("/requests/{request_id}/reject")
+def reject_boundary_request(request_id: int, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
+    """Upper authority rejection endpoint for a boundary change request."""
+    if role in ("citizen", "village_officer"):
+        raise HTTPException(
+            status_code=403,
+            detail="Permission denied: Only upper authorities (State Administration or Auditor) can reject boundary change requests."
+        )
+
+    req = db.query(BoundaryChangeRequest).filter(BoundaryChangeRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Boundary change request not found")
+
+    req.status = "REJECTED"
+    req.approved_by = "State Administration Officer"
+    req.approver_role = role
+    db.commit()
+
+    return {"status": "REJECTED", "message": f"Boundary change request #{request_id} for ULPIN '{req.ulpin}' rejected."}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, AlertOctagon, QrCode, FileText, CheckCircle, ShieldAlert, Layers } from 'lucide-react';
+import { X, AlertOctagon, QrCode, FileText, CheckCircle, ShieldAlert, Layers, Lock } from 'lucide-react';
 import ConfidenceBadge from './ConfidenceBadge';
 import ParcelPassportQR from './ParcelPassportQR';
 import { getParcelDetail, getParcelPassport } from '../api';
@@ -69,18 +69,29 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary })
           ) : (
             <>
               {/* Passport Generation & Boundary Reshape CTAs */}
-              {role !== 'citizen' && <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', margin: '8px 0 16px 0' }}>
                 <button className="passport-btn" style={{ flex: 1, padding: '10px 12px', fontSize: '0.82rem' }} onClick={handlePassportClick}>
                   <QrCode size={16} /> QR Passport
                 </button>
-                <button
-                  className="passport-btn"
-                  style={{ flex: 1.2, padding: '10px 12px', fontSize: '0.82rem', background: 'linear-gradient(135deg, #06b6d4, #2563eb)' }}
-                  onClick={() => onReshapeBoundary && onReshapeBoundary(parcel)}
-                >
-                  ✏️ Reshape Boundary
-                </button>
-              </div>}
+                {role !== 'citizen' ? (
+                  <button
+                    className="passport-btn"
+                    style={{ flex: 1.2, padding: '10px 12px', fontSize: '0.82rem', background: 'linear-gradient(135deg, #06b6d4, #2563eb)' }}
+                    onClick={() => onReshapeBoundary && onReshapeBoundary(parcel)}
+                  >
+                    ✏️ Reshape Boundary
+                  </button>
+                ) : (
+                  <button
+                    className="passport-btn"
+                    disabled
+                    style={{ flex: 1.2, padding: '10px 12px', fontSize: '0.78rem', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-dim)', border: '1px solid var(--border-card)', cursor: 'not-allowed', opacity: 0.6 }}
+                    title="Citizens have read-only access and cannot mark or reshape boundaries."
+                  >
+                    <Lock size={14} style={{ display: 'inline', marginRight: '4px' }} /> Reshape (Officer Only)
+                  </button>
+                )}
+              </div>
 
               {/* Active Flags Section */}
               {flags.length > 0 && (

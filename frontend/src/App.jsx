@@ -1,10 +1,10 @@
 import React, { lazy, Suspense, useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import LandingPage from './components/LandingPage';
-import LoginPage from './components/LoginPage';
 import { logout } from './api';
 import { auth, signOut as firebaseSignOut, onAuthStateChanged } from './firebase';
 
+const LoginPage = lazy(() => import('./components/LoginPage'));
 const MapView = lazy(() => import('./components/MapView'));
 const ParcelPanel = lazy(() => import('./components/ParcelPanel'));
 const AdapterDemo = lazy(() => import('./components/AdapterDemo'));
@@ -15,12 +15,8 @@ export default function App() {
   const [selectedUlpin, setSelectedUlpin] = useState(null);
   const [editingParcel, setEditingParcel] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
-  const [currentRole, setCurrentRole] = useState(
-    localStorage.getItem('landsetu_role') || 'citizen'
-  );
-  const [isLoggedIn, setIsLoggedIn] = useState(
-    !!localStorage.getItem('landsetu_jwt_token')
-  );
+  const [currentRole, setCurrentRole] = useState('citizen');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   // Monitor Firebase Auth State & Auto Redirect to Map View
   useEffect(() => {
@@ -39,6 +35,9 @@ export default function App() {
 
   const handleRoleChange = (newRole) => {
     setCurrentRole(newRole);
+    if (newRole === 'citizen' && activeView === 'adapter') {
+      setActiveView('map');
+    }
   };
 
   const handleLoginSuccess = (role, user) => {
@@ -68,6 +67,7 @@ export default function App() {
         setActiveView={setActiveView}
         selectedState={selectedState}
         setSelectedState={setSelectedState}
+        currentRole={currentRole}
         onRoleChange={handleRoleChange}
         isLoggedIn={isLoggedIn}
         currentUser={currentUser}
@@ -75,43 +75,44 @@ export default function App() {
       />
 
       <main className="main-content">
-        <Suspense fallback={<div style={{ padding: '2rem', color: '#fff' }}>Loading GIS Services...</div>}>
-          {activeView === 'landing' && (
-            <LandingPage
-              onLaunchMap={() => setActiveView('map')}
-              onLoginClick={() => setActiveView('login')}
-            />
-          )}
+        <Suspense fallback={<div style={{ padding: '2rem', color: '#fff' }}>Loading…</div>}>
+        {activeView === 'landing' && (
+          <LandingPage
+            onLaunchMap={() => setActiveView('map')}
+            onLoginClick={() => setActiveView('login')}
+          />
+        )}
 
-          {activeView === 'login' && (
-            <LoginPage
-              onLoginSuccess={handleLoginSuccess}
-              onExploreDemo={() => setActiveView('map')}
-            />
-          )}
+        {activeView === 'login' && (
+          <LoginPage
+            onLoginSuccess={handleLoginSuccess}
+            onExploreDemo={() => setActiveView('map')}
+          />
+        )}
 
-          {activeView === 'map' && (
-            <>
-              <MapView
-                selectedState={selectedState}
-                selectedUlpin={selectedUlpin}
-                onSelectParcel={(ulpin) => setSelectedUlpin(ulpin)}
-                editingParcel={editingParcel}
-                onClearEditingParcel={() => setEditingParcel(null)}
-                onAutoDetectState={(newState) => setSelectedState(newState)}
+        {activeView === 'map' && (
+          <>
+            <MapView
+              selectedState={selectedState}
+              selectedUlpin={selectedUlpin}
+              onSelectParcel={(ulpin) => setSelectedUlpin(ulpin)}
+              editingParcel={editingParcel}
+              onClearEditingParcel={() => setEditingParcel(null)}
+              onAutoDetectState={(newState) => setSelectedState(newState)}
+              role={currentRole}
+            />
+            {selectedUlpin && (
+              <ParcelPanel
+                ulpin={selectedUlpin}
+                role={currentRole}
+                onClose={() => setSelectedUlpin(null)}
+                onReshapeBoundary={handleReshapeBoundary}
               />
-              {selectedUlpin && (
-                <ParcelPanel
-                  ulpin={selectedUlpin}
-                  role={currentRole}
-                  onClose={() => setSelectedUlpin(null)}
-                  onReshapeBoundary={handleReshapeBoundary}
-                />
-              )}
-            </>
-          )}
+            )}
+          </>
+        )}
 
-          {activeView === 'adapter' && <AdapterDemo />}
+        {activeView === 'adapter' && currentRole !== 'citizen' && <AdapterDemo />}
         </Suspense>
       </main>
     </div>

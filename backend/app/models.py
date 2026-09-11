@@ -29,3 +29,19 @@ class ProtectedZone(Base):
     state = Column(String, index=True, nullable=False)
     name = Column(String, nullable=False)
     geometry = Column(GeometryType, nullable=False)
+
+class BoundaryChangeRequest(Base):
+    __tablename__ = "boundary_change_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ulpin = Column(String, index=True, nullable=False)
+    state = Column(String, index=True, nullable=False)
+    requester_role = Column(String, nullable=False)
+    requested_by = Column(String, nullable=False)
+    geometry = Column(JSON, nullable=False)
+    area_sqm = Column(Float, nullable=False)
+    reason = Column(String, nullable=True)
+    status = Column(String, nullable=False, default="PENDING_APPROVAL")
+    approved_by = Column(String, nullable=True)
+    approver_role = Column(String, nullable=True)
+    created_at = Column(String, nullable=False)

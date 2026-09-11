@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import engine, Base
@@ -12,53 +12,17 @@ app = FastAPI(
     version="1.0.0"
 )
 
-class StrictCORSMiddleware:
-    def __init__(self, app):
-        self.app = app
+allowed_origins = [origin.strip() for origin in os.getenv(
+    "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+).split(",") if origin.strip()]
 
-    async def __call__(self, scope, receive, send):
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-
-        origin = None
-        for k, v in scope.get("headers", []):
-            if k.lower() == b"origin":
-                origin = v.decode("utf-8")
-                break
-
-        async def send_wrapper(message):
-            if message["type"] == "http.response.start":
-                new_headers = []
-                for k, v in message.get("headers", []):
-                    if k.lower() not in (b"access-control-allow-origin", b"access-control-allow-credentials", b"access-control-allow-methods", b"access-control-allow-headers"):
-                        new_headers.append((k, v))
-                target_origin = origin.encode("utf-8") if origin else b"https://landsetu-e4e5e.firebaseapp.com"
-                new_headers.append((b"access-control-allow-origin", target_origin))
-                new_headers.append((b"access-control-allow-credentials", b"true"))
-                new_headers.append((b"access-control-allow-methods", b"GET, POST, PUT, DELETE, OPTIONS, PATCH"))
-                new_headers.append((b"access-control-allow-headers", b"Content-Type, Authorization, X-Requested-With, Accept"))
-                message["headers"] = new_headers
-            await send(message)
-
-        if scope["method"] == "OPTIONS":
-            target_origin = origin.encode("utf-8") if origin else b"https://landsetu-e4e5e.firebaseapp.com"
-            await send({
-                "type": "http.response.start",
-                "status": 204,
-                "headers": [
-                    (b"access-control-allow-origin", target_origin),
-                    (b"access-control-allow-credentials", b"true"),
-                    (b"access-control-allow-methods", b"GET, POST, PUT, DELETE, OPTIONS, PATCH"),
-                    (b"access-control-allow-headers", b"Content-Type, Authorization, X-Requested-With, Accept")
-                ]
-            })
-            await send({"type": "http.response.body", "body": b""})
-            return
-
-        await self.app(scope, receive, send_wrapper)
-
-app.add_middleware(StrictCORSMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
+)
 
 # Register APIRouters
 app.include_router(auth.router)

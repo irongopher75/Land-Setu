@@ -5,10 +5,11 @@ import {
   signInWithPopup, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
+  sendPasswordResetEmail,
+  sendEmailVerification,
   signOut, 
   onAuthStateChanged 
 } from "firebase/auth";
-import { getFirestore, doc, setDoc, getDoc, collection } from "firebase/firestore";
 
 // Firebase Configuration for project: landsetu-e4e5e
 const firebaseConfig = {
@@ -23,21 +24,17 @@ const firebaseConfig = {
 // Initialize Firebase App & Services
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
 export { 
   app, 
   auth, 
-  db, 
   googleProvider, 
   signInWithPopup, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
+  sendPasswordResetEmail,
+  sendEmailVerification,
   signOut, 
-  onAuthStateChanged,
-  doc,
-  setDoc,
-  getDoc,
-  collection
+  onAuthStateChanged
 };

@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
-import { Lock, Mail, ArrowRight, ShieldCheck, ExternalLink, Info, CheckCircle2 } from 'lucide-react';
+import { Lock, Mail, ArrowRight, ShieldCheck, ExternalLink, Info } from 'lucide-react';
 import { 
   auth, 
-  db, 
   googleProvider, 
   signInWithPopup, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
-  doc,
-  setDoc
+  sendPasswordResetEmail,
+  sendEmailVerification,
 } from '../firebase';
+import { db, doc, setDoc } from '../firebaseFirestore';
 import { mockLogin } from '../api';
 import DigiLockerModal from './DigiLockerModal';
 
@@ -20,6 +20,7 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [infoMsg, setInfoMsg] = useState('');
   const [showConfigNotice, setShowConfigNotice] = useState(false);
   const [showDigiLocker, setShowDigiLocker] = useState(false);
 
@@ -40,11 +41,79 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
     }
   };
 
+  // Send Password Reset / Login Notification Email via Firebase
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setErrorMsg('Please enter your email address above to receive a reset link or login email.');
+      return;
+    }
+    setLoading(true);
+    setErrorMsg('');
+    setInfoMsg('');
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setInfoMsg(`📧 Access notification & password reset email sent to ${email}! Check your email inbox and spam folder.`);
+    } catch (err) {
+      console.error('Password Reset Error:', err.code, err.message);
+      let msg = err.message.replace('Firebase:', '').trim();
+      if (err.code === 'auth/user-not-found') {
+        msg = `No existing account found for ${email}. Switch to "Register" below to create your account and receive a verification email.`;
+      }
+      setErrorMsg(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Quick Register and Send Email Verification
+  const handleRegisterAndSendEmail = async () => {
+    if (!email || !password) {
+      setErrorMsg('Please enter both email and password to register.');
+      return;
+    }
+    setLoading(true);
+    setErrorMsg('');
+    setInfoMsg('');
+
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      try {
+        await sendEmailVerification(userCredential.user);
+        setInfoMsg(`📧 Account created! Verification email sent to ${email}. Check your inbox or spam folder.`);
+      } catch (vErr) {
+        setInfoMsg(`📧 Account registered for ${email}!`);
+      }
+      const user = userCredential.user;
+      await syncUserToFirestore(user, role);
+      await mockLogin(role);
+      onLoginSuccess(role, user);
+    } catch (err) {
+      console.error('Register error:', err.code, err.message);
+      let msg = err.message.replace('Firebase:', '').trim();
+      if (err.code === 'auth/email-already-in-use') {
+        // If already exists, send password reset / verification email
+        try {
+          await sendPasswordResetEmail(auth, email);
+          setInfoMsg(`📧 Account already exists! A login reset notification email has been sent to ${email}.`);
+          setErrorMsg('');
+          return;
+        } catch (resetErr) {
+          msg = 'An account with this email already exists. Please sign in.';
+        }
+      }
+      setErrorMsg(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Firebase Email/Password Auth
   const handleEmailAuthSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setErrorMsg('');
+    setInfoMsg('');
 
     if (!email) {
       setErrorMsg('Please enter a valid email address.');
@@ -61,6 +130,12 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
       let userCredential;
       if (isSignUp) {
         userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        try {
+          await sendEmailVerification(userCredential.user);
+          setInfoMsg(`📧 Account registered! A verification email has been sent to ${email}. Check inbox or spam.`);
+        } catch (vErr) {
+          console.warn('Email verification notice:', vErr.message);
+        }
       } else {
         userCredential = await signInWithEmailAndPassword(auth, email, password);
       }
@@ -73,11 +148,11 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
       console.error('Firebase Auth Error:', err.code, err.message);
       let msg = err.message.replace('Firebase:', '').trim();
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
-        msg = 'Invalid email or password. Please check your credentials.';
+        msg = 'Invalid credentials. If this is a new email, click "Register & Send Email" below.';
       } else if (err.code === 'auth/user-not-found') {
-        msg = 'No registered account found with this email. Please register first.';
+        msg = 'No account found for this email. Click "Register & Send Email" below.';
       } else if (err.code === 'auth/email-already-in-use') {
-        msg = 'An account with this email already exists. Please sign in.';
+        msg = 'An account with this email already exists. Please sign in or click "Send Reset Email".';
       } else if (err.code === 'auth/weak-password') {
         msg = 'Password should be at least 6 characters.';
       }
@@ -110,6 +185,11 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleProceedGoogleDemo = () => {
+    setShowConfigNotice(false);
+    handleGoogleSignIn();
   };
 
   return (
@@ -154,6 +234,12 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
         {errorMsg && (
           <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', padding: '10px 14px', borderRadius: '8px', fontSize: '0.8rem', marginTop: '12px' }}>
             ⚠️ {errorMsg}
+          </div>
+        )}
+
+        {infoMsg && (
+          <div style={{ background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#34d399', padding: '10px 14px', borderRadius: '8px', fontSize: '0.8rem', marginTop: '12px' }}>
+            {infoMsg}
           </div>
         )}
 
@@ -243,9 +329,7 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
                 outline: 'none'
               }}
             >
-              <option value="citizen">👤 Citizen (Public Parcel View)</option>
-              <option value="officer">🛡️ Revenue Officer (Full Admin & Audit)</option>
-              <option value="bank">🏦 Bank Auditor (Encumbrance Verification)</option>
+              <option value="citizen">👤 Citizen (Read-Only Demo View)</option>
             </select>
           </div>
 
@@ -259,7 +343,7 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder={`officer@landsetu.gov.in`}
+                placeholder={`user@domain.com`}
                 style={{
                   width: '100%',
                   background: 'rgba(255, 255, 255, 0.06)',
@@ -296,6 +380,15 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
                   outline: 'none'
                 }}
               />
+            </div>
+            <div style={{ textAlign: 'right', marginTop: '4px' }}>
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                style={{ background: 'none', border: 'none', color: 'var(--accent-cyan)', fontSize: '0.76rem', cursor: 'pointer', textDecoration: 'underline' }}
+              >
+                Forgot Password? Send Reset Email
+              </button>
             </div>
           </div>
 

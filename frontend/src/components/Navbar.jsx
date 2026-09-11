@@ -1,7 +1,8 @@
 import React from 'react';
 import { Map, Cpu, MapPin, Home, LogIn } from 'lucide-react';
+import RoleSwitcher from './RoleSwitcher';
 
-export default function Navbar({ activeView, setActiveView, selectedState, setSelectedState, onRoleChange, isLoggedIn, currentUser, onLogout }) {
+export default function Navbar({ activeView, setActiveView, selectedState, setSelectedState, currentRole, onRoleChange, isLoggedIn, currentUser, onLogout }) {
   return (
     <header className="navbar">
       <div className="nav-brand" style={{ cursor: 'pointer' }} onClick={() => setActiveView('landing')}>
@@ -31,12 +32,14 @@ export default function Navbar({ activeView, setActiveView, selectedState, setSe
             <Map size={15} /> GIS Map View
           </button>
 
-          <button
-            className={`tab-btn ${activeView === 'adapter' ? 'active' : ''}`}
-            onClick={() => setActiveView('adapter')}
-          >
-            <Cpu size={15} /> Adapter Sandbox
-          </button>
+          {currentRole !== 'citizen' && (
+            <button
+              className={`tab-btn ${activeView === 'adapter' ? 'active' : ''}`}
+              onClick={() => setActiveView('adapter')}
+            >
+              <Cpu size={15} /> Adapter Sandbox
+            </button>
+          )}
         </div>
 
         {/* State Focus Shortcut */}
@@ -64,7 +67,9 @@ export default function Navbar({ activeView, setActiveView, selectedState, setSe
           </div>
         )}
 
-        {/* Role Switcher or Login Button */}
+        {/* Role Switcher & User Account Header */}
+        <RoleSwitcher currentRole={currentRole} onRoleChange={onRoleChange} />
+
         {isLoggedIn ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <span style={{ fontSize: '0.78rem', color: '#60a5fa', fontWeight: 600 }}>

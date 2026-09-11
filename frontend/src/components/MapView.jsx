@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { MapContainer, TileLayer, GeoJSON, Marker, Polygon, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { PlusCircle, Edit3, Check, X, MapPin, Sparkles, Search } from 'lucide-react';
-import { getParcelsGeoJSON, getProtectedZonesGeoJSON, createCustomParcel, identifyStateByCoords } from '../api';
+import { PlusCircle, Edit3, Check, X, MapPin, Sparkles, Search, Lock, Navigation, Target, ClipboardList } from 'lucide-react';
+import { getParcelsGeoJSON, getProtectedZonesGeoJSON, createCustomParcel, identifyStateByCoords, getPendingRequests } from '../api';
+import ApprovalQueueModal from './ApprovalQueueModal';
 
 // Mock parcel rectangles are deliberately hidden by default. Set this only for
 // a controlled data demo, never for a public map with unreviewed mock records.
@@ -14,6 +15,14 @@ const handleIcon = L.divIcon({
   html: '<div style="width: 18px; height: 18px; background: #06b6d4; border: 3px solid #ffffff; border-radius: 50%; box-shadow: 0 0 14px rgba(6,182,212,0.9); cursor: grab;"></div>',
   iconSize: [18, 18],
   iconAnchor: [9, 9]
+});
+
+// GPS User Location Icon
+const userLocationIcon = L.divIcon({
+  className: 'user-location-marker',
+  html: '<div style="width: 24px; height: 24px; background: #3b82f6; border: 3.5px solid #ffffff; border-radius: 50%; box-shadow: 0 0 24px #3b82f6, 0 0 0 12px rgba(59, 130, 246, 0.25); cursor: pointer;"></div>',
+  iconSize: [24, 24],
+  iconAnchor: [12, 12]
 });
 
 // Map Focus Handler that ONLY flies on explicit state focus change, preserving user zoom/resolution while editing
@@ -73,9 +82,18 @@ function calculatePolygonAreaSqm(latLngs) {
   return Math.abs(Math.round(area * 10) / 10);
 }
 
-export default function MapView({ selectedState, onSelectParcel, selectedUlpin, editingParcel, onClearEditingParcel, onAutoDetectState }) {
+export default function MapView({ selectedState, onSelectParcel, selectedUlpin, editingParcel, onClearEditingParcel, onAutoDetectState, role = 'citizen' }) {
   const [parcelsGeoJSON, setParcelsGeoJSON] = useState(null);
   const [protectedGeoJSON, setProtectedGeoJSON] = useState(null);
+
+  // User GPS Location state
+  const [userLocation, setUserLocation] = useState(null);
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState('');
+
+  // Approval Workflow Queue state
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
 
   // Auto-detected state info
   const [detectedStateInfo, setDetectedStateInfo] = useState({ label: 'Tamil Nadu', name: 'TamilNadu', capital: 'Chennai' });
@@ -108,9 +126,71 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
 
   const currentFocus = stateCenters[selectedState] || stateCenters.TamilNadu;
 
+  // Fetch real-time GPS user location and reset map view directly onto location
+  const locateUserAndCenter = (isInitial = false) => {
+    if (!navigator.geolocation) {
+      if (!isInitial) setLocationError('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    setLocating(true);
+    setLocationError('');
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        const coords = [latitude, longitude];
+        setUserLocation(coords);
+        setLocating(false);
+
+        // Fly map smoothly to exact user coordinates
+        if (mapRef.current) {
+          mapRef.current.flyTo(coords, 15, { duration: 1.5 });
+        }
+
+        // Auto spatial identification of Indian state for user position
+        try {
+          const info = await identifyStateByCoords(latitude, longitude);
+          if (info && info.name) {
+            setDetectedStateInfo(info);
+            if (onAutoDetectState) {
+              onAutoDetectState(info.name);
+            }
+          }
+        } catch (err) {
+          console.warn('Auto location state identification notice:', err);
+        }
+      },
+      (err) => {
+        setLocating(false);
+        console.warn('Geolocation error:', err.message);
+        if (!isInitial) {
+          setLocationError(`Location Access Error: ${err.message}. Please enable location permissions in your browser.`);
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  };
+
+  const fetchPendingCount = async () => {
+    try {
+      const pending = await getPendingRequests();
+      setPendingCount(pending.length);
+    } catch (err) {
+      console.warn('Pending requests fetch notice:', err);
+    }
+  };
+
+  // Locate user on initial component mount
+  useEffect(() => {
+    locateUserAndCenter(true);
+    fetchPendingCount();
+  }, []);
+
   useEffect(() => {
     loadMapData();
-  }, [selectedState]);
+    fetchPendingCount();
+  }, [selectedState, role]);
 
   // Load existing parcel coordinates when user clicks "Reshape Boundary" from ParcelPanel
   useEffect(() => {
@@ -160,6 +240,10 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
 
   // Start drawing boundary centered at CURRENT MAP VIEWPORT (preserves user zoom/resolution)
   const startDrawing = () => {
+    if (role === 'citizen') {
+      alert("🔒 Permission Denied: Citizens have Read-Only access and cannot mark or reshape boundaries. Switch to Revenue Officer role to mark boundaries.");
+      return;
+    }
     let centerLat = currentFocus.center[0];
     let centerLng = currentFocus.center[1];
 
@@ -255,11 +339,24 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
         area_sqm: areaSqm
       });
 
+      if (result.status === 'PENDING_APPROVAL') {
+        alert(`📩 ${result.message}`);
+        setIsDrawingMode(false);
+        setVertices([]);
+        setReshapeError('');
+        if (onClearEditingParcel) onClearEditingParcel();
+        fetchPendingCount();
+        return;
+      }
+
+      alert("✅ Boundary change approved & committed to master GIS database!");
+
       if (onAutoDetectState && targetState !== selectedState) {
         onAutoDetectState(targetState);
       }
 
       await loadMapData();
+      fetchPendingCount();
       setIsDrawingMode(false);
       setVertices([]);
       setReshapeError('');
@@ -421,22 +518,77 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
             ))}
           </>
         )}
+
+        {/* Live GPS User Location Marker */}
+        {userLocation && (
+          <Marker position={userLocation} icon={userLocationIcon} />
+        )}
       </MapContainer>
 
       {/* Top Map Action Bar & Auto State Detection Pill */}
       <div style={{ position: 'absolute', top: 20, left: 20, zIndex: 900, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {/* Real-Time Auto-Identified Location Pill */}
-        <div style={{ background: 'var(--bg-card)', backdropFilter: 'blur(12px)', border: '1px solid var(--border-card)', padding: '8px 14px', borderRadius: '20px', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#fff', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
-          <MapPin size={14} color="var(--accent-cyan)" />
-          <span>Auto-Identified State: <strong style={{ color: 'var(--accent-cyan)' }}>{detectedStateInfo.label || detectedStateInfo.name}</strong> ({detectedStateInfo.capital})</span>
-          <span style={{ fontSize: '0.7rem', background: 'rgba(16,185,129,0.2)', color: '#34d399', padding: '2px 6px', borderRadius: '10px', fontWeight: 700 }}>
-            AUTO SPATIAL
-          </span>
+        {/* Real-Time Auto-Identified Location Pill & Locate Me Button */}
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ background: 'var(--bg-card)', backdropFilter: 'blur(12px)', border: '1px solid var(--border-card)', padding: '8px 14px', borderRadius: '20px', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#fff', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
+            <MapPin size={14} color="var(--accent-cyan)" />
+            <span>Auto-Identified State: <strong style={{ color: 'var(--accent-cyan)' }}>{detectedStateInfo.label || detectedStateInfo.name}</strong> ({detectedStateInfo.capital})</span>
+            <span style={{ fontSize: '0.7rem', background: 'rgba(16,185,129,0.2)', color: '#34d399', padding: '2px 6px', borderRadius: '10px', fontWeight: 700 }}>
+              AUTO SPATIAL
+            </span>
+          </div>
+
+          <button
+            className="passport-btn"
+            style={{
+              width: 'auto',
+              padding: '8px 14px',
+              fontSize: '0.82rem',
+              background: 'linear-gradient(135deg, #2563eb, #0284c7)',
+              borderRadius: '20px',
+              boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)'
+            }}
+            onClick={() => locateUserAndCenter(false)}
+            disabled={locating}
+          >
+            <Navigation size={14} style={{ animation: locating ? 'spin 1s linear infinite' : 'none' }} />
+            {locating ? 'Locating...' : '🎯 Reset to My Location'}
+          </button>
+
+          {role !== 'citizen' && (
+            <button
+              className="passport-btn"
+              style={{
+                width: 'auto',
+                padding: '8px 14px',
+                fontSize: '0.82rem',
+                background: 'linear-gradient(135deg, #0284c7, #0d9488)',
+                borderRadius: '20px',
+                boxShadow: '0 4px 14px rgba(2, 132, 199, 0.4)'
+              }}
+              onClick={() => setShowApprovalModal(true)}
+            >
+              <ClipboardList size={14} /> Approval Queue ({pendingCount})
+            </button>
+          )}
         </div>
 
-        {!isDrawingMode ? (
+        {locationError && (
+          <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#f87171', padding: '8px 12px', borderRadius: '8px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+            <span>{locationError}</span>
+            <button onClick={() => setLocationError('')} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}>
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
+        {role === 'citizen' ? (
+          <div style={{ background: 'var(--bg-card)', backdropFilter: 'blur(12px)', border: '1px solid var(--border-card)', padding: '10px 16px', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '10px', fontSize: '0.82rem', color: '#fff', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
+            <Lock size={16} color="#f59e0b" />
+            <span>Mode: <strong style={{ color: '#f59e0b' }}>Citizen (Read-Only)</strong> &bull; Boundary Marking Restricted</span>
+          </div>
+        ) : !isDrawingMode ? (
           <button className="passport-btn" style={{ width: 'auto', padding: '10px 18px', background: 'linear-gradient(135deg, #06b6d4, #3b82f6)' }} onClick={startDrawing}>
-            <Edit3 size={16} /> Draw / Reshape Boundary
+            <Edit3 size={16} /> {role === 'village_officer' ? '📩 Issue Boundary Change Request' : 'Draw / Reshape Boundary'} ({role === 'village_officer' ? 'Village Office' : role === 'auditor' ? 'Auditor' : 'State Admin'})
           </button>
         ) : (
           <div style={{ background: 'var(--bg-card)', backdropFilter: 'blur(12px)', border: '1px solid var(--border-card)', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px', width: '330px', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
@@ -492,7 +644,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
                 onClick={saveCustomBoundary}
                 disabled={saving}
               >
-                <Check size={16} /> {saving ? 'Evaluating...' : 'Save & Evaluate'}
+                <Check size={16} /> {saving ? 'Submitting...' : role === 'village_officer' ? '📩 Issue Change Request' : '✅ Approve & Commit'}
               </button>
             </div>
           </div>
@@ -517,6 +669,18 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
           </div>
         </div>
       </div>
+
+      {/* Approval Queue Modal */}
+      {showApprovalModal && (
+        <ApprovalQueueModal
+          role={role}
+          onClose={() => setShowApprovalModal(false)}
+          onRequestProcessed={() => {
+            loadMapData();
+            fetchPendingCount();
+          }}
+        />
+      )}
     </div>
   );
 }

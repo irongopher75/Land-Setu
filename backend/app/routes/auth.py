@@ -6,9 +6,12 @@ from app.schemas import AuthLoginRequest, AuthLoginResponse
 
 ALGORITHM = "HS256"
 COOKIE_NAME = "landsetu_session"
-DEMO_LOGIN_ENABLED = os.getenv("DEMO_LOGIN_ENABLED", "true").lower() == "true"
-COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
-SECRET_KEY = os.getenv("JWT_SECRET") or "landsetu_super_secret_jwt_key_2026_hackathon_demo"
+DEMO_LOGIN_ENABLED = os.getenv("DEMO_LOGIN_ENABLED", "false").lower() == "true"
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() == "true"
+SECRET_KEY = os.getenv("JWT_SECRET")
+
+if not SECRET_KEY or len(SECRET_KEY) < 32:
+    raise RuntimeError("JWT_SECRET must be set to a random value of at least 32 characters")
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -16,21 +19,25 @@ def create_jwt_token(role: str) -> str:
     now = datetime.now(timezone.utc)
     return jwt.encode({
         "sub": f"user-{role}", "role": role, "iat": now, "nbf": now,
-        "exp": now + timedelta(hours=24), "iss": "landsetu", "aud": "landsetu-web",
+        "exp": now + timedelta(minutes=30), "iss": "landsetu", "aud": "landsetu-web",
     }, SECRET_KEY, algorithm=ALGORITHM)
+
+VALID_ROLES = {"citizen", "village_officer", "auditor", "state_admin", "officer", "bank"}
 
 def get_current_role(authorization: str | None = None, landsetu_session: str | None = Cookie(None)) -> str:
     token = landsetu_session
     if authorization and authorization.lower().startswith("bearer "):
         token = authorization[7:].strip()
     if not token:
-        return "officer"
+        raise HTTPException(status_code=401, detail="Authentication required")
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], issuer="landsetu", audience="landsetu-web")
-        role = payload.get("role", "officer")
-        return role if role in {"citizen", "officer", "bank"} else "officer"
-    except Exception:
-        return "officer"
+        role = payload.get("role")
+        if role not in VALID_ROLES:
+            raise ValueError("Unknown role")
+        return role
+    except (jwt.PyJWTError, ValueError):
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
 
 def require_roles(*allowed_roles: str):
     def dependency(role: str = Depends(get_current_role)) -> str:
@@ -41,12 +48,15 @@ def require_roles(*allowed_roles: str):
 
 @router.post("/mock-login", response_model=AuthLoginResponse)
 def mock_login(req: AuthLoginRequest, response: Response):
-    """Session login for citizen, officer, and bank roles."""
-    target_role = req.role.lower() if req.role.lower() in {"citizen", "officer", "bank"} else "citizen"
-    token = create_jwt_token(target_role)
+    """Opt-in local demo login. Privileged roles require verified server-side claims."""
+    if not DEMO_LOGIN_ENABLED:
+        raise HTTPException(status_code=404, detail="Demo login is disabled")
+    if req.role.lower() != "citizen":
+        raise HTTPException(status_code=403, detail="Demo login only grants the citizen role")
+    token = create_jwt_token("citizen")
     response.set_cookie(COOKIE_NAME, token, httponly=True,
                         secure=COOKIE_SECURE, samesite="lax", max_age=86400, path="/")
-    return AuthLoginResponse(role=target_role)
+    return AuthLoginResponse(role="citizen")
 
 @router.post("/logout", status_code=204)
 def logout(response: Response):

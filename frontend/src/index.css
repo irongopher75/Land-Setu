@@ -191,14 +191,17 @@ body {
 .main-content {
   flex: 1;
   position: relative;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* Map Container */
 .map-view-container {
   width: 100%;
   height: 100%;
-  position: relative;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
 }
 
 .leaflet-container {
@@ -556,4 +559,97 @@ body {
   color: #38bdf8;
   overflow-x: auto;
   max-height: 500px;
+}
+
+/* Mobile & Small Device Optimization */
+@media (max-width: 840px) {
+  .app-container {
+    height: 100dvh;
+    width: 100vw;
+  }
+
+  .navbar {
+    height: auto;
+    min-height: 56px;
+    padding: 10px 14px;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: space-between;
+  }
+
+  .nav-brand {
+    gap: 8px;
+  }
+
+  .brand-title {
+    font-size: 1.15rem;
+  }
+
+  .brand-badge {
+    display: none;
+  }
+
+  .nav-controls {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    gap: 8px;
+    justify-content: flex-start;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .view-tabs {
+    flex-shrink: 0;
+  }
+
+  .tab-btn {
+    padding: 5px 10px;
+    font-size: 0.78rem;
+    gap: 4px;
+  }
+
+  .state-selector {
+    padding: 4px 8px;
+    font-size: 0.78rem;
+    flex-shrink: 0;
+  }
+
+  /* Transform side drawer into a sleek bottom sheet on mobile */
+  .parcel-drawer {
+    width: 100% !important;
+    max-width: 100vw !important;
+    height: 80vh !important;
+    top: auto !important;
+    bottom: 0 !important;
+    border-left: none !important;
+    border-top: 1px solid var(--border-card) !important;
+    border-radius: 20px 20px 0 0 !important;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.6) !important;
+    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+
+  .sandbox-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .adapter-demo-container {
+    padding: 16px !important;
+  }
+
+  .map-legend {
+    bottom: 16px !important;
+    left: 12px !important;
+    padding: 8px 12px !important;
+    font-size: 0.72rem !important;
+    max-width: 180px;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
 }
