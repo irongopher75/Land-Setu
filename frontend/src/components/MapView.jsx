@@ -551,10 +551,10 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
       <div style={{ position: 'absolute', top: 20, left: 20, zIndex: 900, display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {/* Real-Time Auto-Identified Location Pill & Locate Me Button */}
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ background: 'var(--bg-card)', backdropFilter: 'blur(12px)', border: '1px solid var(--border-card)', padding: '8px 14px', borderRadius: '20px', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#fff', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
-            <MapPin size={14} color="var(--accent-cyan)" />
-            <span>Auto-Identified State: <strong style={{ color: 'var(--accent-cyan)' }}>{detectedStateInfo.label || detectedStateInfo.name}</strong> ({detectedStateInfo.capital})</span>
-            <span style={{ fontSize: '0.7rem', background: 'rgba(16,185,129,0.2)', color: '#34d399', padding: '2px 6px', borderRadius: '10px', fontWeight: 700 }}>
+          <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', padding: '8px 14px', borderRadius: '20px', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#0f172a', boxShadow: '0 4px 16px rgba(15,23,42,0.1)' }}>
+            <MapPin size={14} color="var(--accent-primary)" />
+            <span>Auto-Identified State: <strong style={{ color: 'var(--accent-primary)' }}>{detectedStateInfo.label || detectedStateInfo.name}</strong> ({detectedStateInfo.capital})</span>
+            <span style={{ fontSize: '0.7rem', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', padding: '2px 6px', borderRadius: '10px', fontWeight: 700 }}>
               AUTO SPATIAL
             </span>
           </div>
@@ -595,42 +595,42 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
         </div>
 
         {locationError && (
-          <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#f87171', padding: '8px 12px', borderRadius: '8px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '8px 12px', borderRadius: '8px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
             <span>{locationError}</span>
-            <button onClick={() => setLocationError('')} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}>
+            <button onClick={() => setLocationError('')} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer' }}>
               <X size={14} />
             </button>
           </div>
         )}
 
         {role === 'citizen' ? (
-          <div style={{ background: 'var(--bg-card)', backdropFilter: 'blur(12px)', border: '1px solid var(--border-card)', padding: '10px 16px', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '10px', fontSize: '0.82rem', color: '#fff', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
-            <Lock size={16} color="#f59e0b" />
-            <span>Mode: <strong style={{ color: '#f59e0b' }}>Citizen (Read-Only)</strong> &bull; Boundary Marking Restricted</span>
+          <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', padding: '10px 16px', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '10px', fontSize: '0.82rem', color: '#0f172a', boxShadow: '0 4px 16px rgba(15,23,42,0.1)' }}>
+            <Lock size={16} color="#b45309" />
+            <span>Mode: <strong style={{ color: '#b45309' }}>Citizen (Read-Only)</strong> &bull; Boundary Marking Restricted</span>
           </div>
         ) : !isDrawingMode ? (
           <button className="passport-btn" style={{ width: 'auto', padding: '10px 18px', background: 'linear-gradient(135deg, #06b6d4, #3b82f6)' }} onClick={startDrawing}>
             <Edit3 size={16} /> {role === 'village_officer' ? '📩 Issue Boundary Change Request' : 'Draw / Reshape Boundary'} ({role === 'village_officer' ? 'Village Office' : role === 'auditor' ? 'Auditor' : 'State Admin'})
           </button>
         ) : (
-          <div style={{ background: 'var(--bg-card)', backdropFilter: 'blur(12px)', border: '1px solid var(--border-card)', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px', width: '330px', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
-            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px', width: '330px', boxShadow: '0 8px 32px rgba(15,23,42,0.15)', color: '#0f172a' }}>
+            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span>📐 Boundary Reshaper ({vertices.length} Handles)</span>
               <button onClick={cancelDrawing} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <X size={16} />
               </button>
             </div>
 
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', background: 'rgba(6,182,212,0.1)', padding: '8px', borderRadius: '6px', border: '1px solid rgba(6,182,212,0.2)' }}>
+            <div style={{ fontSize: '0.78rem', color: '#0369a1', background: '#e0f2fe', padding: '8px', borderRadius: '6px', border: '1px solid #bae6fd' }}>
               💡 Drag blue handles OR click anywhere on map to add vertex points at your exact current resolution!
             </div>
 
-            <div style={{ fontSize: '0.85rem', background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: '8px' }}>
-              Computed Area: <strong style={{ color: '#4ade80' }}>{currentArea} sqm</strong>
+            <div style={{ fontSize: '0.85rem', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#0f172a', padding: '8px 12px', borderRadius: '8px' }}>
+              Computed Area: <strong style={{ color: '#15803d' }}>{currentArea} sqm</strong>
             </div>
 
             {reshapeError && (
-              <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#f87171', padding: '8px 10px', borderRadius: '6px', fontSize: '0.78rem', lineHeight: 1.4 }}>
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '8px 10px', borderRadius: '6px', fontSize: '0.78rem', lineHeight: 1.4 }}>
                 {reshapeError}
               </div>
             )}
@@ -641,14 +641,14 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
                 value={customUlpin}
                 onChange={(e) => setCustomUlpin(e.target.value)}
                 placeholder="Target ULPIN"
-                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid var(--border-card)', color: '#fff', padding: '6px 10px', borderRadius: '6px', fontSize: '0.82rem' }}
+                style={{ background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', padding: '6px 10px', borderRadius: '6px', fontSize: '0.82rem' }}
               />
               <input
                 type="text"
                 value={customOwner}
                 onChange={(e) => setCustomOwner(e.target.value)}
                 placeholder="Owner Name"
-                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid var(--border-card)', color: '#fff', padding: '6px 10px', borderRadius: '6px', fontSize: '0.82rem' }}
+                style={{ background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', padding: '6px 10px', borderRadius: '6px', fontSize: '0.82rem' }}
               />
             </div>
 

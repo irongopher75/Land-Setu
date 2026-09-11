@@ -54,7 +54,7 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
               <ShieldCheck color="#fff" size={20} />
             </div>
             <div>
-              <h3 style={{ fontSize: '1.15rem', color: '#fff', fontFamily: 'var(--font-title)' }}>
+              <h3 style={{ fontSize: '1.15rem', color: '#0f172a', fontFamily: 'var(--font-title)' }}>
                 Boundary Change Approval Queue
               </h3>
               <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
@@ -68,7 +68,7 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
         </div>
 
         {actionMsg && (
-          <div style={{ background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#34d399', padding: '10px 14px', borderRadius: '8px', fontSize: '0.82rem', marginTop: '12px' }}>
+          <div style={{ background: '#dcfce7', border: '1px solid #bbf7d0', color: '#15803d', padding: '10px 14px', borderRadius: '8px', fontSize: '0.82rem', marginTop: '12px' }}>
             {actionMsg}
           </div>
         )}
@@ -79,29 +79,29 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
               Loading pending boundary change requests...
             </div>
           ) : requests.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px 20px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '12px', border: '1px solid var(--border-card)' }}>
-              <CheckCircle color="#34d399" size={32} style={{ marginBottom: '8px', opacity: 0.8 }} />
-              <div style={{ color: '#fff', fontWeight: 700, fontSize: '0.95rem' }}>No Pending Requests</div>
+            <div style={{ textAlign: 'center', padding: '40px 20px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <CheckCircle color="#15803d" size={32} style={{ marginBottom: '8px', opacity: 0.9 }} />
+              <div style={{ color: '#0f172a', fontWeight: 700, fontSize: '0.95rem' }}>No Pending Requests</div>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                 All lower authority boundary changes have been reviewed and processed.
               </div>
             </div>
           ) : (
             requests.map((req) => (
-              <div key={req.id} style={{ background: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border-card)', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div key={req.id} style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ fontWeight: 700, color: 'var(--accent-cyan)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--accent-primary)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <MapPin size={16} /> {req.ulpin}
                   </div>
-                  <span style={{ fontSize: '0.7rem', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
+                  <span style={{ fontSize: '0.7rem', background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
                     PENDING APPROVAL
                   </span>
                 </div>
 
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-main)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '8px' }}>
-                  <div>State: <strong style={{ color: '#fff' }}>{req.state}</strong></div>
-                  <div>Proposed Area: <strong style={{ color: '#4ade80' }}>{req.area_sqm} sqm</strong></div>
-                  <div>Requested By: <strong style={{ color: '#60a5fa' }}>{req.requested_by}</strong> ({req.requester_role})</div>
+                <div style={{ fontSize: '0.82rem', color: '#1e293b', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '10px', borderRadius: '8px' }}>
+                  <div>State: <strong style={{ color: '#0f172a' }}>{req.state}</strong></div>
+                  <div>Proposed Area: <strong style={{ color: '#15803d' }}>{req.area_sqm} sqm</strong></div>
+                  <div>Requested By: <strong style={{ color: '#1d4ed8' }}>{req.requested_by}</strong> ({req.requester_role})</div>
                   <div>Submitted: <strong style={{ color: 'var(--text-muted)' }}>{new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong></div>
                 </div>
 

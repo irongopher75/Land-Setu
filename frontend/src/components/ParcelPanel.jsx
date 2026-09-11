@@ -53,7 +53,7 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary })
               {ulpin}
             </div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-              State: <strong style={{ color: '#fff' }}>{parcel?.state || 'N/A'}</strong> | Area: <strong style={{ color: '#fff' }}>{parcel?.area_sqm ? `${parcel.area_sqm} sqm` : 'N/A'}</strong>
+              State: <strong style={{ color: '#0f172a' }}>{parcel?.state || 'N/A'}</strong> | Area: <strong style={{ color: '#0f172a' }}>{parcel?.area_sqm ? `${parcel.area_sqm} sqm` : 'N/A'}</strong>
             </div>
           </div>
           <button className="drawer-close" onClick={onClose}>
