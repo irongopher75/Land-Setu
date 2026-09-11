@@ -7,6 +7,10 @@ from typing import Dict, Any
 CONVERSIONS = {
     "hectares_to_sqm": lambda val: round(float(val) * 10000.0, 2) if val is not None else None,
     "sqyd_to_sqm": lambda val: round(float(val) * 0.836127, 2) if val is not None else None,
+    "sqft_to_sqm": lambda val: round(float(val) * 0.092903, 2) if val is not None else None,
+    "marla_to_sqm": lambda val: round(float(val) * 25.2929, 2) if val is not None else None,
+    "guntha_to_sqm": lambda val: round(float(val) * 101.171, 2) if val is not None else None,
+    "bigha_to_sqm": lambda val: round(float(val) * 2529.29, 2) if val is not None else None,
 }
 
 class SchemaAdapter:

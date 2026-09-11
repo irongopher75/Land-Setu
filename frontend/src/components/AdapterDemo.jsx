@@ -61,28 +61,42 @@ export default function AdapterDemo() {
           <Cpu color="var(--accent-cyan)" /> Generic Config-Driven Schema Adapter Engine
         </h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '4px' }}>
-          Demonstrating zero-code schema normalization: Different state raw formats (Tamil Nadu CSV & Chandigarh CSV) map into the identical canonical schema using declarative YAML rules.
+          Demonstrating zero-code schema normalization: Different state raw formats across India map into the identical canonical schema using declarative YAML rules.
         </p>
       </div>
 
       {/* Controls Bar */}
-      <div style={{ display: 'flex', gap: '16px', background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-card)', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '16px', background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-card)', alignItems: 'center', flexWrap: 'wrap' }}>
         <div className="state-selector">
           <span>Target State:</span>
           <select value={state} onChange={(e) => setState(e.target.value)}>
             <option value="TamilNadu">Tamil Nadu (TN_RoR_v3 Config)</option>
             <option value="Chandigarh">Chandigarh (CHD_Jamabandi_v2 Config)</option>
+            <option value="Maharashtra">Maharashtra (MH_712_v1 Config)</option>
+            <option value="Karnataka">Karnataka (KA_Bhoomi_v2 Config)</option>
+            <option value="Delhi">Delhi (DL_Bhulekh_v1 Config)</option>
+            <option value="Telangana">Telangana (TG_Dharani_v2 Config)</option>
+            <option value="Kerala">Kerala (KL_REIS_v1 Config)</option>
+            <option value="WestBengal">West Bengal (WB_Banglarbhumi_v3 Config)</option>
+            <option value="Gujarat">Gujarat (GJ_AnyRoR_v2 Config)</option>
+            <option value="Rajasthan">Rajasthan (RJ_Apnakhata_v1 Config)</option>
+            <option value="UttarPradesh">Uttar Pradesh (UP_Bhulekh_v3 Config)</option>
+            <option value="Punjab">Punjab (PB_Jamabandi_v1 Config)</option>
+            <option value="MadhyaPradesh">Madhya Pradesh (MP_Bhulekh_v2 Config)</option>
           </select>
         </div>
 
         <div className="state-selector">
           <span>Select Raw Record:</span>
           <select value={selectedIndex} onChange={(e) => handleRecordChange(Number(e.target.value))}>
-            {currentRecords.map((r, i) => (
-              <option key={i} value={i}>
-                Record #{i + 1}: {r.ulpin} ({r.pattadar_peyar || r.owner_full_name})
-              </option>
-            ))}
+            {currentRecords.map((r, i) => {
+              const name = r.pattadar_peyar || r.owner_full_name || r.khatedar_nama || r.hissadar_hesaru || r.khatauni_owner || r.pattadar_namam || r.udama_peru || r.raiyat_naam || r.malik_naam || r.bhoomi_swami || 'Record';
+              return (
+                <option key={i} value={i}>
+                  Record #{i + 1}: {r.ulpin || 'SAMPLE-001'} ({name})
+                </option>
+              );
+            })}
           </select>
         </div>
 
