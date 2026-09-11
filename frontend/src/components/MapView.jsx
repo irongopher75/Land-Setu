@@ -207,7 +207,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
   const loadMapData = async () => {
     try {
       const [parcelsData, zonesData] = await Promise.all([
-        SHOW_SEEDED_PARCELS ? getParcelsGeoJSON(selectedState).catch(() => null) : Promise.resolve(null),
+        getParcelsGeoJSON(selectedState).catch(() => null),
         getProtectedZonesGeoJSON(selectedState).catch(() => null),
       ]);
 
@@ -216,20 +216,24 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
         .filter(p => (p.state === selectedState || !p.state) && p.geometry)
         .map(p => ({
           type: 'Feature',
-          properties: { ulpin: p.ulpin, state: p.state, area_sqm: p.area_sqm, owner_name: p.layers?.ror?.owner_name },
+          properties: {
+            ulpin: p.ulpin,
+            state: p.state || selectedState,
+            area_sqm: p.area_sqm,
+            owner_name: p.layers?.ror?.owner_name,
+            is_approved: true,
+            status: 'APPROVED',
+            has_flags: p.flags && p.flags.length > 0
+          },
           geometry: p.geometry
         }));
 
-      let mergedParcels = parcelsData;
+      let mergedParcels = parcelsData || { type: 'FeatureCollection', features: [] };
       if (customFeatures.length > 0) {
-        if (!mergedParcels) {
-          mergedParcels = { type: 'FeatureCollection', features: customFeatures };
-        } else {
-          mergedParcels = {
-            ...mergedParcels,
-            features: [...(mergedParcels.features || []), ...customFeatures]
-          };
-        }
+        mergedParcels = {
+          ...mergedParcels,
+          features: [...(mergedParcels.features || []), ...customFeatures]
+        };
       }
 
       setParcelsGeoJSON(mergedParcels);
@@ -396,14 +400,25 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
   // Parcel Polygon Styling
   const getParcelStyle = (feature) => {
     const isSelected = feature.properties?.ulpin === selectedUlpin;
+    const isApproved = feature.properties?.is_approved || feature.properties?.status === 'APPROVED';
     const hasFlags = feature.properties?.has_flags;
 
     if (isSelected) {
       return {
-        fillColor: '#3b82f6',
-        fillOpacity: 0.65,
-        color: '#60a5fa',
-        weight: 3,
+        fillColor: '#2563eb',
+        fillOpacity: 0.7,
+        color: '#1d4ed8',
+        weight: 4,
+        dashArray: ''
+      };
+    }
+
+    if (isApproved) {
+      return {
+        fillColor: '#10b981',
+        fillOpacity: 0.55,
+        color: '#059669',
+        weight: 3.5,
         dashArray: ''
       };
     }
@@ -439,11 +454,14 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
     const props = feature.properties;
     if (!props) return;
 
+    const isApproved = props.is_approved || props.status === 'APPROVED';
+
     const tooltipContent = `
-      <div style="font-family: sans-serif; font-size: 12px;">
-        <strong style="color: #3b82f6;">ULPIN: ${props.ulpin}</strong><br/>
-        Status: <span style="color: ${props.has_flags ? '#ef4444' : '#10b981'}; font-weight: bold;">
-          ${props.has_flags ? `⚠️ Flagged (${props.flag_count} rules)` : '✅ Clean'}
+      <div style="font-family: sans-serif; font-size: 12px; padding: 2px;">
+        <strong style="color: #1d4ed8;">ULPIN: ${props.ulpin}</strong><br/>
+        ${props.owner_name ? `Owner: <strong>${props.owner_name}</strong><br/>` : ''}
+        Status: <span style="color: ${isApproved ? '#059669' : props.has_flags ? '#ef4444' : '#10b981'}; font-weight: bold;">
+          ${isApproved ? '✅ OFFICIAL APPROVED BOUNDARY' : props.has_flags ? `⚠️ Flagged (${props.flag_count} rules)` : '✅ Clean'}
         </span>
       </div>
     `;
@@ -458,7 +476,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
       },
       mouseover: (e) => {
         if (!isDrawingMode) {
-          e.target.setStyle({ fillOpacity: 0.75, weight: 3 });
+          e.target.setStyle({ fillOpacity: 0.8, weight: 4 });
         }
       },
       mouseout: (e) => {
@@ -505,9 +523,9 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
         )}
 
         {/* Parcels Layer */}
-        {SHOW_SEEDED_PARCELS && parcelsGeoJSON && (
+        {parcelsGeoJSON && (
           <GeoJSON
-            key={`parcels-${selectedState}`}
+            key={`parcels-${selectedState}-${parcelsGeoJSON.features?.length || 0}`}
             data={parcelsGeoJSON}
             style={getParcelStyle}
             onEachFeature={onEachParcel}
@@ -678,8 +696,12 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
         <div className="legend-title">GIS Layer Legend</div>
         <div className="legend-items">
           <div className="legend-item">
+            <div className="legend-color" style={{ background: '#10b981', border: '2px solid #059669' }}></div>
+            <span>Official Approved Boundary</span>
+          </div>
+          <div className="legend-item">
             <div className="legend-color color-clean"></div>
-            <span>Clean Parcel</span>
+            <span>Standard Parcel</span>
           </div>
           <div className="legend-item">
             <div className="legend-color color-flagged"></div>
@@ -702,9 +724,12 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
         <ApprovalQueueModal
           role={role}
           onClose={() => setShowApprovalModal(false)}
-          onRequestProcessed={() => {
+          onRequestProcessed={(approvedUlpin) => {
             loadMapData();
             fetchPendingCount();
+            if (approvedUlpin && onSelectParcel) {
+              onSelectParcel(approvedUlpin);
+            }
           }}
         />
       )}

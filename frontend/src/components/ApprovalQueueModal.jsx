@@ -28,7 +28,7 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
       const res = await approveBoundaryRequest(id);
       setActionMsg(`Request #${id} for ULPIN '${ulpin}' approved and committed to master GIS database!`);
       await fetchRequests();
-      if (onRequestProcessed) onRequestProcessed();
+      if (onRequestProcessed) onRequestProcessed(ulpin);
     } catch (err) {
       alert(err.response?.data?.detail || err.message);
     }
