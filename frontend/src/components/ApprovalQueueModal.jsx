@@ -73,6 +73,15 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
           </div>
         )}
 
+        {role !== 'state_admin' && (
+          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af', padding: '10px 14px', borderRadius: '8px', fontSize: '0.8rem', marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <AlertCircle size={18} color="#1d4ed8" style={{ flexShrink: 0 }} />
+            <div>
+              <strong>Read-Only Access ({role === 'village_officer' ? 'Village Land Officer' : role}):</strong> Submissions from Village Land Officers require final review & signature by a <strong>State Administration Officer (state_admin)</strong> before committing to the sovereign GIS database.
+            </div>
+          </div>
+        )}
+
         <div style={{ flex: 1, overflowY: 'auto', margin: '16px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {loading ? (
             <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
@@ -94,7 +103,7 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
                     <MapPin size={16} /> {req.ulpin}
                   </div>
                   <span style={{ fontSize: '0.7rem', background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
-                    PENDING APPROVAL
+                    AWAITING STATE ADMIN APPROVAL
                   </span>
                 </div>
 
@@ -105,22 +114,28 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
                   <div>Submitted: <strong style={{ color: 'var(--text-muted)' }}>{new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong></div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
-                  <button
-                    className="passport-btn"
-                    style={{ flex: 1, padding: '8px', fontSize: '0.82rem', background: 'linear-gradient(135deg, #10b981, #059669)' }}
-                    onClick={() => handleApprove(req.id, req.ulpin)}
-                  >
-                    <CheckCircle size={15} /> Approve & Commit Boundary
-                  </button>
-                  <button
-                    className="passport-btn"
-                    style={{ flex: 1, padding: '8px', fontSize: '0.82rem', background: '#ef4444' }}
-                    onClick={() => handleReject(req.id, req.ulpin)}
-                  >
-                    <XCircle size={15} /> Reject Request
-                  </button>
-                </div>
+                {role === 'state_admin' ? (
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                    <button
+                      className="passport-btn"
+                      style={{ flex: 1, padding: '8px', fontSize: '0.82rem', background: 'linear-gradient(135deg, #10b981, #059669)' }}
+                      onClick={() => handleApprove(req.id, req.ulpin)}
+                    >
+                      <CheckCircle size={15} /> Approve & Commit Boundary
+                    </button>
+                    <button
+                      className="passport-btn"
+                      style={{ flex: 1, padding: '8px', fontSize: '0.82rem', background: '#ef4444' }}
+                      onClick={() => handleReject(req.id, req.ulpin)}
+                    >
+                      <XCircle size={15} /> Reject Request
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ padding: '8px 12px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.78rem', color: '#475569', textAlign: 'center', fontWeight: 600 }}>
+                    🔒 Pending State Admin Signature (Sign in as State Admin to approve)
+                  </div>
+                )}
               </div>
             ))
           )}

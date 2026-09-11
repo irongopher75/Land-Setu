@@ -503,6 +503,11 @@ export const getPendingRequests = async () => {
 };
 
 export const approveBoundaryRequest = async (requestId) => {
+  const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
+  if (currentRole !== 'state_admin') {
+    throw new Error('Permission Denied: Only State Administration Officers (state_admin) have approval authority.');
+  }
+
   try {
     const res = await client.post(`/parcels/requests/${requestId}/approve`);
     updateBoundaryRequestInFirestore(requestId, 'APPROVED', 'state_admin');
@@ -543,6 +548,11 @@ export const approveBoundaryRequest = async (requestId) => {
 };
 
 export const rejectBoundaryRequest = async (requestId) => {
+  const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
+  if (currentRole !== 'state_admin') {
+    throw new Error('Permission Denied: Only State Administration Officers (state_admin) have rejection authority.');
+  }
+
   try {
     const res = await client.post(`/parcels/requests/${requestId}/reject`);
     updateBoundaryRequestInFirestore(requestId, 'REJECTED', 'state_admin');
