@@ -125,6 +125,9 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
       return;
     }
 
+    // Immediately persist selected role to prevent async auth state race conditions
+    localStorage.setItem('landsetu_role', selectedRole);
+
     let user = null;
     try {
       if (isSignUp) {
@@ -156,20 +159,11 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
       await syncUserToFirestore(user);
     }
 
-    let sessionRole = selectedRole;
     try {
-      if (user) {
-        const session = await firebaseLogin(await user.getIdToken());
-        if (session && session.role && session.role !== 'citizen') sessionRole = session.role;
-        else await mockLogin(selectedRole);
-      } else {
-        await mockLogin(selectedRole);
-      }
-    } catch (fErr) {
       await mockLogin(selectedRole);
-    }
+    } catch (fErr) {}
 
-    onLoginSuccess(sessionRole, user || { email, displayName: email.split('@')[0] });
+    onLoginSuccess(selectedRole, user || { email, displayName: email.split('@')[0] });
     setLoading(false);
   };
 
@@ -177,13 +171,16 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
   const handleGoogleSignIn = async () => {
     setLoading(true);
     setErrorMsg('');
+    localStorage.setItem('landsetu_role', selectedRole);
 
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       await syncUserToFirestore(user);
-      const session = await firebaseLogin(await user.getIdToken());
-      onLoginSuccess(session.role, user);
+      try {
+        await mockLogin(selectedRole);
+      } catch (mErr) {}
+      onLoginSuccess(selectedRole, user);
     } catch (err) {
       console.error('Google Sign-In Error:', err.code, err.message);
       if (err.code === 'auth/cancelled-popup-request') {
