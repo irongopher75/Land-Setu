@@ -430,11 +430,12 @@ export const createCustomParcel = async (parcelData) => {
         ulpin: parcelData.ulpin,
         state: parcelData.state,
         owner_name: parcelData.owner_name,
+        land_use: parcelData.land_use || 'residential',
         geometry: parcelData.geometry,
         area_sqm: parcelData.area_sqm,
         requester_role: 'village_officer',
         requested_by: parcelData.owner_name,
-        status: 'PENDING',
+        status: 'PENDING_AUDITOR_REVIEW',
         created_at: new Date().toISOString()
       };
       pendingReqs.push(newReq);
@@ -442,8 +443,8 @@ export const createCustomParcel = async (parcelData) => {
       saveBoundaryRequestToFirestore(newReq);
 
       return {
-        status: 'PENDING_APPROVAL',
-        message: `Boundary change for parcel ${parcelData.ulpin} submitted for upper authority (State Admin Officer) approval.`,
+        status: 'PENDING_AUDITOR_REVIEW',
+        message: `Boundary change for parcel ${parcelData.ulpin} submitted! Stage 1: Awaiting Compliance Auditor Review.`,
         request: newReq
       };
     } else {
@@ -453,10 +454,11 @@ export const createCustomParcel = async (parcelData) => {
         state: parcelData.state,
         area_sqm: parcelData.area_sqm,
         geometry: parcelData.geometry,
+        land_use: parcelData.land_use || 'residential',
         layers: {
           ror: { owner_name: parcelData.owner_name, owner_share: '1/1', khata_no: 'KH-CUSTOM', source: 'village_office', confidence: 'verified' },
           registration: { last_transaction_id: 'REG-2026-CUSTOM', transaction_type: 'boundary_reshaped', date: new Date().toISOString().split('T')[0], source: 'sub_registrar', confidence: 'verified' },
-          zoning: { land_use: 'residential', permitted_fsi: 1.5, eco_sensitive: false, source: 'master_plan_2026', confidence: 'verified' },
+          zoning: { land_use: parcelData.land_use || 'residential', permitted_fsi: 1.5, eco_sensitive: false, source: 'master_plan_2026', confidence: 'verified' },
           building_permit: { status: 'approved', permit_id: 'BP-2026-CUSTOM', approved_fsi: 1.5, source: 'municipal_corp', confidence: 'verified' },
           tax: { annual_value: 45000, source: 'revenue_dept', confidence: 'verified', last_verified: new Date().toISOString().split('T')[0] },
           encumbrance: { active: false, type: null, source: 'sub_registrar', confidence: 'verified' }
@@ -492,9 +494,10 @@ export const getPendingRequests = async () => {
   } catch (err) {
     const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
     const fsReqs = await getFirestorePendingRequests().catch(() => []);
-    const merged = [...reqs.filter(r => r.status === 'PENDING')];
+    const openStatuses = ['PENDING_AUDITOR_REVIEW', 'PENDING_STATE_ADMIN', 'PENDING_APPROVAL', 'PENDING'];
+    const merged = [...reqs.filter(r => openStatuses.includes(r.status))];
     for (const fsR of fsReqs) {
-      if (!merged.some(m => m.id === fsR.id)) {
+      if (openStatuses.includes(fsR.status) && !merged.some(m => m.id === fsR.id)) {
         merged.push(fsR);
       }
     }
@@ -502,10 +505,33 @@ export const getPendingRequests = async () => {
   }
 };
 
+export const auditorPassRequest = async (requestId) => {
+  const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
+  if (currentRole !== 'auditor' && currentRole !== 'state_admin') {
+    throw new Error('Permission Denied: Only Compliance Auditors can pass compliance audit.');
+  }
+
+  try {
+    const res = await client.post(`/parcels/requests/${requestId}/auditor-pass`);
+    updateBoundaryRequestInFirestore(requestId, 'PENDING_STATE_ADMIN', 'auditor');
+    return res.data;
+  } catch (err) {
+    const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
+    const req = reqs.find(r => r.id === requestId);
+    if (req) {
+      req.status = 'PENDING_STATE_ADMIN';
+      req.audited_by = 'Land Inspector & Compliance Auditor';
+      localStorage.setItem('landsetu_pending_reqs', JSON.stringify(reqs));
+    }
+    updateBoundaryRequestInFirestore(requestId, 'PENDING_STATE_ADMIN', 'auditor');
+    return { status: 'PENDING_STATE_ADMIN', message: `Request #${requestId} passed compliance audit and forwarded to State Admin!`, ulpin: req?.ulpin };
+  }
+};
+
 export const approveBoundaryRequest = async (requestId) => {
   const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
   if (currentRole !== 'state_admin') {
-    throw new Error('Permission Denied: Only State Administration Officers (state_admin) have approval authority.');
+    throw new Error('Permission Denied: Only State Administration Officers (state_admin) have final approval authority.');
   }
 
   try {
@@ -525,10 +551,11 @@ export const approveBoundaryRequest = async (requestId) => {
         state: req.state,
         area_sqm: req.area_sqm,
         geometry: req.geometry,
+        land_use: req.land_use || 'residential',
         layers: {
           ror: { owner_name: req.owner_name, owner_share: '1/1', khata_no: 'KH-APPROVED', source: 'village_office', confidence: 'verified' },
           registration: { last_transaction_id: 'REG-2026-APPROVED', transaction_type: 'boundary_reshaped', date: new Date().toISOString().split('T')[0], source: 'sub_registrar', confidence: 'verified' },
-          zoning: { land_use: 'residential', permitted_fsi: 1.5, eco_sensitive: false, source: 'master_plan_2026', confidence: 'verified' },
+          zoning: { land_use: req.land_use || 'residential', permitted_fsi: 1.5, eco_sensitive: false, source: 'master_plan_2026', confidence: 'verified' },
           building_permit: { status: 'approved', permit_id: 'BP-2026-APPROVED', approved_fsi: 1.5, source: 'municipal_corp', confidence: 'verified' },
           tax: { annual_value: 48000, source: 'revenue_dept', confidence: 'verified', last_verified: new Date().toISOString().split('T')[0] },
           encumbrance: { active: false, type: null, source: 'sub_registrar', confidence: 'verified' }
@@ -549,13 +576,13 @@ export const approveBoundaryRequest = async (requestId) => {
 
 export const rejectBoundaryRequest = async (requestId) => {
   const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
-  if (currentRole !== 'state_admin') {
-    throw new Error('Permission Denied: Only State Administration Officers (state_admin) have rejection authority.');
+  if (currentRole !== 'auditor' && currentRole !== 'state_admin') {
+    throw new Error('Permission Denied: Only Compliance Auditors or State Administration Officers have rejection authority.');
   }
 
   try {
     const res = await client.post(`/parcels/requests/${requestId}/reject`);
-    updateBoundaryRequestInFirestore(requestId, 'REJECTED', 'state_admin');
+    updateBoundaryRequestInFirestore(requestId, 'REJECTED', currentRole);
     return res.data;
   } catch (err) {
     const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
@@ -564,8 +591,8 @@ export const rejectBoundaryRequest = async (requestId) => {
       req.status = 'REJECTED';
       localStorage.setItem('landsetu_pending_reqs', JSON.stringify(reqs));
     }
-    updateBoundaryRequestInFirestore(requestId, 'REJECTED', 'state_admin');
-    return { status: 'REJECTED', message: `Request ${requestId} rejected.` };
+    updateBoundaryRequestInFirestore(requestId, 'REJECTED', currentRole);
+    return { status: 'REJECTED', message: `Request ${requestId} rejected by ${currentRole}.` };
   }
 };
 

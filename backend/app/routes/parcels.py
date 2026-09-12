@@ -378,9 +378,9 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get
 
 @router.get("/requests/pending")
 def list_pending_requests(role: str = Depends(require_roles("officer", "bank", "auditor", "state_admin")), db: Session = Depends(get_db)):
-    """Lists all boundary change requests submitted by lower authorities awaiting approval."""
+    """Lists all boundary change requests in the multi-stage governance pipeline."""
     reqs = db.query(BoundaryChangeRequest).filter(
-        BoundaryChangeRequest.status == "PENDING_APPROVAL"
+        BoundaryChangeRequest.status.in_(["PENDING_AUDITOR_REVIEW", "PENDING_STATE_ADMIN", "PENDING_APPROVAL"])
     ).order_by(BoundaryChangeRequest.id.desc()).all()
 
     result = []
@@ -399,13 +399,33 @@ def list_pending_requests(role: str = Depends(require_roles("officer", "bank", "
         })
     return result
 
-@router.post("/requests/{request_id}/approve")
-def approve_boundary_request(request_id: int, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
-    """Upper authority approval endpoint to commit a lower authority boundary change request."""
-    if role in ("citizen", "village_officer"):
+@router.post("/requests/{request_id}/auditor-pass")
+def auditor_pass_request(request_id: int, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
+    """Auditor endpoint to pass compliance audit and forward request to State Admin."""
+    if role not in ("auditor", "state_admin"):
         raise HTTPException(
             status_code=403,
-            detail="Permission denied: Only upper authorities (State Administration or Auditor) can approve boundary change requests."
+            detail="Permission denied: Only Compliance Auditors can pass audit and forward to State Admin."
+        )
+
+    req = db.query(BoundaryChangeRequest).filter(BoundaryChangeRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Boundary change request not found")
+
+    req.status = "PENDING_STATE_ADMIN"
+    req.approved_by = "Compliance Auditor (Audit Passed)"
+    req.approver_role = role
+    db.commit()
+
+    return {"status": "PENDING_STATE_ADMIN", "message": f"Boundary change request #{request_id} passed auditor review and forwarded to State Admin!"}
+
+@router.post("/requests/{request_id}/approve")
+def approve_boundary_request(request_id: int, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
+    """State Admin approval endpoint to commit a lower authority boundary change request."""
+    if role != "state_admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Permission denied: Only State Administration Officers (state_admin) can issue final approval for boundary change requests."
         )
 
     from app.db import IS_SQLITE
@@ -453,10 +473,10 @@ def approve_boundary_request(request_id: int, role: str = Depends(get_current_ro
 @router.post("/requests/{request_id}/reject")
 def reject_boundary_request(request_id: int, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
     """Upper authority rejection endpoint for a boundary change request."""
-    if role in ("citizen", "village_officer"):
+    if role not in ("auditor", "state_admin"):
         raise HTTPException(
             status_code=403,
-            detail="Permission denied: Only upper authorities (State Administration or Auditor) can reject boundary change requests."
+            detail="Permission denied: Only Compliance Auditors or State Administration Officers can reject boundary change requests."
         )
 
     req = db.query(BoundaryChangeRequest).filter(BoundaryChangeRequest.id == request_id).first()
@@ -464,7 +484,7 @@ def reject_boundary_request(request_id: int, role: str = Depends(get_current_rol
         raise HTTPException(status_code=404, detail="Boundary change request not found")
 
     req.status = "REJECTED"
-    req.approved_by = "State Administration Officer"
+    req.approved_by = f"Rejected by {role}"
     req.approver_role = role
     db.commit()
 

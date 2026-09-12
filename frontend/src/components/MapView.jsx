@@ -104,6 +104,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
   const [reshapeError, setReshapeError] = useState('');
   const [customUlpin, setCustomUlpin] = useState('');
   const [customOwner, setCustomOwner] = useState('');
+  const [selectedLandUse, setSelectedLandUse] = useState('residential');
   const [saving, setSaving] = useState(false);
   const mapRef = useRef(null);
   const stateLookupTimer = useRef(null);
@@ -125,6 +126,24 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
   };
 
   const currentFocus = stateCenters[selectedState] || stateCenters.TamilNadu;
+
+  // Land Use / Zoning Ownership Color Customization Theme Helper
+  const getLandUseTheme = (landUseStr = 'residential') => {
+    const lower = String(landUseStr).toLowerCase();
+    if (lower.includes('eco') || lower.includes('protect') || lower.includes('forest')) {
+      return { fill: '#a855f7', border: '#8b5cf6', label: '🌿 Ecological / Forest Zone' };
+    }
+    if (lower.includes('agri') || lower.includes('farm') || lower.includes('crop')) {
+      return { fill: '#eab308', border: '#d97706', label: '🌾 Agricultural Area' };
+    }
+    if (lower.includes('indus') || lower.includes('factory') || lower.includes('manufactur')) {
+      return { fill: '#ea580c', border: '#c2410c', label: '🏭 Industrial Area' };
+    }
+    if (lower.includes('trans') || lower.includes('road') || lower.includes('infra') || lower.includes('comm')) {
+      return { fill: '#06b6d4', border: '#0f766e', label: '🚗 Transport / Infra Area' };
+    }
+    return { fill: '#3b82f6', border: '#1d4ed8', label: '🏡 Residential Area' };
+  };
 
   // Fetch real-time GPS user location and reset map view directly onto location
   const locateUserAndCenter = (isInitial = false) => {
@@ -200,6 +219,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
       setVertices(leafletCoords);
       setCustomUlpin(editingParcel.ulpin);
       setCustomOwner(editingParcel.layers?.ror?.owner_name || 'Parcel Owner');
+      setSelectedLandUse(editingParcel.layers?.zoning?.land_use || editingParcel.land_use || 'residential');
       setIsDrawingMode(true);
     }
   }, [editingParcel]);
@@ -221,6 +241,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
             state: p.state || selectedState,
             area_sqm: p.area_sqm,
             owner_name: p.layers?.ror?.owner_name,
+            land_use: p.land_use || p.layers?.zoning?.land_use || 'residential',
             is_approved: true,
             status: 'APPROVED',
             has_flags: p.flags && p.flags.length > 0
@@ -290,13 +311,13 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
       initialRing.push([lat, lng]);
     }
 
-    const statePrefix = (detectedStateInfo.code || 'GIS') + '-MANUAL';
-    const randomNum = Math.floor(1000 + Math.random() * 9000);
-    setCustomUlpin(`${statePrefix}-${randomNum}`);
-    setCustomOwner('Citizen / Custom Owner');
     setVertices(initialRing);
-    setReshapeError('');
+    const prefix = selectedState.slice(0, 2).toUpperCase();
+    setCustomUlpin(`${prefix}-MANUAL-${Math.floor(1000 + Math.random() * 9000)}`);
+    setCustomOwner('Citizen / Custom Owner');
+    setSelectedLandUse('residential');
     setIsDrawingMode(true);
+    setReshapeError('');
   };
 
   const cancelDrawing = () => {
@@ -307,23 +328,26 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
   };
 
   // Add vertex handle at exact clicked position on map
-  const handleMapClickPosition = (latlng) => {
-    setVertices((prev) => [...prev, latlng]);
+  const handleMapClickPosition = (lat, lng) => {
+    if (!isDrawingMode) return;
+    setVertices((prev) => [...prev, [lat, lng]]);
   };
 
   // Drag handle update
-  const handleVertexDrag = (index, event) => {
-    const { lat, lng } = event.target.getLatLng();
+  const handleVertexDrag = (index, newLat, newLng) => {
     setVertices((prev) => {
       const updated = [...prev];
-      updated[index] = [lat, lng];
+      updated[index] = [newLat, newLng];
       return updated;
     });
   };
 
   // Save boundary changes & re-run spatial rules engine
   const saveCustomBoundary = async () => {
-    if (vertices.length < 3) return;
+    if (vertices.length < 3) {
+      setReshapeError('A parcel polygon requires at least 3 vertex points.');
+      return;
+    }
     setSaving(true);
     setReshapeError('');
 
@@ -361,11 +385,12 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
         ulpin: customUlpin,
         state: targetState,
         owner_name: customOwner,
+        land_use: selectedLandUse,
         geometry: geojsonPolygon,
         area_sqm: areaSqm
       });
 
-      if (result.status === 'PENDING_APPROVAL') {
+      if (result.status === 'PENDING_APPROVAL' || result.status === 'PENDING_AUDITOR_REVIEW') {
         alert(`📩 ${result.message}`);
         setIsDrawingMode(false);
         setVertices([]);
@@ -402,22 +427,24 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
     const isSelected = feature.properties?.ulpin === selectedUlpin;
     const isApproved = feature.properties?.is_approved || feature.properties?.status === 'APPROVED';
     const hasFlags = feature.properties?.has_flags;
+    const landUse = feature.properties?.land_use || feature.properties?.zone_category || feature.properties?.layers?.zoning?.land_use || 'residential';
+    const theme = getLandUseTheme(landUse);
 
     if (isSelected) {
       return {
-        fillColor: '#2563eb',
-        fillOpacity: 0.7,
-        color: '#1d4ed8',
-        weight: 4,
+        fillColor: theme.fill,
+        fillOpacity: 0.75,
+        color: '#ffffff',
+        weight: 4.5,
         dashArray: ''
       };
     }
 
     if (isApproved) {
       return {
-        fillColor: '#10b981',
+        fillColor: theme.fill,
         fillOpacity: 0.55,
-        color: '#059669',
+        color: theme.border,
         weight: 3.5,
         dashArray: ''
       };
@@ -426,17 +453,17 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
     if (hasFlags) {
       return {
         fillColor: '#ef4444',
-        fillOpacity: 0.35,
-        color: '#f87171',
-        weight: 2,
+        fillOpacity: 0.4,
+        color: '#dc2626',
+        weight: 2.5,
         dashArray: ''
       };
     }
 
     return {
-      fillColor: '#10b981',
-      fillOpacity: 0.35,
-      color: '#34d399',
+      fillColor: theme.fill,
+      fillOpacity: 0.4,
+      color: theme.border,
       weight: 2,
       dashArray: ''
     };
@@ -455,11 +482,14 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
     if (!props) return;
 
     const isApproved = props.is_approved || props.status === 'APPROVED';
+    const landUse = props.land_use || props.zone_category || props.layers?.zoning?.land_use || 'residential';
+    const theme = getLandUseTheme(landUse);
 
     const tooltipContent = `
-      <div style="font-family: sans-serif; font-size: 12px; padding: 2px;">
+      <div style="font-family: sans-serif; font-size: 12px; padding: 4px;">
         <strong style="color: #1d4ed8;">ULPIN: ${props.ulpin}</strong><br/>
         ${props.owner_name ? `Owner: <strong>${props.owner_name}</strong><br/>` : ''}
+        Zoning Category: <strong style="color: ${theme.border};">${theme.label}</strong><br/>
         Status: <span style="color: ${isApproved ? '#059669' : props.has_flags ? '#ef4444' : '#10b981'}; font-weight: bold;">
           ${isApproved ? '✅ OFFICIAL APPROVED BOUNDARY' : props.has_flags ? `⚠️ Flagged (${props.flag_count} rules)` : '✅ Clean'}
         </span>
@@ -476,7 +506,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
       },
       mouseover: (e) => {
         if (!isDrawingMode) {
-          e.target.setStyle({ fillOpacity: 0.8, weight: 4 });
+          e.target.setStyle({ fillOpacity: 0.85, weight: 4.5 });
         }
       },
       mouseout: (e) => {
@@ -538,11 +568,11 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
             <Polygon
               positions={vertices}
               pathOptions={{
-                color: '#06b6d4',
-                fillColor: '#06b6d4',
-                fillOpacity: 0.5,
+                color: getLandUseTheme(selectedLandUse).border,
+                fillColor: getLandUseTheme(selectedLandUse).fill,
+                fillOpacity: 0.55,
                 weight: 3,
-                dashArray: '4, 4'
+                dashArray: '6, 6'
               }}
             />
             {vertices.map((pos, idx) => (
@@ -552,7 +582,10 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
                 icon={handleIcon}
                 draggable={true}
                 eventHandlers={{
-                  drag: (e) => handleVertexDrag(idx, e)
+                  drag: (e) => {
+                    const latLng = e.target.getLatLng();
+                    handleVertexDrag(idx, latLng.lat, latLng.lng);
+                  }
                 }}
               />
             ))}
@@ -561,12 +594,22 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
 
         {/* Live GPS User Location Marker */}
         {userLocation && (
-          <Marker position={userLocation} icon={userLocationIcon} />
+          <Marker position={userLocation} icon={userLocationIcon}>
+            <Polygon
+              positions={[
+                [userLocation[0] + 0.001, userLocation[1] + 0.001],
+                [userLocation[0] - 0.001, userLocation[1] + 0.001],
+                [userLocation[0] - 0.001, userLocation[1] - 0.001],
+                [userLocation[0] + 0.001, userLocation[1] - 0.001]
+              ]}
+              pathOptions={{ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.1, weight: 1.5, dashArray: '4, 4' }}
+            />
+          </Marker>
         )}
       </MapContainer>
 
       {/* Top Map Action Bar & Auto State Detection Pill */}
-      <div style={{ position: 'absolute', top: 20, left: 20, zIndex: 900, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div style={{ position: 'absolute', top: 20, left: 20, zIndex: 900, display: 'flex', flexDirection: 'column', gap: '10px' }} className="map-toolbar">
         {/* Real-Time Auto-Identified Location Pill & Locate Me Button */}
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', padding: '8px 14px', borderRadius: '20px', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#0f172a', boxShadow: '0 4px 16px rgba(15,23,42,0.1)' }}>
@@ -583,9 +626,10 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
               width: 'auto',
               padding: '8px 14px',
               fontSize: '0.82rem',
-              background: 'linear-gradient(135deg, #2563eb, #0284c7)',
-              borderRadius: '20px',
-              boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)'
+              background: '#ffffff',
+              color: '#0f172a',
+              border: '1px solid #cbd5e1',
+              borderRadius: '20px'
             }}
             onClick={() => locateUserAndCenter(false)}
             disabled={locating}
@@ -607,7 +651,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
               }}
               onClick={() => setShowApprovalModal(true)}
             >
-              <ClipboardList size={14} /> Approval Queue ({pendingCount})
+              <ClipboardList size={14} /> Approval Pipeline ({pendingCount})
             </button>
           )}
         </div>
@@ -631,7 +675,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
             <Edit3 size={16} /> {role === 'village_officer' ? '📩 Issue Boundary Change Request' : 'Draw / Reshape Boundary'} ({role === 'village_officer' ? 'Village Office' : role === 'auditor' ? 'Auditor' : 'State Admin'})
           </button>
         ) : (
-          <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px', width: '330px', boxShadow: '0 8px 32px rgba(15,23,42,0.15)', color: '#0f172a' }}>
+          <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px', width: '340px', boxShadow: '0 8px 32px rgba(15,23,42,0.15)', color: '#0f172a' }}>
             <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span>📐 Boundary Reshaper ({vertices.length} Handles)</span>
               <button onClick={cancelDrawing} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
@@ -668,6 +712,20 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
                 placeholder="Owner Name"
                 style={{ background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', padding: '6px 10px', borderRadius: '6px', fontSize: '0.82rem' }}
               />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>Zoning / Land Use Category:</label>
+                <select
+                  value={selectedLandUse}
+                  onChange={(e) => setSelectedLandUse(e.target.value)}
+                  style={{ background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', padding: '6px 10px', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 700 }}
+                >
+                  <option value="residential">🏡 Residential Area (Royal Blue)</option>
+                  <option value="agricultural">🌾 Agricultural Area (Amber Gold)</option>
+                  <option value="industrial">🏭 Industrial Area (Orange)</option>
+                  <option value="ecological">🌿 Ecological / Forest Zone (Purple)</option>
+                  <option value="transport">🚗 Transport / Commercial (Teal Cyan)</option>
+                </select>
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: '8px' }}>
@@ -693,23 +751,27 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
 
       {/* Interactive Legend Overlay */}
       <div className="map-legend">
-        <div className="legend-title">GIS Layer Legend</div>
+        <div className="legend-title">GIS Land Use & Zoning Legend</div>
         <div className="legend-items">
           <div className="legend-item">
-            <div className="legend-color" style={{ background: '#10b981', border: '2px solid #059669' }}></div>
-            <span>Official Approved Boundary</span>
+            <div className="legend-color" style={{ background: '#3b82f6', border: '2px solid #1d4ed8' }}></div>
+            <span>🏡 Residential Area</span>
           </div>
           <div className="legend-item">
-            <div className="legend-color color-clean"></div>
-            <span>Standard Parcel</span>
+            <div className="legend-color" style={{ background: '#eab308', border: '2px solid #d97706' }}></div>
+            <span>🌾 Agricultural Area</span>
           </div>
           <div className="legend-item">
-            <div className="legend-color color-flagged"></div>
-            <span>Rule Flagged Parcel (Overlap/FSI)</span>
+            <div className="legend-color" style={{ background: '#ea580c', border: '2px solid #c2410c' }}></div>
+            <span>🏭 Industrial Area</span>
           </div>
           <div className="legend-item">
-            <div className="legend-color color-protected"></div>
-            <span>Protected Eco-Sensitive Zone</span>
+            <div className="legend-color" style={{ background: '#a855f7', border: '2px solid #8b5cf6' }}></div>
+            <span>🌿 Ecological / Forest Zone</span>
+          </div>
+          <div className="legend-item">
+            <div className="legend-color" style={{ background: '#06b6d4', border: '2px solid #0f766e' }}></div>
+            <span>🚗 Transport / Commercial</span>
           </div>
         </div>
       </div>
