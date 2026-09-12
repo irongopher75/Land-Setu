@@ -83,19 +83,61 @@ function calculatePolygonAreaSqm(latLngs) {
   return Math.abs(Math.round(area * 10) / 10);
 }
 
+// Geometry parser and Turf feature builder helper
+const ensureTurfFeature = (f) => {
+  if (!f) return null;
+  let geom = f.geometry;
+  if (typeof geom === 'string') {
+    try { geom = JSON.parse(geom); } catch (e) {}
+  }
+  if (!geom || !geom.type || !geom.coordinates) return null;
+  return turf.feature(geom, f.properties || {});
+};
+
+// Robust Turf v7 overlap area calculation helper
+const calculateFeatureOverlapArea = (polyA, polyB) => {
+  try {
+    const featA = ensureTurfFeature(polyA);
+    const featB = ensureTurfFeature(polyB);
+    if (!featA || !featB) return 0;
+
+    // Turf v7 requires FeatureCollection passed to turf.intersect
+    const fc = turf.featureCollection([featA, featB]);
+    const intersection = turf.intersect(fc);
+    if (intersection) {
+      const areaSqm = turf.area(intersection);
+      if (areaSqm > 0.05) return areaSqm;
+    }
+  } catch (err1) {
+    try {
+      const featA = ensureTurfFeature(polyA);
+      const featB = ensureTurfFeature(polyB);
+      if (featA && featB && turf.booleanIntersects(featA, featB)) {
+        return 1.0;
+      }
+    } catch (err2) {}
+  }
+  return 0;
+};
+
 // Spatial Overlap Detection Helper using Turf
 const evaluateParcelsOverlap = (featureCollection, protectedZones) => {
   if (!featureCollection || !featureCollection.features) return featureCollection;
 
-  const features = featureCollection.features.map(f => ({
-    ...f,
-    properties: {
-      ...f.properties,
-      has_overlap: false,
-      overlapping_with: [],
-      overlap_reasons: []
-    }
-  }));
+  const features = featureCollection.features.map(f => {
+    const existingFlags = f.properties?.flags || [];
+    const hasRuleOverlap = existingFlags.some(fl => fl.rule === 'boundary_overlap' || fl.rule === 'protected_zone');
+
+    return {
+      ...f,
+      properties: {
+        ...f.properties,
+        has_overlap: Boolean(hasRuleOverlap || f.properties?.has_overlap),
+        overlapping_with: f.properties?.overlapping_with || [],
+        overlap_reasons: f.properties?.overlap_reasons || []
+      }
+    };
+  });
 
   for (let i = 0; i < features.length; i++) {
     for (let j = i + 1; j < features.length; j++) {
@@ -103,30 +145,23 @@ const evaluateParcelsOverlap = (featureCollection, protectedZones) => {
         const polyA = features[i];
         const polyB = features[j];
 
-        if (!polyA.geometry || !polyB.geometry) continue;
+        const overlapAreaSqm = calculateFeatureOverlapArea(polyA, polyB);
+        if (overlapAreaSqm > 0.05) {
+          const ulpinA = polyA.properties?.ulpin || `Parcel ${i + 1}`;
+          const ulpinB = polyB.properties?.ulpin || `Parcel ${j + 1}`;
 
-        if (turf.booleanIntersects(polyA, polyB)) {
-          const intersection = turf.intersect(polyA, polyB);
-          if (intersection) {
-            const overlapAreaSqm = turf.area(intersection);
-            if (overlapAreaSqm > 0.5) {
-              const ulpinA = polyA.properties?.ulpin || `Parcel ${i + 1}`;
-              const ulpinB = polyB.properties?.ulpin || `Parcel ${j + 1}`;
+          features[i].properties.has_overlap = true;
+          features[i].properties.has_flags = true;
+          if (!features[i].properties.overlapping_with.includes(ulpinB)) {
+            features[i].properties.overlapping_with.push(ulpinB);
+            features[i].properties.overlap_reasons.push(`Overlaps with ${ulpinB} (${overlapAreaSqm.toFixed(1)} sqm)`);
+          }
 
-              features[i].properties.has_overlap = true;
-              features[i].properties.has_flags = true;
-              if (!features[i].properties.overlapping_with.includes(ulpinB)) {
-                features[i].properties.overlapping_with.push(ulpinB);
-                features[i].properties.overlap_reasons.push(`Overlaps with ${ulpinB} (${overlapAreaSqm.toFixed(1)} sqm)`);
-              }
-
-              features[j].properties.has_overlap = true;
-              features[j].properties.has_flags = true;
-              if (!features[j].properties.overlapping_with.includes(ulpinA)) {
-                features[j].properties.overlapping_with.push(ulpinA);
-                features[j].properties.overlap_reasons.push(`Overlaps with ${ulpinA} (${overlapAreaSqm.toFixed(1)} sqm)`);
-              }
-            }
+          features[j].properties.has_overlap = true;
+          features[j].properties.has_flags = true;
+          if (!features[j].properties.overlapping_with.includes(ulpinA)) {
+            features[j].properties.overlapping_with.push(ulpinA);
+            features[j].properties.overlap_reasons.push(`Overlaps with ${ulpinA} (${overlapAreaSqm.toFixed(1)} sqm)`);
           }
         }
       } catch (err) {
@@ -137,17 +172,14 @@ const evaluateParcelsOverlap = (featureCollection, protectedZones) => {
     if (protectedZones && protectedZones.features) {
       for (const zone of protectedZones.features) {
         try {
-          if (!features[i].geometry || !zone.geometry) continue;
-          if (turf.booleanIntersects(features[i], zone)) {
-            const intersection = turf.intersect(features[i], zone);
-            if (intersection && turf.area(intersection) > 0.5) {
-              const zoneName = zone.properties?.name || 'Protected Eco Zone';
-              features[i].properties.has_overlap = true;
-              features[i].properties.has_flags = true;
-              if (!features[i].properties.overlapping_with.includes(zoneName)) {
-                features[i].properties.overlapping_with.push(zoneName);
-                features[i].properties.overlap_reasons.push(`Overlaps with Protected Zone: ${zoneName}`);
-              }
+          const overlapAreaSqm = calculateFeatureOverlapArea(features[i], zone);
+          if (overlapAreaSqm > 0.05) {
+            const zoneName = zone.properties?.name || 'Protected Eco Zone';
+            features[i].properties.has_overlap = true;
+            features[i].properties.has_flags = true;
+            if (!features[i].properties.overlapping_with.includes(zoneName)) {
+              features[i].properties.overlapping_with.push(zoneName);
+              features[i].properties.overlap_reasons.push(`Overlaps with Protected Zone: ${zoneName}`);
             }
           }
         } catch (e) {}
@@ -358,31 +390,19 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
       const conflicts = [];
       for (const f of parcelsGeoJSON.features) {
         if (editingParcel && f.properties?.ulpin === editingParcel.ulpin) continue;
-        if (!f.geometry) continue;
-        if (turf.booleanIntersects(drawnPoly, f)) {
-          const inter = turf.intersect(drawnPoly, f);
-          if (inter) {
-            const area = turf.area(inter);
-            if (area > 0.5) {
-              const name = f.properties?.ulpin || f.properties?.owner_name || 'Neighboring Parcel';
-              conflicts.push(`Parcel ${name} (Overlap: ${area.toFixed(1)} sqm)`);
-            }
-          }
+        const overlapArea = calculateFeatureOverlapArea(drawnPoly, f);
+        if (overlapArea > 0.05) {
+          const name = f.properties?.ulpin || f.properties?.owner_name || 'Neighboring Parcel';
+          conflicts.push(`Parcel ${name} (Overlap: ${overlapArea.toFixed(1)} sqm)`);
         }
       }
 
       if (protectedGeoJSON && protectedGeoJSON.features) {
         for (const zone of protectedGeoJSON.features) {
-          if (!zone.geometry) continue;
-          if (turf.booleanIntersects(drawnPoly, zone)) {
-            const inter = turf.intersect(drawnPoly, zone);
-            if (inter) {
-              const area = turf.area(inter);
-              if (area > 0.5) {
-                const name = zone.properties?.name || 'Protected Eco Zone';
-                conflicts.push(`🛡️ ${name} (Overlap: ${area.toFixed(1)} sqm)`);
-              }
-            }
+          const overlapArea = calculateFeatureOverlapArea(drawnPoly, zone);
+          if (overlapArea > 0.05) {
+            const name = zone.properties?.name || 'Protected Eco Zone';
+            conflicts.push(`🛡️ ${name} (Overlap: ${overlapArea.toFixed(1)} sqm)`);
           }
         }
       }
