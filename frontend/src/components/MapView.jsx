@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { MapContainer, TileLayer, GeoJSON, Marker, Polygon, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { PlusCircle, Edit3, Check, X, MapPin, Sparkles, Search, Lock, Navigation, Target, ClipboardList } from 'lucide-react';
+import * as turf from '@turf/turf';
+import { PlusCircle, Edit3, Check, X, MapPin, Sparkles, Search, Lock, Navigation, Target, ClipboardList, AlertTriangle } from 'lucide-react';
 import { getParcelsGeoJSON, getProtectedZonesGeoJSON, createCustomParcel, identifyStateByCoords, getPendingRequests } from '../api';
 import ApprovalQueueModal from './ApprovalQueueModal';
 
@@ -81,6 +82,81 @@ function calculatePolygonAreaSqm(latLngs) {
   area = (area * radius * radius) / 4;
   return Math.abs(Math.round(area * 10) / 10);
 }
+
+// Spatial Overlap Detection Helper using Turf
+const evaluateParcelsOverlap = (featureCollection, protectedZones) => {
+  if (!featureCollection || !featureCollection.features) return featureCollection;
+
+  const features = featureCollection.features.map(f => ({
+    ...f,
+    properties: {
+      ...f.properties,
+      has_overlap: false,
+      overlapping_with: [],
+      overlap_reasons: []
+    }
+  }));
+
+  for (let i = 0; i < features.length; i++) {
+    for (let j = i + 1; j < features.length; j++) {
+      try {
+        const polyA = features[i];
+        const polyB = features[j];
+
+        if (!polyA.geometry || !polyB.geometry) continue;
+
+        if (turf.booleanIntersects(polyA, polyB)) {
+          const intersection = turf.intersect(polyA, polyB);
+          if (intersection) {
+            const overlapAreaSqm = turf.area(intersection);
+            if (overlapAreaSqm > 0.5) {
+              const ulpinA = polyA.properties?.ulpin || `Parcel ${i + 1}`;
+              const ulpinB = polyB.properties?.ulpin || `Parcel ${j + 1}`;
+
+              features[i].properties.has_overlap = true;
+              features[i].properties.has_flags = true;
+              if (!features[i].properties.overlapping_with.includes(ulpinB)) {
+                features[i].properties.overlapping_with.push(ulpinB);
+                features[i].properties.overlap_reasons.push(`Overlaps with ${ulpinB} (${overlapAreaSqm.toFixed(1)} sqm)`);
+              }
+
+              features[j].properties.has_overlap = true;
+              features[j].properties.has_flags = true;
+              if (!features[j].properties.overlapping_with.includes(ulpinA)) {
+                features[j].properties.overlapping_with.push(ulpinA);
+                features[j].properties.overlap_reasons.push(`Overlaps with ${ulpinA} (${overlapAreaSqm.toFixed(1)} sqm)`);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Overlap computation notice:', err);
+      }
+    }
+
+    if (protectedZones && protectedZones.features) {
+      for (const zone of protectedZones.features) {
+        try {
+          if (!features[i].geometry || !zone.geometry) continue;
+          if (turf.booleanIntersects(features[i], zone)) {
+            const intersection = turf.intersect(features[i], zone);
+            if (intersection && turf.area(intersection) > 0.5) {
+              const zoneName = zone.properties?.name || 'Protected Eco Zone';
+              features[i].properties.has_overlap = true;
+              features[i].properties.has_flags = true;
+              if (!features[i].properties.overlapping_with.includes(zoneName)) {
+                features[i].properties.overlapping_with.push(zoneName);
+                features[i].properties.overlap_reasons.push(`Overlaps with Protected Zone: ${zoneName}`);
+              }
+            }
+          }
+        } catch (e) {}
+      }
+    }
+  }
+
+  return { ...featureCollection, features };
+};
 
 export default function MapView({ selectedState, onSelectParcel, selectedUlpin, editingParcel, onClearEditingParcel, onAutoDetectState, role = 'citizen' }) {
   const [parcelsGeoJSON, setParcelsGeoJSON] = useState(null);
@@ -257,12 +333,65 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
         };
       }
 
-      setParcelsGeoJSON(mergedParcels);
+      const enrichedParcels = evaluateParcelsOverlap(mergedParcels, zonesData);
+      setParcelsGeoJSON(enrichedParcels);
       setProtectedGeoJSON(zonesData);
     } catch (err) {
       console.error('Failed to load map GeoJSON layers:', err);
     }
   };
+
+  // Real-time calculation of drawing conflicts with existing map parcels
+  const getDrawingOverlapConflicts = () => {
+    if (!isDrawingMode || !vertices || vertices.length < 3 || !parcelsGeoJSON || !parcelsGeoJSON.features) {
+      return [];
+    }
+    try {
+      const coords = vertices.map(([lat, lng]) => [lng, lat]);
+      coords.push([coords[0][0], coords[0][1]]);
+      const drawnPoly = turf.polygon([coords]);
+
+      const conflicts = [];
+      for (const f of parcelsGeoJSON.features) {
+        if (editingParcel && f.properties?.ulpin === editingParcel.ulpin) continue;
+        if (!f.geometry) continue;
+        if (turf.booleanIntersects(drawnPoly, f)) {
+          const inter = turf.intersect(drawnPoly, f);
+          if (inter) {
+            const area = turf.area(inter);
+            if (area > 0.5) {
+              const name = f.properties?.ulpin || f.properties?.owner_name || 'Neighboring Parcel';
+              conflicts.push(`Parcel ${name} (Overlap: ${area.toFixed(1)} sqm)`);
+            }
+          }
+        }
+      }
+
+      if (protectedGeoJSON && protectedGeoJSON.features) {
+        for (const zone of protectedGeoJSON.features) {
+          if (!zone.geometry) continue;
+          if (turf.booleanIntersects(drawnPoly, zone)) {
+            const inter = turf.intersect(drawnPoly, zone);
+            if (inter) {
+              const area = turf.area(inter);
+              if (area > 0.5) {
+                const name = zone.properties?.name || 'Protected Eco Zone';
+                conflicts.push(`🛡️ ${name} (Overlap: ${area.toFixed(1)} sqm)`);
+              }
+            }
+          }
+        }
+      }
+
+      return conflicts;
+    } catch (err) {
+      console.warn('Drawing overlap computation notice:', err);
+      return [];
+    }
+  };
+
+  const drawingConflicts = getDrawingOverlapConflicts();
+  const isDrawingOverlapping = drawingConflicts.length > 0;
 
   // Real-time spatial identification on map move or cursor hover
   const processSpatialIdentification = (lat, lng) => {
@@ -427,8 +556,20 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
     const isSelected = feature.properties?.ulpin === selectedUlpin;
     const isApproved = feature.properties?.is_approved || feature.properties?.status === 'APPROVED';
     const hasFlags = feature.properties?.has_flags;
+    const hasOverlap = feature.properties?.has_overlap;
     const landUse = feature.properties?.land_use || feature.properties?.zone_category || feature.properties?.layers?.zoning?.land_use || 'residential';
     const theme = getLandUseTheme(landUse);
+
+    // CRITICAL USER RULE: OVERLAPPING ZONES MUST TURN TO RED!
+    if (hasOverlap) {
+      return {
+        fillColor: '#ef4444', // Red Fill
+        fillOpacity: isSelected ? 0.85 : 0.65,
+        color: '#b91c1c', // Dark Crimson
+        weight: isSelected ? 5.5 : 4,
+        dashArray: '4, 4'
+      };
+    }
 
     if (isSelected) {
       return {
@@ -453,9 +594,9 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
     if (hasFlags) {
       return {
         fillColor: '#ef4444',
-        fillOpacity: 0.4,
+        fillOpacity: 0.5,
         color: '#dc2626',
-        weight: 2.5,
+        weight: 3,
         dashArray: ''
       };
     }
@@ -482,16 +623,25 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
     if (!props) return;
 
     const isApproved = props.is_approved || props.status === 'APPROVED';
+    const hasOverlap = props.has_overlap;
     const landUse = props.land_use || props.zone_category || props.layers?.zoning?.land_use || 'residential';
     const theme = getLandUseTheme(landUse);
 
     const tooltipContent = `
-      <div style="font-family: sans-serif; font-size: 12px; padding: 4px;">
+      <div style="font-family: sans-serif; font-size: 12px; padding: 4px; max-width: 270px;">
+        ${hasOverlap ? `
+          <div style="background-color: #fef2f2; border: 1.5px solid #ef4444; border-radius: 6px; padding: 6px; margin-bottom: 6px;">
+            <strong style="color: #dc2626; font-size: 12px; display: flex; align-items: center; gap: 4px;">⚠️ CAUTION: OVERLAPPING ZONE DETECTED!</strong>
+            <div style="color: #991b1b; font-size: 11px; margin-top: 3px; line-height: 1.3;">
+              Spatial conflict with: <strong>${(props.overlapping_with || []).join(', ')}</strong>
+            </div>
+          </div>
+        ` : ''}
         <strong style="color: #1d4ed8;">ULPIN: ${props.ulpin}</strong><br/>
         ${props.owner_name ? `Owner: <strong>${props.owner_name}</strong><br/>` : ''}
         Zoning Category: <strong style="color: ${theme.border};">${theme.label}</strong><br/>
-        Status: <span style="color: ${isApproved ? '#059669' : props.has_flags ? '#ef4444' : '#10b981'}; font-weight: bold;">
-          ${isApproved ? '✅ OFFICIAL APPROVED BOUNDARY' : props.has_flags ? `⚠️ Flagged (${props.flag_count} rules)` : '✅ Clean'}
+        Status: <span style="color: ${hasOverlap ? '#dc2626' : isApproved ? '#059669' : props.has_flags ? '#ef4444' : '#10b981'}; font-weight: bold;">
+          ${hasOverlap ? '⚠️ OVERLAP CONFLICT (RED)' : isApproved ? '✅ OFFICIAL APPROVED BOUNDARY' : props.has_flags ? `⚠️ Flagged (${props.flag_count} rules)` : '✅ Clean'}
         </span>
       </div>
     `;
@@ -568,10 +718,10 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
             <Polygon
               positions={vertices}
               pathOptions={{
-                color: getLandUseTheme(selectedLandUse).border,
-                fillColor: getLandUseTheme(selectedLandUse).fill,
-                fillOpacity: 0.55,
-                weight: 3,
+                color: isDrawingOverlapping ? '#b91c1c' : getLandUseTheme(selectedLandUse).border,
+                fillColor: isDrawingOverlapping ? '#ef4444' : getLandUseTheme(selectedLandUse).fill,
+                fillOpacity: isDrawingOverlapping ? 0.75 : 0.55,
+                weight: isDrawingOverlapping ? 4.5 : 3,
                 dashArray: '6, 6'
               }}
             />
@@ -675,13 +825,30 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
             <Edit3 size={16} /> {role === 'village_officer' ? '📩 Issue Boundary Change Request' : 'Draw / Reshape Boundary'} ({role === 'village_officer' ? 'Village Office' : role === 'auditor' ? 'Auditor' : 'State Admin'})
           </button>
         ) : (
-          <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px', width: '340px', boxShadow: '0 8px 32px rgba(15,23,42,0.15)', color: '#0f172a' }}>
-            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px', width: '350px', boxShadow: '0 8px 32px rgba(15,23,42,0.15)', color: '#0f172a' }}>
+            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: isDrawingOverlapping ? '#dc2626' : 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span>📐 Boundary Reshaper ({vertices.length} Handles)</span>
               <button onClick={cancelDrawing} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <X size={16} />
               </button>
             </div>
+
+            {/* REAL-TIME CAUTION ALERT BANNER FOR OVERLAPPING ZONES */}
+            {isDrawingOverlapping && (
+              <div style={{ background: '#fef2f2', border: '1.5px solid #ef4444', color: '#b91c1c', padding: '10px', borderRadius: '8px', fontSize: '0.78rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px', color: '#dc2626' }}>
+                  <AlertTriangle size={16} /> ⚠️ CAUTION: OVERLAPPING ZONE DETECTED!
+                </div>
+                <div style={{ fontSize: '0.74rem', color: '#7f1d1d' }}>
+                  The marked geometry intersects with existing zone(s):
+                </div>
+                <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '0.74rem', fontWeight: 600, color: '#991b1b' }}>
+                  {drawingConflicts.map((c, idx) => (
+                    <li key={idx}>{c}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div style={{ fontSize: '0.78rem', color: '#0369a1', background: '#e0f2fe', padding: '8px', borderRadius: '6px', border: '1px solid #bae6fd' }}>
               💡 Drag blue handles OR click anywhere on map to add vertex points at your exact current resolution!
@@ -772,6 +939,10 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
           <div className="legend-item">
             <div className="legend-color" style={{ background: '#06b6d4', border: '2px solid #0f766e' }}></div>
             <span>🚗 Transport / Commercial</span>
+          </div>
+          <div className="legend-item" style={{ marginTop: '4px', borderTop: '1px solid #e2e8f0', paddingTop: '4px' }}>
+            <div className="legend-color" style={{ background: '#ef4444', border: '2px dashed #b91c1c' }}></div>
+            <span style={{ color: '#dc2626', fontWeight: 700 }}>⚠️ Overlapping Zone (Caution - Red)</span>
           </div>
         </div>
       </div>
