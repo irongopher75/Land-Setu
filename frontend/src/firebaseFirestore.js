@@ -41,6 +41,34 @@ export const updateBoundaryRequestInFirestore = async (reqId, status, approverRo
   }
 };
 
+export const getFirestoreCustomParcels = async () => {
+  try {
+    const snap = await getDocs(collection(db, 'custom_parcels'));
+    const parcels = {};
+    snap.forEach(d => {
+      parcels[d.id] = d.data();
+    });
+    return parcels;
+  } catch (err) {
+    console.warn('Firestore fetch custom parcels notice:', err.message);
+    return {};
+  }
+};
+
+export const getFirestoreCustomParcel = async (ulpin) => {
+  try {
+    const pRef = doc(db, 'custom_parcels', ulpin);
+    const snap = await getDoc(pRef);
+    if (snap.exists()) {
+      return snap.data();
+    }
+    return null;
+  } catch (err) {
+    console.warn('Firestore fetch custom parcel by ULPIN notice:', err.message);
+    return null;
+  }
+};
+
 export const getFirestorePendingRequests = async () => {
   try {
     const q = query(collection(db, 'boundary_requests'), where('status', '==', 'PENDING'));

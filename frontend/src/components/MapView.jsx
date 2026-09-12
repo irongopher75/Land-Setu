@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, GeoJSON, Marker, Polygon, useMap, useMapEvents
 import L from 'leaflet';
 import * as turf from '@turf/turf';
 import { PlusCircle, Edit3, Check, X, MapPin, Sparkles, Search, Lock, Navigation, Target, ClipboardList, AlertTriangle } from 'lucide-react';
-import { getParcelsGeoJSON, getProtectedZonesGeoJSON, createCustomParcel, identifyStateByCoords, getPendingRequests } from '../api';
+import { getParcelsGeoJSON, getProtectedZonesGeoJSON, createCustomParcel, identifyStateByCoords, getPendingRequests, getApprovedCustomParcels } from '../api';
 import ApprovalQueueModal from './ApprovalQueueModal';
 
 // Mock parcel rectangles are deliberately hidden by default. Set this only for
@@ -302,13 +302,13 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
 
   const loadMapData = async () => {
     try {
-      const [parcelsData, zonesData] = await Promise.all([
+      const [parcelsData, zonesData, customParcels] = await Promise.all([
         getParcelsGeoJSON(selectedState).catch(() => null),
         getProtectedZonesGeoJSON(selectedState).catch(() => null),
+        getApprovedCustomParcels().catch(() => ({})),
       ]);
 
-      const customParcels = JSON.parse(localStorage.getItem('landsetu_custom_parcels') || '{}');
-      const customFeatures = Object.values(customParcels)
+      const customFeatures = Object.values(customParcels || {})
         .filter(p => (p.state === selectedState || !p.state) && p.geometry)
         .map(p => ({
           type: 'Feature',
@@ -327,9 +327,13 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
 
       let mergedParcels = parcelsData || { type: 'FeatureCollection', features: [] };
       if (customFeatures.length > 0) {
+        // Ensure duplicates by ULPIN are replaced with the latest approved custom feature
+        const existingUlpins = new Set(customFeatures.map(cf => cf.properties.ulpin));
+        const filteredBackend = (mergedParcels.features || []).filter(f => !existingUlpins.has(f.properties?.ulpin));
+
         mergedParcels = {
           ...mergedParcels,
-          features: [...(mergedParcels.features || []), ...customFeatures]
+          features: [...filteredBackend, ...customFeatures]
         };
       }
 

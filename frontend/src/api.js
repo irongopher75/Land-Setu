@@ -3,7 +3,9 @@ import {
   saveCustomParcelToFirestore,
   saveBoundaryRequestToFirestore,
   updateBoundaryRequestInFirestore,
-  getFirestorePendingRequests
+  getFirestorePendingRequests,
+  getFirestoreCustomParcels,
+  getFirestoreCustomParcel
 } from './firebaseFirestore';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -46,6 +48,18 @@ export const getProtectedZonesGeoJSON = async (state) => {
   return res.data;
 };
 
+export const getApprovedCustomParcels = async () => {
+  const localCustom = JSON.parse(localStorage.getItem('landsetu_custom_parcels') || '{}');
+  try {
+    const fsCustom = await getFirestoreCustomParcels();
+    const merged = { ...localCustom, ...fsCustom };
+    localStorage.setItem('landsetu_custom_parcels', JSON.stringify(merged));
+    return merged;
+  } catch (err) {
+    return localCustom;
+  }
+};
+
 export const getParcelDetail = async (ulpin) => {
   try {
     const res = await client.get(`/parcels/${ulpin}`);
@@ -54,6 +68,12 @@ export const getParcelDetail = async (ulpin) => {
     const customParcels = JSON.parse(localStorage.getItem('landsetu_custom_parcels') || '{}');
     if (customParcels[ulpin]) {
       return customParcels[ulpin];
+    }
+    const fsParcel = await getFirestoreCustomParcel(ulpin).catch(() => null);
+    if (fsParcel) {
+      customParcels[ulpin] = fsParcel;
+      localStorage.setItem('landsetu_custom_parcels', JSON.stringify(customParcels));
+      return fsParcel;
     }
     throw err;
   }
