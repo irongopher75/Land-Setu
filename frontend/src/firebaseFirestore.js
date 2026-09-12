@@ -3,11 +3,33 @@ import { app } from './firebase';
 
 const db = getFirestore(app);
 
+const prepareFirestoreData = (data) => {
+  if (!data) return data;
+  const clone = JSON.parse(JSON.stringify(data));
+  if (clone.geometry && typeof clone.geometry === 'object') {
+    clone.geometry_json = JSON.stringify(clone.geometry);
+    delete clone.geometry;
+  }
+  return clone;
+};
+
+const parseFirestoreData = (data) => {
+  if (!data) return data;
+  const clone = { ...data };
+  if (clone.geometry_json && typeof clone.geometry_json === 'string') {
+    try {
+      clone.geometry = JSON.parse(clone.geometry_json);
+    } catch (e) {}
+  }
+  return clone;
+};
+
 export const saveCustomParcelToFirestore = async (parcelData) => {
   try {
+    const docData = prepareFirestoreData(parcelData);
     const pRef = doc(db, 'custom_parcels', parcelData.ulpin);
     await setDoc(pRef, {
-      ...parcelData,
+      ...docData,
       updatedAt: new Date().toISOString()
     }, { merge: true });
   } catch (err) {
@@ -26,9 +48,10 @@ export const deleteCustomParcelFromFirestore = async (ulpin) => {
 
 export const saveBoundaryRequestToFirestore = async (reqData) => {
   try {
+    const docData = prepareFirestoreData(reqData);
     const reqRef = doc(db, 'boundary_requests', reqData.id);
     await setDoc(reqRef, {
-      ...reqData,
+      ...docData,
       status: reqData.status || 'PENDING',
       createdAt: new Date().toISOString()
     }, { merge: true });
@@ -55,7 +78,7 @@ export const getFirestoreCustomParcels = async () => {
     const snap = await getDocs(collection(db, 'custom_parcels'));
     const parcels = {};
     snap.forEach(d => {
-      parcels[d.id] = d.data();
+      parcels[d.id] = parseFirestoreData(d.data());
     });
     return parcels;
   } catch (err) {
@@ -69,7 +92,7 @@ export const getFirestoreCustomParcel = async (ulpin) => {
     const pRef = doc(db, 'custom_parcels', ulpin);
     const snap = await getDoc(pRef);
     if (snap.exists()) {
-      return snap.data();
+      return parseFirestoreData(snap.data());
     }
     return null;
   } catch (err) {
@@ -84,7 +107,7 @@ export const getFirestorePendingRequests = async () => {
     const snap = await getDocs(collection(db, 'boundary_requests'));
     const reqs = [];
     snap.forEach(d => {
-      const data = d.data();
+      const data = parseFirestoreData(d.data());
       if (openStatuses.includes(data.status)) {
         reqs.push({ id: d.id, ...data });
       }
@@ -93,6 +116,20 @@ export const getFirestorePendingRequests = async () => {
   } catch (err) {
     console.warn('Firestore fetch requests notice:', err.message);
     return [];
+  }
+};
+
+export const getFirestoreBoundaryRequest = async (reqId) => {
+  try {
+    const reqRef = doc(db, 'boundary_requests', reqId);
+    const snap = await getDoc(reqRef);
+    if (snap.exists()) {
+      return parseFirestoreData({ id: snap.id, ...snap.data() });
+    }
+    return null;
+  } catch (err) {
+    console.warn('Firestore fetch request by ID notice:', err.message);
+    return null;
   }
 };
 

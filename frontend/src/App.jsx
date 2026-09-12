@@ -7,7 +7,6 @@ import { auth, signOut as firebaseSignOut, onAuthStateChanged } from './firebase
 const LoginPage = lazy(() => import('./components/LoginPage'));
 const MapView = lazy(() => import('./components/MapView'));
 const ParcelPanel = lazy(() => import('./components/ParcelPanel'));
-const AdapterDemo = lazy(() => import('./components/AdapterDemo'));
 
 export default function App() {
   const [activeView, setActiveView] = useState('landing');
@@ -68,6 +67,10 @@ export default function App() {
         selectedState={selectedState}
         setSelectedState={setSelectedState}
         currentRole={currentRole}
+        setCurrentRole={(newRole) => {
+          localStorage.setItem('landsetu_role', newRole);
+          setCurrentRole(newRole);
+        }}
         isLoggedIn={isLoggedIn}
         currentUser={currentUser}
         onLogout={handleLogout}
@@ -110,8 +113,6 @@ export default function App() {
             )}
           </>
         )}
-
-        {activeView === 'adapter' && currentRole !== 'citizen' && <AdapterDemo />}
         </Suspense>
       </main>
     </div>

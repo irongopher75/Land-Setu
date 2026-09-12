@@ -26,6 +26,18 @@ const userLocationIcon = L.divIcon({
   iconAnchor: [12, 12]
 });
 
+// Map Ref Handler to safely capture Leaflet map instance ref
+function MapRefHandler({ mapRef }) {
+  const map = useMap();
+  useEffect(() => {
+    mapRef.current = map;
+    return () => {
+      mapRef.current = null;
+    };
+  }, [map, mapRef]);
+  return null;
+}
+
 // Map Focus Handler that ONLY flies on explicit state focus change, preserving user zoom/resolution while editing
 function MapFocusHandler({ stateCenter, zoom, selectedState }) {
   const map = useMap();
@@ -215,7 +227,21 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
   const [selectedLandUse, setSelectedLandUse] = useState('residential');
   const [saving, setSaving] = useState(false);
   const mapRef = useRef(null);
+  const mapContainerWrapperRef = useRef(null);
   const stateLookupTimer = useRef(null);
+
+  const [mapUniqueId] = useState(() => `leaflet-map-${Date.now()}-${Math.floor(Math.random() * 100000)}`);
+
+
+
+  useEffect(() => {
+    window.LandSetuDeleteParcel = (ulpinToDelete) => {
+      onSelectParcel(ulpinToDelete);
+    };
+    return () => {
+      delete window.LandSetuDeleteParcel;
+    };
+  }, [onSelectParcel]);
 
   const stateCenters = {
     TamilNadu: { center: [13.084, 80.274], zoom: 15 },
@@ -340,15 +366,21 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
         getApprovedCustomParcels().catch(() => ({})),
       ]);
 
+      const normalizeStateKey = (s) => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
+
       const customFeatures = Object.values(customParcels || {})
-        .filter(p => (p.state === selectedState || !p.state) && p.geometry)
+        .filter(p => {
+          if (!p || !p.geometry) return false;
+          if (!p.state) return true;
+          return normalizeStateKey(p.state) === normalizeStateKey(selectedState);
+        })
         .map(p => ({
           type: 'Feature',
           properties: {
             ulpin: p.ulpin,
             state: p.state || selectedState,
             area_sqm: p.area_sqm,
-            owner_name: p.layers?.ror?.owner_name,
+            owner_name: p.layers?.ror?.owner_name || 'Land Owner',
             land_use: p.land_use || p.layers?.zoning?.land_use || 'residential',
             is_approved: true,
             status: 'APPROVED',
@@ -670,7 +702,24 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
       </div>
     `;
 
+    const popupContent = `
+      <div style="font-family: sans-serif; font-size: 13px; padding: 4px; min-width: 210px;">
+        <strong style="color: #1d4ed8; font-size: 14px;">ULPIN: ${props.ulpin}</strong><br/>
+        <div style="margin: 4px 0 8px 0; color: #334155; font-size: 12px;">
+          ${props.owner_name ? `Owner: <strong>${props.owner_name}</strong><br/>` : ''}
+          Zoning: <strong>${theme.label}</strong>
+        </div>
+        <button
+          onclick="if(window.LandSetuDeleteParcel) window.LandSetuDeleteParcel('${props.ulpin}')"
+          style="width: 100%; background: linear-gradient(135deg, #ef4444, #b91c1c); color: #ffffff; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer;"
+        >
+          🗑️ Delete Land Parcel
+        </button>
+      </div>
+    `;
+
     layer.bindTooltip(tooltipContent, { sticky: true, className: 'custom-map-tooltip' });
+    layer.bindPopup(popupContent);
 
     layer.on({
       click: () => {
@@ -692,14 +741,15 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
   const currentArea = calculatePolygonAreaSqm(vertices);
 
   return (
-    <div className="map-view-container">
+    <div className="map-view-container" ref={mapContainerWrapperRef}>
       <MapContainer
-        ref={mapRef}
+        key={`${mapUniqueId}-${selectedState}`}
         center={currentFocus.center}
         zoom={currentFocus.zoom}
         scrollWheelZoom={true}
         zoomControl={false}
       >
+        <MapRefHandler mapRef={mapRef} />
         <MapFocusHandler stateCenter={currentFocus.center} zoom={currentFocus.zoom} selectedState={selectedState} />
         <MapEventListener
           isDrawingMode={isDrawingMode}

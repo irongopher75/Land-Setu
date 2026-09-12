@@ -109,17 +109,15 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary })
                   </button>
                 )}
 
-                {role === 'state_admin' && (
-                  <button
-                    className="passport-btn"
-                    style={{ flex: 1.1, padding: '9px 10px', fontSize: '0.8rem', background: 'linear-gradient(135deg, #dc2626, #991b1b)' }}
-                    onClick={handleRequestDeletion}
-                    disabled={deleting}
-                    title="State Admin can request parcel deletion, requiring approval from Land Officer & Auditor."
-                  >
-                    <Trash2 size={15} /> {deleting ? 'Requesting...' : 'Request Deletion'}
-                  </button>
-                )}
+                <button
+                  className="passport-btn"
+                  style={{ flex: 1.2, padding: '9px 12px', fontSize: '0.8rem', background: 'linear-gradient(135deg, #ef4444, #b91c1c)', color: '#ffffff', fontWeight: 700, border: 'none' }}
+                  onClick={handleRequestDeletion}
+                  disabled={deleting}
+                  title="Initiate land parcel deletion request"
+                >
+                  <Trash2 size={15} /> {deleting ? 'Requesting Deletion...' : '🗑️ Delete Land Parcel'}
+                </button>
               </div>
 
               {/* Active Flags Section */}

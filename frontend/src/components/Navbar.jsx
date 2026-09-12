@@ -1,5 +1,5 @@
 import React from 'react';
-import { Map, Cpu, MapPin, Home, LogIn, Lock } from 'lucide-react';
+import { Map, MapPin, Home, LogIn, Lock } from 'lucide-react';
 
 export default function Navbar({ activeView, setActiveView, selectedState, setSelectedState, currentRole, isLoggedIn, currentUser, onLogout }) {
   const getRoleLabel = (role) => {
@@ -38,15 +38,6 @@ export default function Navbar({ activeView, setActiveView, selectedState, setSe
           >
             <Map size={15} /> GIS Map View
           </button>
-
-          {currentRole !== 'citizen' && (
-            <button
-              className={`tab-btn ${activeView === 'adapter' ? 'active' : ''}`}
-              onClick={() => setActiveView('adapter')}
-            >
-              <Cpu size={15} /> Adapter Sandbox
-            </button>
-          )}
         </div>
 
         {/* State Focus Shortcut */}
