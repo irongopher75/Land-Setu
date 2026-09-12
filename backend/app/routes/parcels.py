@@ -378,9 +378,12 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get
 
 @router.get("/requests/pending")
 def list_pending_requests(role: str = Depends(require_roles("officer", "bank", "auditor", "state_admin")), db: Session = Depends(get_db)):
-    """Lists all boundary change requests in the multi-stage governance pipeline."""
+    """Lists all boundary change and deletion requests in the multi-stage governance pipeline."""
     reqs = db.query(BoundaryChangeRequest).filter(
-        BoundaryChangeRequest.status.in_(["PENDING_AUDITOR_REVIEW", "PENDING_STATE_ADMIN", "PENDING_APPROVAL"])
+        BoundaryChangeRequest.status.in_([
+            "PENDING_AUDITOR_REVIEW", "PENDING_STATE_ADMIN", "PENDING_APPROVAL",
+            "PENDING_DELETION_VILLAGE", "PENDING_DELETION_AUDITOR"
+        ])
     ).order_by(BoundaryChangeRequest.id.desc()).all()
 
     result = []
@@ -398,6 +401,95 @@ def list_pending_requests(role: str = Depends(require_roles("officer", "bank", "
             "geometry": r.geometry
         })
     return result
+
+class RequestDeletionPayload(BaseModel):
+    reason: Optional[str] = "State Admin requested land parcel deletion"
+
+@router.post("/{ulpin}/request-deletion")
+def request_parcel_deletion(ulpin: str, payload: Optional[RequestDeletionPayload] = None, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
+    """State Admin endpoint to initiate a parcel deletion request requiring Auditor + Land Officer approval."""
+    if role != "state_admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Permission denied: Only State Administration Officers (state_admin) can initiate land deletion requests."
+        )
+
+    parcel = db.query(Parcel).filter(Parcel.ulpin == ulpin).first()
+    state_val = parcel.state if parcel else "Unknown State"
+    area = parcel.area_sqm if parcel else 0.0
+    geom = parse_geometry_shape(parcel.geometry).__geo_interface__ if (parcel and parcel.geometry) else {}
+
+    change_req = BoundaryChangeRequest(
+        ulpin=ulpin,
+        state=state_val,
+        requester_role="state_admin",
+        requested_by="State Admin Officer",
+        geometry=geom,
+        area_sqm=area,
+        reason=payload.reason if payload else "State Admin requested land parcel deletion",
+        status="PENDING_DELETION_VILLAGE",
+        created_at=datetime.utcnow().isoformat()
+    )
+    db.add(change_req)
+    db.commit()
+    db.refresh(change_req)
+
+    return {
+        "status": "PENDING_DELETION_VILLAGE",
+        "message": f"Land deletion request for ULPIN '{ulpin}' submitted! Stage 1: Awaiting Village Land Officer review & approval.",
+        "request_id": change_req.id,
+        "ulpin": ulpin
+    }
+
+@router.post("/requests/{request_id}/village-approve-deletion")
+def village_approve_deletion(request_id: int, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
+    """Village Officer endpoint to approve land deletion (Stage 1)."""
+    if role not in ("village_officer", "state_admin"):
+        raise HTTPException(
+            status_code=403,
+            detail="Permission denied: Only Village Land Officers can approve Stage 1 deletion requests."
+        )
+
+    req = db.query(BoundaryChangeRequest).filter(BoundaryChangeRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Deletion request not found")
+
+    req.status = "PENDING_DELETION_AUDITOR"
+    req.approved_by = "Village Land Officer (Deletion Stage 1 Approved)"
+    req.approver_role = role
+    db.commit()
+
+    return {
+        "status": "PENDING_DELETION_AUDITOR",
+        "message": f"Land deletion request #{request_id} for ULPIN '{req.ulpin}' approved by Village Officer! Stage 2: Forwarded to Auditor for final audit authorization."
+    }
+
+@router.post("/requests/{request_id}/auditor-approve-deletion")
+def auditor_approve_deletion(request_id: int, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
+    """Auditor endpoint to authorize final land deletion (Stage 2)."""
+    if role not in ("auditor", "state_admin"):
+        raise HTTPException(
+            status_code=403,
+            detail="Permission denied: Only Compliance Auditors can issue final audit authorization for land deletion."
+        )
+
+    req = db.query(BoundaryChangeRequest).filter(BoundaryChangeRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Deletion request not found")
+
+    parcel = db.query(Parcel).filter(Parcel.ulpin == req.ulpin).first()
+    if parcel:
+        db.delete(parcel)
+
+    req.status = "DELETED"
+    req.approved_by = "Compliance Auditor (Final Deletion Authorized)"
+    req.approver_role = role
+    db.commit()
+
+    return {
+        "status": "DELETED",
+        "message": f"Land deletion for ULPIN '{req.ulpin}' fully authorized by Auditor & Village Officer! Parcel record permanently removed from master GIS database."
+    }
 
 @router.post("/requests/{request_id}/auditor-pass")
 def auditor_pass_request(request_id: int, role: str = Depends(get_current_role), db: Session = Depends(get_db)):

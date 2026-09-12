@@ -1,4 +1,4 @@
-import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, where, updateDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, where, updateDoc, deleteDoc } from 'firebase/firestore';
 import { app } from './firebase';
 
 const db = getFirestore(app);
@@ -15,12 +15,21 @@ export const saveCustomParcelToFirestore = async (parcelData) => {
   }
 };
 
+export const deleteCustomParcelFromFirestore = async (ulpin) => {
+  try {
+    const pRef = doc(db, 'custom_parcels', ulpin);
+    await deleteDoc(pRef);
+  } catch (err) {
+    console.warn('Firestore delete parcel notice:', err.message);
+  }
+};
+
 export const saveBoundaryRequestToFirestore = async (reqData) => {
   try {
     const reqRef = doc(db, 'boundary_requests', reqData.id);
     await setDoc(reqRef, {
       ...reqData,
-      status: 'PENDING',
+      status: reqData.status || 'PENDING',
       createdAt: new Date().toISOString()
     }, { merge: true });
   } catch (err) {
@@ -71,10 +80,15 @@ export const getFirestoreCustomParcel = async (ulpin) => {
 
 export const getFirestorePendingRequests = async () => {
   try {
-    const q = query(collection(db, 'boundary_requests'), where('status', '==', 'PENDING'));
-    const snap = await getDocs(q);
+    const openStatuses = ['PENDING_AUDITOR_REVIEW', 'PENDING_STATE_ADMIN', 'PENDING_APPROVAL', 'PENDING', 'PENDING_DELETION_VILLAGE', 'PENDING_DELETION_AUDITOR'];
+    const snap = await getDocs(collection(db, 'boundary_requests'));
     const reqs = [];
-    snap.forEach(d => reqs.push({ id: d.id, ...d.data() }));
+    snap.forEach(d => {
+      const data = d.data();
+      if (openStatuses.includes(data.status)) {
+        reqs.push({ id: d.id, ...data });
+      }
+    });
     return reqs;
   } catch (err) {
     console.warn('Firestore fetch requests notice:', err.message);
@@ -82,4 +96,4 @@ export const getFirestorePendingRequests = async () => {
   }
 };
 
-export { db, doc, setDoc, getDoc, collection, getDocs, query, where, updateDoc };
+export { db, doc, setDoc, getDoc, collection, getDocs, query, where, updateDoc, deleteDoc };

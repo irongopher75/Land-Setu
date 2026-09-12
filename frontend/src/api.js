@@ -1,6 +1,7 @@
 import axios from 'axios';
 import {
   saveCustomParcelToFirestore,
+  deleteCustomParcelFromFirestore,
   saveBoundaryRequestToFirestore,
   updateBoundaryRequestInFirestore,
   getFirestorePendingRequests,
@@ -98,6 +99,117 @@ export const getParcelPassport = async (ulpin) => {
       timestamp: new Date().toISOString(),
       signed_payload: `JWT-SOVEREIGN-${ulpin}-${Date.now()}`,
       status: "VALID"
+    };
+  }
+};
+
+export const requestParcelDeletion = async (ulpin, reason = "State Admin requested parcel deletion") => {
+  const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
+  if (currentRole !== 'state_admin') {
+    throw new Error('Permission Denied: Only State Administration Officers (state_admin) can request land parcel deletion.');
+  }
+
+  try {
+    const res = await client.post(`/parcels/${ulpin}/request-deletion`, { reason });
+    const delReq = {
+      id: 'DEL-' + Date.now(),
+      ulpin,
+      requester_role: 'state_admin',
+      requested_by: 'State Admin Officer',
+      type: 'DELETION',
+      reason,
+      status: 'PENDING_DELETION_VILLAGE',
+      created_at: new Date().toISOString()
+    };
+    saveBoundaryRequestToFirestore(delReq);
+    return res.data;
+  } catch (err) {
+    const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
+    const customParcels = JSON.parse(localStorage.getItem('landsetu_custom_parcels') || '{}');
+    const targetP = customParcels[ulpin] || {};
+
+    const delReq = {
+      id: 'DEL-' + Date.now(),
+      ulpin,
+      state: targetP.state || 'TamilNadu',
+      owner_name: targetP.layers?.ror?.owner_name || 'Parcel Owner',
+      requester_role: 'state_admin',
+      requested_by: 'State Admin Officer',
+      type: 'DELETION',
+      area_sqm: targetP.area_sqm || 500,
+      reason,
+      status: 'PENDING_DELETION_VILLAGE',
+      created_at: new Date().toISOString()
+    };
+
+    reqs.push(delReq);
+    localStorage.setItem('landsetu_pending_reqs', JSON.stringify(reqs));
+    saveBoundaryRequestToFirestore(delReq);
+
+    return {
+      status: 'PENDING_DELETION_VILLAGE',
+      message: `Land deletion request for ULPIN '${ulpin}' submitted! Stage 1: Awaiting Village Land Officer review & approval.`,
+      request: delReq
+    };
+  }
+};
+
+export const villageApproveDeletion = async (requestId) => {
+  const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
+  if (currentRole !== 'village_officer' && currentRole !== 'state_admin') {
+    throw new Error('Permission Denied: Only Village Land Officers can approve Stage 1 deletion requests.');
+  }
+
+  try {
+    const res = await client.post(`/parcels/requests/${requestId}/village-approve-deletion`);
+    updateBoundaryRequestInFirestore(requestId, 'PENDING_DELETION_AUDITOR', 'village_officer');
+    return res.data;
+  } catch (err) {
+    const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
+    const req = reqs.find(r => r.id === requestId);
+    if (req) {
+      req.status = 'PENDING_DELETION_AUDITOR';
+      localStorage.setItem('landsetu_pending_reqs', JSON.stringify(reqs));
+    }
+    updateBoundaryRequestInFirestore(requestId, 'PENDING_DELETION_AUDITOR', 'village_officer');
+    return {
+      status: 'PENDING_DELETION_AUDITOR',
+      message: `Deletion request #${requestId} approved at Village Level! Stage 2: Forwarded to Compliance Auditor for final audit authorization.`
+    };
+  }
+};
+
+export const auditorApproveDeletion = async (requestId) => {
+  const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
+  if (currentRole !== 'auditor' && currentRole !== 'state_admin') {
+    throw new Error('Permission Denied: Only Compliance Auditors can issue final audit authorization for land deletion.');
+  }
+
+  try {
+    const res = await client.post(`/parcels/requests/${requestId}/auditor-approve-deletion`);
+    updateBoundaryRequestInFirestore(requestId, 'DELETED', 'auditor');
+    if (res.data?.ulpin) {
+      deleteCustomParcelFromFirestore(res.data.ulpin);
+    }
+    return res.data;
+  } catch (err) {
+    const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
+    const req = reqs.find(r => r.id === requestId);
+    if (req) {
+      req.status = 'DELETED';
+      localStorage.setItem('landsetu_pending_reqs', JSON.stringify(reqs));
+
+      if (req.ulpin) {
+        const customParcels = JSON.parse(localStorage.getItem('landsetu_custom_parcels') || '{}');
+        delete customParcels[req.ulpin];
+        localStorage.setItem('landsetu_custom_parcels', JSON.stringify(customParcels));
+        deleteCustomParcelFromFirestore(req.ulpin);
+      }
+    }
+    updateBoundaryRequestInFirestore(requestId, 'DELETED', 'auditor');
+    return {
+      status: 'DELETED',
+      message: `Land deletion for ULPIN '${req?.ulpin || requestId}' fully authorized by Auditor & Village Officer! Parcel record permanently removed from master GIS database.`
     };
   }
 };

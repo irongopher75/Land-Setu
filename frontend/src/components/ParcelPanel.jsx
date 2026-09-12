@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { X, AlertOctagon, QrCode, FileText, CheckCircle, ShieldAlert, Layers, Lock } from 'lucide-react';
+import { X, AlertOctagon, QrCode, FileText, CheckCircle, ShieldAlert, Layers, Lock, Trash2 } from 'lucide-react';
 import ConfidenceBadge from './ConfidenceBadge';
 import ParcelPassportQR from './ParcelPassportQR';
-import { getParcelDetail, getParcelPassport } from '../api';
+import { getParcelDetail, getParcelPassport, requestParcelDeletion } from '../api';
 
 export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary }) {
   const [parcel, setParcel] = useState(null);
   const [loading, setLoading] = useState(true);
   const [passportData, setPassportData] = useState(null);
   const [showQR, setShowQR] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (ulpin) {
@@ -35,6 +36,22 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary })
       setShowQR(true);
     } catch (err) {
       console.error('Failed to fetch passport:', err);
+    }
+  };
+
+  const handleRequestDeletion = async () => {
+    if (!window.confirm(`⚠️ Are you sure you want to request deletion for parcel ULPIN '${ulpin}'?\n\nThis will initiate a governance deletion request that requires approval from both the Village Land Officer (Stage 1) and Compliance Auditor (Stage 2) before permanent removal.`)) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      const res = await requestParcelDeletion(ulpin, `State Admin Officer requested deletion of parcel ${ulpin}`);
+      alert(`📩 ${res.message}`);
+      onClose();
+    } catch (err) {
+      alert(err.response?.data?.detail || err.message || 'Failed to submit deletion request.');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -68,27 +85,39 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary })
             </div>
           ) : (
             <>
-              {/* Passport Generation & Boundary Reshape CTAs */}
-              <div style={{ display: 'flex', gap: '10px', margin: '8px 0 16px 0' }}>
-                <button className="passport-btn" style={{ flex: 1, padding: '10px 12px', fontSize: '0.82rem' }} onClick={handlePassportClick}>
-                  <QrCode size={16} /> QR Passport
+              {/* Passport Generation, Boundary Reshape & Deletion Request CTAs */}
+              <div style={{ display: 'flex', gap: '8px', margin: '8px 0 16px 0', flexWrap: 'wrap' }}>
+                <button className="passport-btn" style={{ flex: 1, padding: '9px 10px', fontSize: '0.8rem' }} onClick={handlePassportClick}>
+                  <QrCode size={15} /> QR Passport
                 </button>
                 {role !== 'citizen' ? (
                   <button
                     className="passport-btn"
-                    style={{ flex: 1.2, padding: '10px 12px', fontSize: '0.82rem', background: 'linear-gradient(135deg, #06b6d4, #2563eb)' }}
+                    style={{ flex: 1.1, padding: '9px 10px', fontSize: '0.8rem', background: 'linear-gradient(135deg, #06b6d4, #2563eb)' }}
                     onClick={() => onReshapeBoundary && onReshapeBoundary(parcel)}
                   >
-                    ✏️ Reshape Boundary
+                    ✏️ Reshape
                   </button>
                 ) : (
                   <button
                     className="passport-btn"
                     disabled
-                    style={{ flex: 1.2, padding: '10px 12px', fontSize: '0.78rem', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-dim)', border: '1px solid var(--border-card)', cursor: 'not-allowed', opacity: 0.6 }}
+                    style={{ flex: 1.1, padding: '9px 10px', fontSize: '0.78rem', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-dim)', border: '1px solid var(--border-card)', cursor: 'not-allowed', opacity: 0.6 }}
                     title="Citizens have read-only access and cannot mark or reshape boundaries."
                   >
-                    <Lock size={14} style={{ display: 'inline', marginRight: '4px' }} /> Reshape (Officer Only)
+                    <Lock size={14} style={{ display: 'inline', marginRight: '4px' }} /> Read-Only
+                  </button>
+                )}
+
+                {role === 'state_admin' && (
+                  <button
+                    className="passport-btn"
+                    style={{ flex: 1.1, padding: '9px 10px', fontSize: '0.8rem', background: 'linear-gradient(135deg, #dc2626, #991b1b)' }}
+                    onClick={handleRequestDeletion}
+                    disabled={deleting}
+                    title="State Admin can request parcel deletion, requiring approval from Land Officer & Auditor."
+                  >
+                    <Trash2 size={15} /> {deleting ? 'Requesting...' : 'Request Deletion'}
                   </button>
                 )}
               </div>
