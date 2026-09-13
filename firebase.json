@@ -23,13 +23,6 @@
     ],
     "rewrites": [
       {
-        "source": "/api/**",
-        "run": {
-          "serviceId": "landsetu-backend",
-          "region": "asia-south1"
-        }
-      },
-      {
         "source": "**",
         "destination": "/index.html"
       }
