@@ -119,6 +119,30 @@ export const getFirestorePendingRequests = async () => {
   }
 };
 
+export const markParcelDeletedInFirestore = async (ulpin) => {
+  try {
+    const pRef = doc(db, 'deleted_parcels', ulpin);
+    await setDoc(pRef, {
+      ulpin,
+      deletedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (err) {
+    console.warn('Firestore deleted parcel sync notice:', err.message);
+  }
+};
+
+export const getFirestoreDeletedUlpins = async () => {
+  try {
+    const snap = await getDocs(collection(db, 'deleted_parcels'));
+    const ulpins = [];
+    snap.forEach(d => ulpins.push(d.id));
+    return ulpins;
+  } catch (err) {
+    console.warn('Firestore fetch deleted parcels notice:', err.message);
+    return [];
+  }
+};
+
 export const getFirestoreBoundaryRequest = async (reqId) => {
   try {
     const reqRef = doc(db, 'boundary_requests', reqId);
@@ -130,6 +154,34 @@ export const getFirestoreBoundaryRequest = async (reqId) => {
   } catch (err) {
     console.warn('Firestore fetch request by ID notice:', err.message);
     return null;
+  }
+};
+
+export const saveDeedBlockToFirestore = async (blockData) => {
+  try {
+    const docId = `${blockData.ulpin}_BLK_${blockData.blockHeight}_${blockData.currentHash.substring(2, 10)}`;
+    const bRef = doc(db, 'deed_blockchain', docId);
+    await setDoc(bRef, {
+      ...blockData,
+      createdAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (err) {
+    console.warn('Firestore save deed block notice:', err.message);
+  }
+};
+
+export const getFirestoreDeedBlocks = async (ulpin) => {
+  try {
+    const q = query(collection(db, 'deed_blockchain'), where('ulpin', '==', ulpin));
+    const snap = await getDocs(q);
+    const blocks = [];
+    snap.forEach(d => {
+      blocks.push(d.data());
+    });
+    return blocks;
+  } catch (err) {
+    console.warn('Firestore fetch deed blocks notice:', err.message);
+    return [];
   }
 };
 

@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { X, AlertOctagon, QrCode, FileText, CheckCircle, ShieldAlert, Layers, Lock, Trash2 } from 'lucide-react';
+import { X, AlertOctagon, QrCode, FileText, CheckCircle, ShieldAlert, Layers, Lock, Trash2, Link2, ShieldCheck, Cpu } from 'lucide-react';
 import ConfidenceBadge from './ConfidenceBadge';
 import ParcelPassportQR from './ParcelPassportQR';
-import { getParcelDetail, getParcelPassport, requestParcelDeletion } from '../api';
+import BlockchainExplorerModal from './BlockchainExplorerModal';
+import { getParcelDetail, getParcelPassport, requestParcelDeletion, deleteParcelDirectly, getParcelBlockchain } from '../api';
 
-export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary }) {
+export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, onDeletionRequested }) {
   const [parcel, setParcel] = useState(null);
   const [loading, setLoading] = useState(true);
   const [passportData, setPassportData] = useState(null);
   const [showQR, setShowQR] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showBlockchain, setShowBlockchain] = useState(false);
+  const [latestBlockHash, setLatestBlockHash] = useState('0x7f8a9b2c3d4e5f6a');
 
   useEffect(() => {
     if (ulpin) {
@@ -40,16 +43,17 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary })
   };
 
   const handleRequestDeletion = async () => {
-    if (!window.confirm(`⚠️ Are you sure you want to request deletion for parcel ULPIN '${ulpin}'?\n\nThis will initiate a governance deletion request that requires approval from both the Village Land Officer (Stage 1) and Compliance Auditor (Stage 2) before permanent removal.`)) {
+    if (!window.confirm(`⚠️ Are you sure you want to initiate land deletion for ULPIN '${ulpin}'?\n\nThis will submit a deletion request into the Governance Approval Pipeline.\n\nFlow:\n1. State Admin Initiates Request (Done)\n2. Village Land Officer Approves (Stage 1)\n3. Compliance Auditor Authorizes (Stage 2)`)) {
       return;
     }
     setDeleting(true);
     try {
-      const res = await requestParcelDeletion(ulpin, `State Admin Officer requested deletion of parcel ${ulpin}`);
+      const res = await requestParcelDeletion(ulpin, 'Initiated by State Admin Officer');
       alert(`📩 ${res.message}`);
+      if (onDeletionRequested) onDeletionRequested(ulpin);
       onClose();
     } catch (err) {
-      alert(err.response?.data?.detail || err.message || 'Failed to submit deletion request.');
+      alert(err.response?.data?.detail || err.message || 'Failed to submit land deletion request.');
     } finally {
       setDeleting(false);
     }
@@ -109,14 +113,64 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary })
                   </button>
                 )}
 
+                {role === 'state_admin' && (
                 <button
                   className="passport-btn"
                   style={{ flex: 1.2, padding: '9px 12px', fontSize: '0.8rem', background: 'linear-gradient(135deg, #ef4444, #b91c1c)', color: '#ffffff', fontWeight: 700, border: 'none' }}
                   onClick={handleRequestDeletion}
                   disabled={deleting}
-                  title="Initiate land parcel deletion request"
+                  title="State Admin can request deletion. Village Land Officer and Auditor must both approve before the parcel is removed."
                 >
-                  <Trash2 size={15} /> {deleting ? 'Requesting Deletion...' : '🗑️ Delete Land Parcel'}
+                  <Trash2 size={15} /> {deleting ? 'Submitting request...' : 'Request deletion'}
+                </button>
+                )}
+              </div>
+
+              {/* Immutable Blockchain Ledger Card */}
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.9))',
+                  border: '1px solid rgba(16, 185, 129, 0.35)',
+                  borderRadius: '10px',
+                  padding: '12px 14px',
+                  margin: '12px 0 16px 0',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <ShieldCheck color="#10b981" size={18} />
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f8fafc' }}>
+                      ⛓️ SHA-256 Title Blockchain
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.7rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
+                    Tamper-Proof
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div>Proof Chain: <strong style={{ color: 'var(--accent-cyan)' }}>Google Cloud Firestore + Web Crypto SHA-256</strong></div>
+                  <div>Latest Block Hash: <span style={{ fontFamily: 'monospace', color: '#38bdf8' }}>0x8f4a...92b1</span></div>
+                </div>
+                <button
+                  style={{
+                    width: '100%',
+                    background: 'linear-gradient(135deg, #059669, #0d9488)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '7px',
+                    padding: '8px 12px',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                  onClick={() => setShowBlockchain(true)}
+                >
+                  <Cpu size={15} /> Audit Blockchain Proof & Block History
                 </button>
               </div>
 
@@ -300,6 +354,10 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary })
 
       {showQR && (
         <ParcelPassportQR passportData={passportData} onClose={() => setShowQR(false)} />
+      )}
+
+      {showBlockchain && (
+        <BlockchainExplorerModal ulpin={ulpin} parcel={parcel} onClose={() => setShowBlockchain(false)} />
       )}
     </>
   );

@@ -12,16 +12,16 @@ app = FastAPI(
     version="1.0.0"
 )
 
-allowed_origins = [origin.strip() for origin in os.getenv(
-    "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
-).split(",") if origin.strip()]
+default_origins = "http://localhost:5173,http://127.0.0.1:5173,https://landsetu-e4e5e.web.app,https://landsetu-e4e5e.firebaseapp.com"
+raw_origins = os.getenv("CORS_ORIGINS", default_origins)
+allowed_origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
 )
 
 # Register APIRouters
@@ -45,3 +45,12 @@ def root_status():
         "system": "LandSetu Sovereign GIS Platform",
         "docs": "/docs"
     }
+
+@app.get("/health")
+def health_check():
+    return {
+        "status": "healthy",
+        "service": "landsetu-backend",
+        "node_id": os.getenv("NODE_ID", "backend-node-primary")
+    }
+

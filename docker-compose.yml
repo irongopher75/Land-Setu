@@ -21,14 +21,13 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: landsetu-backend
-    ports:
-      - "8000:8000"
     environment:
+      - NODE_ID=backend-single-node
       - DATABASE_URL=postgresql://landsetu:landsetu_pass@db:5432/landsetu_db
-      - JWT_SECRET=${JWT_SECRET:?Set a random JWT_SECRET in your environment}
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173}
-      - DEMO_LOGIN_ENABLED=${DEMO_LOGIN_ENABLED:-false}
-      - COOKIE_SECURE=${COOKIE_SECURE:-true}
+      - ALLOW_SQLITE_FALLBACK=false
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in environment or .env}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost,http://localhost:5173,https://landsetu-e4e5e.web.app}
+      - DEMO_LOGIN_ENABLED=${DEMO_LOGIN_ENABLED:-true}
     depends_on:
       db:
         condition: service_healthy
@@ -38,10 +37,23 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: landsetu-frontend
-    ports:
-      - "5173:80"
     depends_on:
       - backend
 
+  load-balancer:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: landsetu-load-balancer
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - backend
+      - frontend
+
 volumes:
   pgdata:
+

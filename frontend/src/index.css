@@ -646,6 +646,46 @@ body {
     font-size: 0.72rem !important;
     max-width: 180px;
   }
+
+  /* State Log Modal Mobile Optimizations */
+  .modal-overlay {
+    padding: 10px !important;
+  }
+
+  .state-log-modal-card {
+    width: 100% !important;
+    max-height: 95vh !important;
+    max-height: 95dvh !important;
+    padding: 14px !important;
+    border-radius: 14px !important;
+  }
+
+  .state-log-stats-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+
+  .state-log-controls-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .state-log-header-text h3 {
+    font-size: 1.05rem !important;
+  }
+
+  .state-log-header-text p {
+    font-size: 0.72rem !important;
+  }
+
+  .modal-content, .modal-card, .glass-card {
+    width: 96vw !important;
+    max-width: 96vw !important;
+    max-height: 90vh !important;
+    max-height: 90dvh !important;
+    padding: 14px !important;
+    overflow-y: auto !important;
+  }
 }
 
 @keyframes slideUp {

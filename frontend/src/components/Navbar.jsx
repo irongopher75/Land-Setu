@@ -1,7 +1,18 @@
-import React from 'react';
-import { Map, MapPin, Home, LogIn, Lock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Map, MapPin, Home, LogIn, Lock, Database } from 'lucide-react';
+import { checkSyncMode } from '../api';
 
-export default function Navbar({ activeView, setActiveView, selectedState, setSelectedState, currentRole, isLoggedIn, currentUser, onLogout }) {
+export default function Navbar({ activeView, setActiveView, selectedState, setSelectedState, currentRole, isLoggedIn, currentUser, onLogout, onOpenStateLogs, onOpenCitizenTracker, onOpenSatelliteAi, onOpenAuditLog }) {
+  const [syncStatus, setSyncStatus] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    checkSyncMode().then(status => {
+      if (isMounted) setSyncStatus(status);
+    });
+    return () => { isMounted = false; };
+  }, []);
+
   const getRoleLabel = (role) => {
     switch (role) {
       case 'village_officer': return '🏛️ Village Land Officer';
@@ -38,6 +49,40 @@ export default function Navbar({ activeView, setActiveView, selectedState, setSe
           >
             <Map size={15} /> GIS Map View
           </button>
+
+          <button
+            className="tab-btn"
+            style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.3)', fontWeight: 600 }}
+            onClick={onOpenCitizenTracker}
+          >
+            📋 Citizen Portal
+          </button>
+
+          <button
+            className="tab-btn"
+            style={{ background: 'rgba(147, 51, 234, 0.15)', color: '#c084fc', border: '1px solid rgba(147, 51, 234, 0.3)', fontWeight: 600 }}
+            onClick={onOpenSatelliteAi}
+          >
+            🛰️ Satellite AI
+          </button>
+
+          <button
+            className="tab-btn"
+            style={{ background: 'rgba(14, 165, 233, 0.15)', color: '#38bdf8', border: '1px solid rgba(14, 165, 233, 0.3)', fontWeight: 600 }}
+            onClick={onOpenAuditLog}
+          >
+            🛡️ Audit Trail
+          </button>
+
+          {currentRole === 'state_admin' && (
+            <button
+              className="tab-btn"
+              style={{ background: 'linear-gradient(135deg, #059669, #0d9488)', color: '#ffffff', border: 'none', fontWeight: 700 }}
+              onClick={onOpenStateLogs}
+            >
+              📜 State Activity
+            </button>
+          )}
         </div>
 
         {/* State Focus Shortcut */}
@@ -62,6 +107,27 @@ export default function Navbar({ activeView, setActiveView, selectedState, setSe
               <option value="Punjab">Punjab (Ludhiana)</option>
               <option value="MadhyaPradesh">Madhya Pradesh (Bhopal)</option>
             </select>
+          </div>
+        )}
+
+        {syncStatus && (
+          <div 
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '6px', 
+              padding: '4px 10px', 
+              background: syncStatus.isBackendConnected ? '#f0fdf4' : '#fefce8', 
+              border: `1px solid ${syncStatus.isBackendConnected ? '#bbf7d0' : '#fef08a'}`, 
+              borderRadius: '8px', 
+              fontSize: '0.76rem', 
+              fontWeight: 700, 
+              color: syncStatus.isBackendConnected ? '#15803d' : '#a16207' 
+            }}
+            title={syncStatus.isBackendConnected ? "Connected to PostgreSQL / PostGIS backend REST API & Firestore cloud database." : "Backend REST API disconnected. Operating in resilient offline mode using LocalStorage and static seed data."}
+          >
+            <Database size={13} color={syncStatus.isBackendConnected ? '#15803d' : '#a16207'} />
+            <span>{syncStatus.label}</span>
           </div>
         )}
 

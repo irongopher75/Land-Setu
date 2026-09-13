@@ -4,7 +4,7 @@ from app.db import Base, IS_SQLITE
 if not IS_SQLITE:
     try:
         from geoalchemy2 import Geometry
-        GeometryType = Geometry("POLYGON", srid=4326)
+        GeometryType = Geometry("POLYGON", srid=4326, spatial_index=True)
     except ImportError:
         GeometryType = JSON
 else:

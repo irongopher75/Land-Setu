@@ -14,7 +14,16 @@ CONVERSIONS = {
 }
 
 class SchemaAdapter:
-    def __init__(self, config_dir: str = "configs"):
+    def __init__(self, config_dir: str = None):
+        if config_dir is None:
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            candidate = os.path.join(base_dir, "configs")
+            if os.path.exists(candidate):
+                config_dir = candidate
+            elif os.path.exists("backend/configs"):
+                config_dir = "backend/configs"
+            else:
+                config_dir = "configs"
         self.config_dir = config_dir
         self.configs: Dict[str, dict] = {}
         self._load_configs()
@@ -44,8 +53,9 @@ class SchemaAdapter:
         default_dept_sources = cfg.get("default_department_sources", {})
 
         # Canonical Skeleton
+        import uuid
         canonical = {
-            "ulpin": raw_record.get("ulpin", f"ULPIN-MOCK-{id(raw_record)}"),
+            "ulpin": raw_record.get("ulpin", f"ULPIN-MOCK-{uuid.uuid4().hex[:8].upper()}"),
             "state": cfg.get("state", state),
             "geometry": geometry,
             "area_sqm": None,

@@ -7,6 +7,10 @@ import { auth, signOut as firebaseSignOut, onAuthStateChanged } from './firebase
 const LoginPage = lazy(() => import('./components/LoginPage'));
 const MapView = lazy(() => import('./components/MapView'));
 const ParcelPanel = lazy(() => import('./components/ParcelPanel'));
+const StateLogModal = lazy(() => import('./components/StateLogModal'));
+const CitizenServiceTrackerModal = lazy(() => import('./components/CitizenServiceTrackerModal'));
+const SatelliteAiChangeDetectionModal = lazy(() => import('./components/SatelliteAiChangeDetectionModal'));
+const AuditLogModal = lazy(() => import('./components/AuditLogModal'));
 
 export default function App() {
   const [activeView, setActiveView] = useState('landing');
@@ -16,6 +20,23 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [currentRole, setCurrentRole] = useState(() => localStorage.getItem('landsetu_role') || 'citizen');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // Modals
+  const [showStateLogs, setShowStateLogs] = useState(false);
+  const [showCitizenTracker, setShowCitizenTracker] = useState(false);
+  const [showSatelliteAi, setShowSatelliteAi] = useState(false);
+  const [showAuditLog, setShowAuditLog] = useState(false);
+  const [fallbackToast, setFallbackToast] = useState(null);
+
+  // Monitor Network Fallbacks
+  useEffect(() => {
+    const onFallback = (e) => {
+      setFallbackToast(e.detail);
+      setTimeout(() => setFallbackToast(null), 4000);
+    };
+    window.addEventListener('landsetu-fallback-notice', onFallback);
+    return () => window.removeEventListener('landsetu-fallback-notice', onFallback);
+  }, []);
 
   // Monitor Firebase Auth State & Auto Redirect to Map View
   useEffect(() => {
@@ -61,6 +82,29 @@ export default function App() {
 
   return (
     <div className="app-container">
+      {fallbackToast && (
+        <div style={{
+          position: 'fixed',
+          top: '70px',
+          right: '20px',
+          zIndex: 3000,
+          background: 'rgba(30, 41, 59, 0.95)',
+          border: '1px solid #38bdf8',
+          color: '#f8fafc',
+          padding: '10px 16px',
+          borderRadius: '10px',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+          fontSize: '0.8rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          backdropFilter: 'blur(8px)',
+          animation: 'slideUp 0.3s ease'
+        }}>
+          <span style={{ color: '#38bdf8', fontWeight: 'bold' }}>⚡ Offline Demo Resilience Mode:</span>
+          <span>{fallbackToast.actionName} fallback triggered at {fallbackToast.time}</span>
+        </div>
+      )}
       <Navbar
         activeView={activeView}
         setActiveView={setActiveView}
@@ -74,6 +118,10 @@ export default function App() {
         isLoggedIn={isLoggedIn}
         currentUser={currentUser}
         onLogout={handleLogout}
+        onOpenStateLogs={() => setShowStateLogs(true)}
+        onOpenCitizenTracker={() => setShowCitizenTracker(true)}
+        onOpenSatelliteAi={() => setShowSatelliteAi(true)}
+        onOpenAuditLog={() => setShowAuditLog(true)}
       />
 
       <main className="main-content">
@@ -109,9 +157,41 @@ export default function App() {
                 role={currentRole}
                 onClose={() => setSelectedUlpin(null)}
                 onReshapeBoundary={handleReshapeBoundary}
+                onDeletionRequested={() => setSelectedUlpin(null)}
               />
             )}
           </>
+        )}
+
+        {showStateLogs && (
+          <StateLogModal
+            initialState={selectedState}
+            role={currentRole}
+            onClose={() => setShowStateLogs(false)}
+          />
+        )}
+
+        {showCitizenTracker && (
+          <CitizenServiceTrackerModal
+            initialUlpin={selectedUlpin}
+            onClose={() => setShowCitizenTracker(false)}
+          />
+        )}
+
+        {showSatelliteAi && (
+          <SatelliteAiChangeDetectionModal
+            ulpin={selectedUlpin}
+            state={selectedState}
+            onClose={() => setShowSatelliteAi(false)}
+          />
+        )}
+
+        {showAuditLog && (
+          <AuditLogModal
+            stateFilter={selectedState}
+            role={currentRole}
+            onClose={() => setShowAuditLog(false)}
+          />
         )}
         </Suspense>
       </main>

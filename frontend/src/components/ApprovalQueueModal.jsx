@@ -50,7 +50,7 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
       await villageApproveDeletion(id);
       setActionMsg(`Deletion request #${id} for ULPIN '${ulpin}' approved at Village level! Forwarded to Compliance Auditor.`);
       await fetchRequests();
-      if (onRequestProcessed) onRequestProcessed(ulpin);
+      if (onRequestProcessed) onRequestProcessed();
     } catch (err) {
       alert(err.response?.data?.detail || err.message);
     }
@@ -61,7 +61,7 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
       await auditorApproveDeletion(id);
       setActionMsg(`Land deletion for ULPIN '${ulpin}' fully authorized! Parcel permanently removed from database.`);
       await fetchRequests();
-      if (onRequestProcessed) onRequestProcessed(ulpin);
+      if (onRequestProcessed) onRequestProcessed();
     } catch (err) {
       alert(err.response?.data?.detail || err.message);
     }
@@ -194,34 +194,44 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
 
                   {/* DELETION PIPELINE ACTIONS */}
                   {isDeletion ? (
-                    <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
-                      {req.status === 'PENDING_DELETION_VILLAGE' && (role === 'village_officer' || role === 'state_admin') && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
+                      {role === 'state_admin' && (
+                        <div style={{ background: '#fff7ed', border: '1px solid #ffedd5', color: '#9a3412', padding: '8px 10px', borderRadius: '8px', fontSize: '0.78rem' }}>
+                          You initiated this deletion. Village Land Officer and Compliance Auditor must each approve before the parcel is removed. You cannot self-approve.
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                      {req.status === 'PENDING_DELETION_VILLAGE' && role === 'village_officer' && (
                         <button
                           className="passport-btn"
                           style={{ flex: 1, padding: '8px', fontSize: '0.82rem', background: 'linear-gradient(135deg, #ea580c, #c2410c)' }}
                           onClick={() => handleVillageApproveDeletion(req.id, req.ulpin)}
                         >
-                          <UserCheck size={15} /> Approve Land Deletion (Village Level)
+                          <UserCheck size={15} /> Approve deletion (Village Officer)
                         </button>
                       )}
 
-                      {req.status === 'PENDING_DELETION_AUDITOR' && (role === 'auditor' || role === 'state_admin') && (
+                      {req.status === 'PENDING_DELETION_AUDITOR' && role === 'auditor' && (
                         <button
                           className="passport-btn"
                           style={{ flex: 1, padding: '8px', fontSize: '0.82rem', background: 'linear-gradient(135deg, #dc2626, #991b1b)' }}
                           onClick={() => handleAuditorApproveDeletion(req.id, req.ulpin)}
                         >
-                          <Trash2 size={15} /> Authorize & Delete Land Record (Audit Level)
+                          <Trash2 size={15} /> Authorize deletion (Auditor)
                         </button>
                       )}
 
+                      {((req.status === 'PENDING_DELETION_VILLAGE' && (role === 'village_officer' || role === 'state_admin')) ||
+                        (req.status === 'PENDING_DELETION_AUDITOR' && (role === 'auditor' || role === 'state_admin'))) && (
                       <button
                         className="passport-btn"
                         style={{ flex: 0.5, padding: '8px', fontSize: '0.82rem', background: '#64748b' }}
                         onClick={() => handleReject(req.id, req.ulpin)}
                       >
-                        <XCircle size={15} /> Reject Deletion
+                        <XCircle size={15} /> {role === 'state_admin' ? 'Withdraw' : 'Reject'}
                       </button>
+                      )}
+                      </div>
                     </div>
                   ) : (
                     /* BOUNDARY CHANGE ACTIONS */

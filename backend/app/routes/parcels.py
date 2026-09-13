@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import Parcel, ProtectedZone, BoundaryChangeRequest
 from app.schemas import ParcelListItem, CanonicalParcelResponse, FlagItem
-from app.rules import RuleEngine, parse_geometry_shape
+from app.rules import RuleEngine, parse_geometry_shape, invalidate_rule_cache
 from app.routes.auth import get_current_role, require_roles, SECRET_KEY, ALGORITHM
 from app.states import INDIAN_STATES, detect_state_from_coords
 
@@ -377,7 +377,7 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get
     }
 
 @router.get("/requests/pending")
-def list_pending_requests(role: str = Depends(require_roles("officer", "bank", "auditor", "state_admin")), db: Session = Depends(get_db)):
+def list_pending_requests(role: str = Depends(require_roles("officer", "bank", "auditor", "state_admin", "village_officer")), db: Session = Depends(get_db)):
     """Lists all boundary change and deletion requests in the multi-stage governance pipeline."""
     reqs = db.query(BoundaryChangeRequest).filter(
         BoundaryChangeRequest.status.in_([
@@ -388,6 +388,7 @@ def list_pending_requests(role: str = Depends(require_roles("officer", "bank", "
 
     result = []
     for r in reqs:
+        is_deletion = str(r.status or "").startswith("PENDING_DELETION")
         result.append({
             "id": r.id,
             "ulpin": r.ulpin,
@@ -397,6 +398,7 @@ def list_pending_requests(role: str = Depends(require_roles("officer", "bank", "
             "area_sqm": r.area_sqm,
             "reason": r.reason,
             "status": r.status,
+            "type": "DELETION" if is_deletion else "BOUNDARY",
             "created_at": r.created_at,
             "geometry": r.geometry
         })
@@ -412,6 +414,16 @@ def request_parcel_deletion(ulpin: str, payload: Optional[RequestDeletionPayload
         raise HTTPException(
             status_code=403,
             detail="Permission denied: Only State Administration Officers (state_admin) can initiate land deletion requests."
+        )
+
+    duplicate = db.query(BoundaryChangeRequest).filter(
+        BoundaryChangeRequest.ulpin == ulpin,
+        BoundaryChangeRequest.status.in_(["PENDING_DELETION_VILLAGE", "PENDING_DELETION_AUDITOR"])
+    ).first()
+    if duplicate:
+        raise HTTPException(
+            status_code=409,
+            detail=f"A deletion request for ULPIN '{ulpin}' is already pending ({duplicate.status})."
         )
 
     parcel = db.query(Parcel).filter(Parcel.ulpin == ulpin).first()
@@ -444,15 +456,17 @@ def request_parcel_deletion(ulpin: str, payload: Optional[RequestDeletionPayload
 @router.post("/requests/{request_id}/village-approve-deletion")
 def village_approve_deletion(request_id: int, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
     """Village Officer endpoint to approve land deletion (Stage 1)."""
-    if role not in ("village_officer", "state_admin"):
+    if role != "village_officer":
         raise HTTPException(
             status_code=403,
-            detail="Permission denied: Only Village Land Officers can approve Stage 1 deletion requests."
+            detail="Permission denied: Only Village Land Officers can approve Stage 1 deletion. State Admin cannot self-approve."
         )
 
     req = db.query(BoundaryChangeRequest).filter(BoundaryChangeRequest.id == request_id).first()
     if not req:
         raise HTTPException(status_code=404, detail="Deletion request not found")
+    if req.status != "PENDING_DELETION_VILLAGE":
+        raise HTTPException(status_code=400, detail=f"Deletion request is not awaiting village officer approval (current: {req.status}).")
 
     req.status = "PENDING_DELETION_AUDITOR"
     req.approved_by = "Village Land Officer (Deletion Stage 1 Approved)"
@@ -467,15 +481,17 @@ def village_approve_deletion(request_id: int, role: str = Depends(get_current_ro
 @router.post("/requests/{request_id}/auditor-approve-deletion")
 def auditor_approve_deletion(request_id: int, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
     """Auditor endpoint to authorize final land deletion (Stage 2)."""
-    if role not in ("auditor", "state_admin"):
+    if role != "auditor":
         raise HTTPException(
             status_code=403,
-            detail="Permission denied: Only Compliance Auditors can issue final audit authorization for land deletion."
+            detail="Permission denied: Only Compliance Auditors can issue final deletion authorization. State Admin cannot self-approve."
         )
 
     req = db.query(BoundaryChangeRequest).filter(BoundaryChangeRequest.id == request_id).first()
     if not req:
         raise HTTPException(status_code=404, detail="Deletion request not found")
+    if req.status != "PENDING_DELETION_AUDITOR":
+        raise HTTPException(status_code=400, detail=f"Deletion request is not awaiting auditor authorization (current: {req.status}).")
 
     parcel = db.query(Parcel).filter(Parcel.ulpin == req.ulpin).first()
     if parcel:
@@ -564,16 +580,22 @@ def approve_boundary_request(request_id: int, role: str = Depends(get_current_ro
 
 @router.post("/requests/{request_id}/reject")
 def reject_boundary_request(request_id: int, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
-    """Upper authority rejection endpoint for a boundary change request."""
-    if role not in ("auditor", "state_admin"):
-        raise HTTPException(
-            status_code=403,
-            detail="Permission denied: Only Compliance Auditors or State Administration Officers can reject boundary change requests."
-        )
-
+    """Rejection / withdrawal for boundary-change and deletion requests."""
     req = db.query(BoundaryChangeRequest).filter(BoundaryChangeRequest.id == request_id).first()
     if not req:
         raise HTTPException(status_code=404, detail="Boundary change request not found")
+
+    village_can_reject = role == "village_officer" and req.status == "PENDING_DELETION_VILLAGE"
+    auditor_can_reject = role == "auditor" and (
+        req.status in ("PENDING_DELETION_AUDITOR", "PENDING_AUDITOR_REVIEW", "PENDING_APPROVAL")
+    )
+    admin_can_reject = role == "state_admin"
+
+    if not (village_can_reject or auditor_can_reject or admin_can_reject):
+        raise HTTPException(
+            status_code=403,
+            detail="Permission denied: you cannot reject this request at the current pipeline stage."
+        )
 
     req.status = "REJECTED"
     req.approved_by = f"Rejected by {role}"

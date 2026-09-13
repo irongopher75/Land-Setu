@@ -2,12 +2,12 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, doc, setDoc } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCevzugIJpY-dF6Rrg_JZKGBL6ynfDY3Nk",
-  authDomain: "landsetu-e4e5e.firebaseapp.com",
-  projectId: "landsetu-e4e5e",
-  storageBucket: "landsetu-e4e5e.firebasestorage.app",
-  messagingSenderId: "444994327661",
-  appId: "1:444994327661:web:ecaca48f0700f91fd01b64"
+  apiKey: process.env.VITE_FIREBASE_API_KEY || "",
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "",
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID || "",
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "",
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
+  appId: process.env.VITE_FIREBASE_APP_ID || ""
 };
 
 const app = initializeApp(firebaseConfig);

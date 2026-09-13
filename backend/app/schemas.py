@@ -56,6 +56,8 @@ class AuthLoginRequest(BaseModel):
 
 class AuthLoginResponse(BaseModel):
     role: str
+    token: Optional[str] = None
+    refresh_token: Optional[str] = None
 
 class FirebaseLoginRequest(BaseModel):
     id_token: str

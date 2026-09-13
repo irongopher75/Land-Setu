@@ -109,3 +109,22 @@ cd frontend
 npm install
 npm run dev
 ```
+
+---
+
+## 🔄 Data Synchronization & Persistence Architecture
+
+LandSetu employs a 3-tier persistence strategy designed for both enterprise multi-node deployments and judge-facing offline demo resilience:
+
+1. **Tier 1 — Primary Enterprise Persistence (PostgreSQL + PostGIS)**:
+   - **Path**: REST API (`/parcels`, `/adapter`, `/auth`).
+   - **Function**: Authoritative spatial SQL storage, GIST indexed boundary searches, and server-side RBAC token verification.
+
+2. **Tier 2 — Real-time Cloud Synchronization (Firebase Firestore)**:
+   - **Path**: Firestore Client SDK (`custom_parcels`, `boundary_requests`, `deed_blockchain`).
+   - **Function**: Multi-device real-time document synchronization for officer workflow approvals across different browsers and mobile devices.
+
+3. **Tier 3 — Offline Demo Resilience (Browser LocalStorage + Static GeoJSON)**:
+   - **Path**: Client-side fallback (`localStorage` + seed GeoJSON).
+   - **Function**: Fallback mechanism when network connectivity or local backend is unavailable during live presentations, allowing single-browser demos to remain functional.
+

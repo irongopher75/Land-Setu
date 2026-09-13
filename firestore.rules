@@ -1,18 +1,211 @@
-rules_version='2'
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {userId} (Firebase Auth UID)
+// Fields:
+//   - uid: string (required, must match request.auth.uid)
+//   - email: string (required, valid email format, max 100 chars)
+//   - displayName: string (optional, max 100 chars)
+//   - photoURL: string (optional, max 500 chars)
+//   - lastLogin: string (optional, max 50 chars)
+//
+// Collection: custom_parcels
+// Document ID: {ulpin} (Unique Land Parcel Identification Number)
+// Fields:
+//   - ulpin: string (required, 1-100 chars)
+//   - state: string (optional, max 100 chars)
+//   - district: string (optional, max 100 chars)
+//   - village: string (optional, max 100 chars)
+//   - area_sqm: number (optional, positive)
+//   - geometry_json: string (optional, max 100000 chars)
+//   - status: string (optional, max 50 chars)
+//   - updatedAt: string (optional, max 50 chars)
+//
+// Collection: boundary_requests
+// Document ID: {reqId} (Boundary modification request ID)
+// Fields:
+//   - id: string (required, max 100 chars)
+//   - ulpin: string (required, max 100 chars)
+//   - status: string (required, max 50 chars)
+//   - requestedBy: string (optional, max 100 chars)
+//   - createdAt: string (optional, max 50 chars)
+//   - approverRole: string (optional, max 100 chars)
+//   - approvedAt: string (optional, max 50 chars)
+//
+// Collection: deleted_parcels
+// Document ID: {ulpin}
+// Fields:
+//   - ulpin: string (required, max 100 chars)
+//   - deletedAt: string (required, max 50 chars)
+//
+// Collection: deed_blockchain
+// Document ID: {docId}
+// Fields:
+//   - ulpin: string (required, max 100 chars)
+//   - blockHeight: number (required, non-negative)
+//   - currentHash: string (required, max 256 chars)
+//   - prevHash: string (required, max 256 chars)
+//   - createdAt: string (optional, max 50 chars)
+//
+// Collection: protected_zones
+// Document ID: {zoneId}
+// Fields:
+//   - id: string (required, max 100 chars)
+//   - name: string (optional, max 200 chars)
+//   - type: string (optional, max 100 chars)
+//   - geometry_json: string (optional, max 100000 chars)
+//
+// ===============================================================
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function uidNotModified() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid;
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidOptionalString(data, field, minLen, maxLen) {
+      return !(field in data) || (data[field] is string && data[field].size() >= minLen && data[field].size() <= maxLen);
+    }
+
+    function isValidOptionalNumber(data, field) {
+      return !(field in data) || data[field] is number;
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+        data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'lastLogin']) &&
+        data.uid is string && data.uid == request.auth.uid &&
+        isValidEmail(data.email) && data.email.size() <= 100 &&
+        isValidOptionalString(data, 'displayName', 0, 100) &&
+        isValidOptionalString(data, 'photoURL', 0, 500) &&
+        isValidOptionalString(data, 'lastLogin', 0, 50);
+    }
+
+    function isValidCustomParcel(data) {
+      return data.keys().hasAll(['ulpin']) &&
+        data.ulpin is string && data.ulpin.size() > 0 && data.ulpin.size() <= 100 &&
+        isValidOptionalString(data, 'state', 0, 100) &&
+        isValidOptionalString(data, 'district', 0, 100) &&
+        isValidOptionalString(data, 'village', 0, 100) &&
+        isValidOptionalNumber(data, 'area_sqm') &&
+        isValidOptionalString(data, 'geometry_json', 0, 100000) &&
+        isValidOptionalString(data, 'status', 0, 50) &&
+        isValidOptionalString(data, 'updatedAt', 0, 50);
+    }
+
+    function isValidBoundaryRequest(data) {
+      return data.keys().hasAll(['id', 'ulpin', 'status']) &&
+        data.id is string && data.id.size() > 0 && data.id.size() <= 100 &&
+        data.ulpin is string && data.ulpin.size() > 0 && data.ulpin.size() <= 100 &&
+        data.status is string && data.status.size() > 0 && data.status.size() <= 50 &&
+        isValidOptionalString(data, 'requestedBy', 0, 100) &&
+        isValidOptionalString(data, 'createdAt', 0, 50) &&
+        isValidOptionalString(data, 'approverRole', 0, 100) &&
+        isValidOptionalString(data, 'approvedAt', 0, 50);
+    }
+
+    function isValidDeletedParcel(data) {
+      return data.keys().hasAll(['ulpin']) &&
+        data.ulpin is string && data.ulpin.size() > 0 && data.ulpin.size() <= 100 &&
+        isValidOptionalString(data, 'deletedAt', 0, 50);
+    }
+
+    function isValidDeedBlock(data) {
+      return data.keys().hasAll(['ulpin', 'blockHeight', 'currentHash', 'prevHash']) &&
+        data.ulpin is string && data.ulpin.size() > 0 && data.ulpin.size() <= 100 &&
+        data.blockHeight is number && data.blockHeight >= 0 &&
+        data.currentHash is string && data.currentHash.size() <= 256 &&
+        data.prevHash is string && data.prevHash.size() <= 256 &&
+        isValidOptionalString(data, 'createdAt', 0, 50);
+    }
+
+    function isValidProtectedZone(data) {
+      return data.keys().hasAll(['id']) &&
+        data.id is string && data.id.size() > 0 && data.id.size() <= 100 &&
+        isValidOptionalString(data, 'name', 0, 200) &&
+        isValidOptionalString(data, 'type', 0, 100) &&
+        isValidOptionalString(data, 'geometry_json', 0, 100000);
+    }
+
+    // ===============================================================
+    // Rules Definition
+    // ===============================================================
+
+    // Users collection: Private PII data - owner access only
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && uidNotModified();
+      allow delete: if false;
+    }
+
+    // Custom parcels collection
+    match /custom_parcels/{ulpin} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidCustomParcel(request.resource.data);
+      allow update: if isAuthenticated() && isValidCustomParcel(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    // Boundary requests collection
+    match /boundary_requests/{reqId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidBoundaryRequest(request.resource.data);
+      allow update: if isAuthenticated() && isValidBoundaryRequest(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    // Deleted parcels collection
+    match /deleted_parcels/{ulpin} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidDeletedParcel(request.resource.data);
+      allow update: if isAuthenticated() && isValidDeletedParcel(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    // Deed Blockchain: Append-only immutable ledger
+    match /deed_blockchain/{docId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidDeedBlock(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    // Protected zones collection
+    match /protected_zones/{zoneId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidProtectedZone(request.resource.data);
+      allow update: if isAuthenticated() && isValidProtectedZone(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    // Default deny for all other paths
     match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2026, 10, 11);
+      allow read, write: if false;
     }
   }
 }
