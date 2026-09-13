@@ -45,15 +45,16 @@ export const notifyFallback = (actionName, reason) => {
 };
 
 export const checkSyncMode = async () => {
-  if (!isLocalhostBackendForbidden()) {
-    try {
-      const res = await client.get('/parcels/states/all', { timeout: 2000 });
-      if (res.data) {
-        return { isBackendConnected: true, mode: 'PRIMARY_SYNC', label: '🟢 Sovereign Cloud SQL & PostGIS Sync' };
-      }
-    } catch (err) {}
+  if (isLocalhostBackendForbidden()) {
+    return { isBackendConnected: false, mode: 'OFFLINE_DEMO', label: '⚡ Offline Resilient Mode (Localhost Backend Unreachable from HTTPS)' };
   }
-  return { isBackendConnected: true, mode: 'FIRESTORE_CLOUD_SYNC', label: '🟢 Firebase Cloud & Spatial Engine Live' };
+  try {
+    const res = await client.get('/parcels/states/all', { timeout: 2000 });
+    if (res.data) {
+      return { isBackendConnected: true, mode: 'PRIMARY_SYNC', label: '🟢 Cloud SQL / PostGIS Sync (REST API Active)' };
+    }
+  } catch (err) {}
+  return { isBackendConnected: false, mode: 'OFFLINE_DEMO', label: '⚡ Resilient Mode (Offline / Firestore Fallback)' };
 };
 
 export const mockLogin = async (role) => {
