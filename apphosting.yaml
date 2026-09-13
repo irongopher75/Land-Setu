@@ -1,0 +1,19 @@
+# Firebase App Hosting Configuration for Land-Setu
+service: landsetu-app
+
+runConfig:
+  minInstances: 0
+  maxInstances: 10
+  concurrency: 80
+  cpu: 1.0
+  memoryMiB: 512
+
+env:
+  - variable: JWT_SECRET
+    secret: LANDSETU_JWT_SECRET
+  - variable: DEMO_LOGIN_ENABLED
+    value: "false"
+  - variable: ALLOW_SQLITE_FALLBACK
+    value: "true"
+  - variable: ENVIRONMENT
+    value: "production"
