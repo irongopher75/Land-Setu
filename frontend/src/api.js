@@ -53,10 +53,10 @@ export const checkSyncMode = async () => {
   try {
     const res = await client.get('/parcels/states/all', { timeout: 2000 });
     if (res.data) {
-      return { isBackendConnected: true, mode: 'PRIMARY_SYNC', label: 'Live sync (PostGIS API)' };
+      return { isBackendConnected: true, mode: 'PRIMARY_SYNC', label: 'Live records service' };
     }
   } catch (err) {}
-  return { isBackendConnected: false, mode: 'OFFLINE_DEMO', label: 'Offline mode (Firestore fallback)' };
+  return { isBackendConnected: false, mode: 'OFFLINE_DEMO', label: 'Offline copy' };
 };
 
 export const mockLogin = async (role) => {
@@ -67,6 +67,23 @@ export const mockLogin = async (role) => {
 export const firebaseLogin = async (idToken) => {
   const res = await client.post('/auth/firebase-login', { id_token: idToken });
   return res.data;
+};
+
+const KNOWN_ROLES = ['citizen', 'village_officer', 'auditor', 'state_admin'];
+
+// Role for display. The server session is the source of truth. If the records service is not
+// reachable, fall back to the role claim on the signed-in account. The server still enforces
+// every action, so this only decides what the interface shows.
+export const resolveRole = async (user) => {
+  try {
+    const session = await firebaseLogin(await user.getIdToken());
+    if (session && KNOWN_ROLES.includes(session.role)) return session.role;
+  } catch (err) { /* service unreachable, try the account claim */ }
+  try {
+    const claims = (await user.getIdTokenResult()).claims;
+    if (KNOWN_ROLES.includes(claims.role)) return claims.role;
+  } catch (err) { /* no claim */ }
+  return 'citizen';
 };
 
 export const logout = async () => {
@@ -186,16 +203,25 @@ export const getParcelDetail = async (ulpin) => {
     };
   }
 
-  // General synthetic fallback parcel for any arbitrary ULPIN
+  // Synthetic seed parcels for the other states: find the one this ULPIN belongs to.
+  let synth = null;
+  let synthState = null;
+  for (const st of LOCAL_STATES) {
+    const hit = generateSyntheticSeedParcelsForState(st).features.find((f) => f.properties.ulpin === ulpin);
+    if (hit) { synth = hit; synthState = st; break; }
+  }
+  const prefix = String(ulpin).split('-')[0];
+  const stateName = synthState?.name || LOCAL_STATES.find((st) => st.code === prefix)?.name || 'TamilNadu';
+
   return {
     ulpin,
-    state: ulpin.startsWith('MH') ? 'Maharashtra' : ulpin.startsWith('CHD') ? 'Chandigarh' : 'TamilNadu',
-    geometry: null,
+    state: stateName,
+    geometry: synth?.geometry || null,
     area_sqm: 500,
     layers: {
-      ror: { owner_name: 'Land Owner', owner_share: '1/1', khata_no: 'KH-712', source: 'revenue_dept', last_verified: '2024-01-01', confidence: 'verified' },
+      ror: { owner_name: synth?.properties.owner_name || 'Land Owner', owner_share: '1/1', khata_no: 'KH-712', source: 'revenue_dept', last_verified: '2024-01-01', confidence: 'verified' },
       registration: { last_transaction_id: 'REG-2024-001', transaction_type: 'sale', date: '2024-01-01', source: 'sub_registrar', confidence: 'verified' },
-      zoning: { land_use: 'residential', permitted_fsi: 1.5, eco_sensitive: false, source: 'master_plan', confidence: 'verified' },
+      zoning: { land_use: synth?.properties.land_use || 'residential', permitted_fsi: 1.5, eco_sensitive: false, source: 'master_plan', confidence: 'verified' },
       building_permit: { status: 'approved', permit_id: 'BP-2024-101', approved_fsi: 1.5, source: 'municipal_corp', confidence: 'verified' },
       tax: { annual_value: 48000, source: 'revenue_dept', confidence: 'verified', last_verified: '2024-01-01' },
       encumbrance: { active: false, type: null, source: 'sub_registrar', confidence: 'verified' }

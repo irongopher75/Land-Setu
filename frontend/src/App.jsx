@@ -1,7 +1,7 @@
 import React, { lazy, Suspense, useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import LandingPage from './components/LandingPage';
-import { logout } from './api';
+import { logout, resolveRole } from './api';
 import { auth, signOut as firebaseSignOut, onAuthStateChanged } from './firebase';
 
 const LoginPage = lazy(() => import('./components/LoginPage'));
@@ -49,8 +49,10 @@ export default function App() {
       if (user) {
         setCurrentUser(user);
         setIsLoggedIn(true);
-        const savedRole = localStorage.getItem('landsetu_role');
-        if (savedRole) setCurrentRole(savedRole);
+        resolveRole(user).then((role) => {
+          localStorage.setItem('landsetu_role', role);
+          setCurrentRole(role);
+        });
         setActiveView((prev) => (prev === 'login' || prev === 'landing' ? 'map' : prev));
       } else {
         setCurrentUser(null);
@@ -59,6 +61,13 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  // A parcel from another state must not stay open beside a different state's map.
+  const changeState = (next) => {
+    if (next === selectedState) return;
+    setSelectedState(next);
+    setSelectedUlpin(null);
+  };
 
   const handleLoginSuccess = (role, user) => {
     localStorage.setItem('landsetu_role', role);
@@ -107,7 +116,7 @@ export default function App() {
         activeView={activeView}
         setActiveView={setActiveView}
         selectedState={selectedState}
-        setSelectedState={setSelectedState}
+        setSelectedState={changeState}
         currentRole={currentRole}
         setCurrentRole={(r) => {
           localStorage.setItem('landsetu_role', r);
@@ -145,7 +154,8 @@ export default function App() {
               onSelectParcel={(ulpin) => setSelectedUlpin(ulpin)}
               editingParcel={editingParcel}
               onClearEditingParcel={() => setEditingParcel(null)}
-              onAutoDetectState={(newState) => setSelectedState(newState)}
+              onAutoDetectState={changeState}
+              signedIn={isLoggedIn}
               role={currentRole}
               restructure={restructure}
               onRestructureClose={() => setRestructure(null)}

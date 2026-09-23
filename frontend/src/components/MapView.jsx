@@ -145,7 +145,7 @@ const evaluateParcelsOverlap = (featureCollection, protectedZones) => {
   return { ...featureCollection, features };
 };
 
-export default function MapView({ selectedState, onSelectParcel, selectedUlpin, editingParcel, onClearEditingParcel, onAutoDetectState, role = 'citizen', restructure = null, onRestructureClose, focusPoint = null }) {
+export default function MapView({ selectedState, onSelectParcel, selectedUlpin, editingParcel, onClearEditingParcel, onAutoDetectState, role = 'citizen', signedIn = false, restructure = null, onRestructureClose, focusPoint = null }) {
   const [parcelsGeoJSON, setParcelsGeoJSON] = useState(null);
   const [protectedGeoJSON, setProtectedGeoJSON] = useState(null);
 
@@ -755,7 +755,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
           </button>
         )}
 
-        {role === 'citizen' && <div className="map-readonly-note"><Lock size={14} aria-hidden="true" /> Read-only view. Sign in as an officer to edit boundaries.</div>}
+        {role === 'citizen' && <div className="map-readonly-note"><Lock size={14} aria-hidden="true" /> {signedIn ? 'Your account has no officer role, so the map is read only.' : 'Read-only view. Sign in as an officer to edit boundaries.'}</div>}
         {locationError && <div className="callout callout--alert" role="alert">{locationError}</div>}
       </div>
 

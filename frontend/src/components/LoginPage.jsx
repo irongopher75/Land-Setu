@@ -10,7 +10,7 @@ import {
   sendEmailVerification,
 } from '../firebase';
 import { db, doc, setDoc } from '../firebaseFirestore';
-import { firebaseLogin } from '../api';
+import { resolveRole } from '../api';
 import DigiLockerModal from './DigiLockerModal';
 
 
@@ -103,8 +103,7 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
       }
       const user = userCredential.user;
       await syncUserToFirestore(user);
-      const session = await firebaseLogin(await user.getIdToken());
-      onLoginSuccess(session.role, user);
+      onLoginSuccess(await resolveRole(user), user);
     } catch (err) {
       console.error('Register error:', err.code, err.message);
       let msg = authMessage(err);
@@ -182,18 +181,7 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
     }
     await syncUserToFirestore(user);
 
-    let verifiedRole = 'citizen';
-    try {
-      if (user) {
-        const idToken = await user.getIdToken();
-        const session = await firebaseLogin(idToken);
-        if (session && session.role) {
-          verifiedRole = session.role;
-        }
-      }
-    } catch (fErr) {
-      console.warn('Firebase server token verification notice:', fErr.message);
-    }
+    const verifiedRole = await resolveRole(user);
 
     localStorage.setItem('landsetu_role', verifiedRole);
     onLoginSuccess(verifiedRole, user || { email, displayName: email.split('@')[0] });
@@ -210,16 +198,7 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
       const user = result.user;
       await syncUserToFirestore(user);
 
-      let verifiedRole = 'citizen';
-      try {
-        const idToken = await user.getIdToken();
-        const session = await firebaseLogin(idToken);
-        if (session && session.role) {
-          verifiedRole = session.role;
-        }
-      } catch (mErr) {
-        console.warn('Google sign-in token verification notice:', mErr.message);
-      }
+      const verifiedRole = await resolveRole(user);
 
       localStorage.setItem('landsetu_role', verifiedRole);
       onLoginSuccess(verifiedRole, user);

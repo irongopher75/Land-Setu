@@ -138,7 +138,7 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, o
                       <span>Title hash chain</span>
                       <span className="badge verified">Tamper evident</span>
                     </div>
-                    <div className="note">Each change to this parcel is chained with SHA-256 and stored in Firestore.</div>
+                    <div className="note">Each change to this parcel is chained with SHA-256 and kept in a secure audit log.</div>
                     <button className="btn btn--block" onClick={() => setShowBlockchain(true)}><Cpu size={15} /> Audit hash chain</button>
                   </div>
 
