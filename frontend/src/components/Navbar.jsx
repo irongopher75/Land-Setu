@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { checkSyncMode, getAllStates } from '../api';
+import { getAllStates } from '../api';
 import ParcelSearch from './ParcelSearch';
 
 const ROLE_LABEL = {
@@ -9,12 +9,10 @@ const ROLE_LABEL = {
 };
 
 export default function Navbar({ activeView, setActiveView, selectedState, setSelectedState, currentRole, isLoggedIn, currentUser, onLogout, onOpenStateLogs, onOpenAnalytics, onSearchPick }) {
-  const [syncStatus, setSyncStatus] = useState(null);
   const [states, setStates] = useState([]);
 
   useEffect(() => {
     let live = true;
-    checkSyncMode().then((status) => live && setSyncStatus(status));
     getAllStates().then((list) => live && setStates(list));
     return () => { live = false; };
   }, []);
@@ -25,15 +23,12 @@ export default function Navbar({ activeView, setActiveView, selectedState, setSe
     </button>
   );
 
+  const initial = String(currentUser?.displayName || currentUser?.email || 'U').trim().charAt(0).toUpperCase();
+
   return (
     <header className="navbar">
       <div className="nav-brand" onClick={() => setActiveView('landing')}>
         <span className="brand-title">LandSetu</span>
-        {syncStatus && (
-          <span className={`sync-pill ${syncStatus.isBackendConnected ? '' : 'is-offline'}`} title={syncStatus.label}>
-            {syncStatus.isBackendConnected ? 'Live database' : 'Offline copy'}
-          </span>
-        )}
       </div>
 
       <div className="nav-controls">
@@ -58,11 +53,18 @@ export default function Navbar({ activeView, setActiveView, selectedState, setSe
         {isLoggedIn ? (
           <>
             <span className="role-tag">{ROLE_LABEL[currentRole] || 'Citizen'}</span>
-            <span className="nav-user">{currentUser?.email || currentUser?.displayName || 'Signed in'}</span>
-            <button className="tab-btn" onClick={onLogout}>Sign out</button>
+            <details className="profile-menu">
+              <summary aria-label="Account menu"><span className="avatar" aria-hidden="true">{initial}</span></summary>
+              <div className="profile-pop">
+                <div className="profile-name">{currentUser?.displayName || 'Signed in'}</div>
+                {currentUser?.email && <div className="subtle">{currentUser.email}</div>}
+                <div className="subtle">{ROLE_LABEL[currentRole] || 'Citizen'}</div>
+                <button className="btn btn--block" onClick={onLogout}>Sign out</button>
+              </div>
+            </details>
           </>
         ) : (
-          tab('login', 'Officer sign in')
+          tab('login', 'Sign in')
         )}
       </div>
     </header>

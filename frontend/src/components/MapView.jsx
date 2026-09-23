@@ -741,8 +741,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
       <div className="map-toolbar">
         <div className="map-chip">
           <MapPin size={14} aria-hidden="true" />
-          <span>State: <strong>{detectedStateInfo.label || detectedStateInfo.name}</strong> ({detectedStateInfo.capital})</span>
-          <span className="badge verified">Auto-detected</span>
+          <span><strong>{detectedStateInfo.label || detectedStateInfo.name}</strong> ({detectedStateInfo.capital})</span>
         </div>
 
         <button className="btn map-chip-btn" onClick={() => locateUserAndCenter(false)} disabled={locating}>
@@ -756,6 +755,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
           </button>
         )}
 
+        {role === 'citizen' && <div className="map-readonly-note"><Lock size={14} aria-hidden="true" /> Read-only view. Sign in as an officer to edit boundaries.</div>}
         {locationError && <div className="callout callout--alert" role="alert">{locationError}</div>}
       </div>
 
@@ -773,9 +773,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
             >
               <PlusCircle size={18} aria-hidden="true" /> Mark parcel boundary
             </button>
-          ) : (
-            <div className="map-readonly-note"><Lock size={14} aria-hidden="true" /> Citizen access. Map is read only.</div>
-          )}
+          ) : null}
         </div>
       )}
 

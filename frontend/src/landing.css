@@ -27,8 +27,8 @@
 .scalebar text, .north text { font-family: var(--font-body); font-size: 12px; fill: var(--ink-muted); font-variant-numeric: tabular-nums; }
 
 /* Sections: ruled ledger, not cards */
-.ledger, .checks, .roles { max-width: 1040px; margin: 0 auto; padding: var(--space-8) var(--space-6); border-bottom: var(--line) solid var(--rule-strong); }
-.ledger h2, .checks h2, .roles h2 { font-size: var(--text-xl); margin-bottom: var(--space-3); }
+.ledger, .checks, .roles, .coverage { max-width: 1040px; margin: 0 auto; padding: var(--space-8) var(--space-6); border-bottom: var(--line) solid var(--rule-strong); }
+.ledger h2, .checks h2, .roles h2, .coverage h2 { font-size: var(--text-xl); margin-bottom: var(--space-3); }
 .ledger-intro { max-width: 62ch; color: var(--ink-muted); margin-bottom: var(--space-4); }
 .ledger-table th[scope='row'] { font-weight: 600; white-space: nowrap; }
 .checks-list { list-style: none; counter-reset: rule; }
@@ -38,10 +38,13 @@
 .checks-note { margin-top: var(--space-4); color: var(--ink-muted); font-size: var(--text-sm); }
 .roles-list > div { display: grid; grid-template-columns: 200px 1fr; gap: var(--space-3); padding: var(--space-3) 0; border-top: var(--line) solid var(--rule); }
 .roles-list dt { font-weight: 700; }
-.landing-foot { max-width: 1040px; margin: 0 auto; padding: var(--space-6); display: flex; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; font-size: var(--text-sm); color: var(--ink-muted); }
+.landing-foot { max-width: 1040px; margin: 0 auto; padding: var(--space-6); display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-6); font-size: var(--text-sm); color: var(--ink-muted); }
+.landing-foot p + p { margin-top: var(--space-2); }
+.landing-foot strong { color: var(--ink-navy); }
 .landing-foot a { color: var(--ink-navy); margin-left: var(--space-4); }
 
 @media (max-width: 860px) {
+  .landing-foot { grid-template-columns: 1fr; }
   .hero-sheet { min-height: 0; }
   .hero-copy { position: static; width: auto; padding: var(--space-6) var(--space-4) var(--space-4); }
   .hero { display: flex; flex-direction: column-reverse; }

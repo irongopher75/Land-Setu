@@ -33,14 +33,14 @@ export default function DigiLockerModal({ onClose, onProceedMock }) {
         maskedAadhaar: masked,
         dob: '1988-06-15',
         gender: 'Male',
-        issuer: 'UIDAI / MeitY DigiLocker Sandbox SSO',
+        issuer: 'DigiLocker (sandbox)',
         tokenId: `DIGI-${Date.now()}-${cleanAadhaar.slice(-4)}`
       });
       setStep('verified');
     }, 1000);
   };
 
-  const handleCompleteSSO = () => {
+  const handleComplete = () => {
     onProceedMock(verifiedToken);
   };
 
@@ -51,7 +51,7 @@ export default function DigiLockerModal({ onClose, onProceedMock }) {
           <div className="row">
             <span className="wordmark-tile">DigiLocker</span>
             <div>
-              <h3>Aadhaar and DigiLocker sign-in</h3>
+              <h3>Continue with DigiLocker</h3>
               <p>Sandbox. No real UIDAI call is made.</p>
             </div>
           </div>
@@ -104,7 +104,7 @@ export default function DigiLockerModal({ onClose, onProceedMock }) {
               <div className="stat-line"><span>Date of birth</span><strong className="tabular">{verifiedToken.dob}</strong></div>
               <div className="stat-line"><span>Token</span><strong className="data-id">{verifiedToken.tokenId}</strong></div>
             </div>
-            <button onClick={handleCompleteSSO} className="btn btn--primary btn--block">Continue to the citizen portal</button>
+            <button onClick={handleComplete} className="btn btn--primary btn--block">Continue to the citizen portal</button>
           </div>
         )}
       </div>

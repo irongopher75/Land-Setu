@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, Mail, ArrowRight, ShieldCheck, ExternalLink, Info } from 'lucide-react';
+import { Lock, Mail, ArrowRight } from 'lucide-react';
 import { 
   auth, 
   googleProvider, 
@@ -13,7 +13,26 @@ import { db, doc, setDoc } from '../firebaseFirestore';
 import { firebaseLogin } from '../api';
 import DigiLockerModal from './DigiLockerModal';
 
+
+// Plain-language auth errors. Never show vendor names or raw error codes to the public.
+const authMessage = (err) => {
+  switch (err && err.code) {
+    case 'auth/invalid-email': return 'Enter a valid email address.';
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential': return 'Email or password is incorrect.';
+    case 'auth/user-not-found': return 'No account found for this email.';
+    case 'auth/email-already-in-use': return 'An account with this email already exists. Sign in instead.';
+    case 'auth/weak-password': return 'Choose a password of at least 6 characters.';
+    case 'auth/too-many-requests': return 'Too many attempts. Wait a few minutes and try again.';
+    case 'auth/network-request-failed': return 'No network connection. Check your connection and try again.';
+    case 'auth/cancelled-popup-request': return 'Sign-in was cancelled. Try again.';
+    case 'auth/popup-closed-by-user': return 'The sign-in window was closed before it finished. Try again.';
+    default: return 'Sign-in did not work. Try again in a moment.';
+  }
+};
+
 export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
+  const [audience, setAudience] = useState('citizen'); // 'citizen' | 'officer'
   const [isSignUp, setIsSignUp] = useState(false);
   const [selectedRole, setSelectedRole] = useState('citizen');
   const [email, setEmail] = useState('');
@@ -21,7 +40,6 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [infoMsg, setInfoMsg] = useState('');
-  const [showConfigNotice, setShowConfigNotice] = useState(false);
   const [showDigiLocker, setShowDigiLocker] = useState(false);
 
   // Sync user profile to Firestore
@@ -43,7 +61,7 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
   // Send Password Reset / Login Notification Email via Firebase
   const handleForgotPassword = async () => {
     if (!email) {
-      setErrorMsg('Please enter your email address above to receive a reset link or login email.');
+      setErrorMsg('Enter your email address first, then ask for a reset link.');
       return;
     }
     setLoading(true);
@@ -52,12 +70,12 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
 
     try {
       await sendPasswordResetEmail(auth, email);
-      setInfoMsg(`Access notification & password reset email sent to ${email}! Check your email inbox and spam folder.`);
+      setInfoMsg(`A password reset email was sent to ${email}. Check your inbox and spam folder.`);
     } catch (err) {
       console.error('Password Reset Error:', err.code, err.message);
-      let msg = err.message.replace('Firebase:', '').trim();
+      let msg = authMessage(err);
       if (err.code === 'auth/user-not-found') {
-        msg = `No existing account found for ${email}. Switch to "Register" below to create your account and receive a verification email.`;
+        msg = 'No account found for this email.';
       }
       setErrorMsg(msg);
     } finally {
@@ -89,7 +107,7 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
       onLoginSuccess(session.role, user);
     } catch (err) {
       console.error('Register error:', err.code, err.message);
-      let msg = err.message.replace('Firebase:', '').trim();
+      let msg = authMessage(err);
       if (err.code === 'auth/email-already-in-use') {
         // If already exists, send password reset / verification email
         try {
@@ -138,7 +156,7 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
           const userCredential = await signInWithEmailAndPassword(auth, email, password);
           user = userCredential.user;
         } catch (signInErr) {
-          if (signInErr.code === 'auth/invalid-credential' || signInErr.code === 'auth/user-not-found') {
+          if (audience === 'citizen' && signInErr.code === 'auth/user-not-found') {
             try {
               const newCred = await createUserWithEmailAndPassword(auth, email, password);
               user = newCred.user;
@@ -152,14 +170,17 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
       }
     } catch (err) {
       console.warn('Firebase Auth error:', err.message);
-      setErrorMsg(err.message.replace('Firebase:', '').trim());
+      setErrorMsg(authMessage(err));
       setLoading(false);
       return;
     }
 
-    if (user) {
-      await syncUserToFirestore(user);
+    if (!user) {
+      setErrorMsg('Email or password is incorrect.');
+      setLoading(false);
+      return;
     }
+    await syncUserToFirestore(user);
 
     let verifiedRole = 'citizen';
     try {
@@ -205,60 +226,59 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
     } catch (err) {
       console.error('Google Sign-In Error:', err.code, err.message);
       if (err.code === 'auth/cancelled-popup-request') {
-        setErrorMsg('Google Sign-In request was cancelled. Please click "Continue with Google" again.');
+        setErrorMsg('Sign-in was cancelled. Try again.');
       } else if (err.code === 'auth/popup-closed-by-user') {
         setErrorMsg('Sign-in popup was closed before completing. Please try again.');
       } else {
-        setErrorMsg(err.message.replace('Firebase:', '').trim());
+        setErrorMsg(authMessage(err));
       }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleProceedGoogleDemo = () => {
-    setShowConfigNotice(false);
-    handleGoogleSignIn();
-  };
+  const isOfficer = audience === 'officer';
 
   return (
     <div className="auth-page">
       <div className="modal-card auth-card">
         <div className="modal-head">
           <div>
-            <h2>{isSignUp ? 'Create a LandSetu account' : 'Sign in to LandSetu'}</h2>
-            <p>Your role is set by the server from your account, never by this page.</p>
+            <h2>Sign in</h2>
+            <p>LandSetu land records portal</p>
           </div>
-          <ShieldCheck size={24} aria-hidden="true" />
         </div>
 
-        {showConfigNotice && (
-          <div className="callout stack--tight stack">
-            <div className="title-row"><Info size={16} aria-hidden="true" /><strong>Firebase Google sign-in setup</strong></div>
-            <p>To use the live Google popup, put your Web API key in <code className="data-id">frontend/.env</code> and enable Google sign-in in the Firebase console.</p>
-            <button type="button" className="btn btn--primary" onClick={handleProceedGoogleDemo}>Continue as Google user</button>
+        <div className="audience-tabs" role="tablist" aria-label="Who is signing in">
+          <button role="tab" aria-selected={!isOfficer} className={!isOfficer ? 'is-active' : ''} onClick={() => { setAudience('citizen'); setErrorMsg(''); setInfoMsg(''); }}>
+            Citizen
+            <small>Search records, request a correction</small>
+          </button>
+          <button role="tab" aria-selected={isOfficer} className={isOfficer ? 'is-active' : ''} onClick={() => { setAudience('officer'); setIsSignUp(false); setErrorMsg(''); setInfoMsg(''); }}>
+            Land officer
+            <small>Village officer, auditor, state admin</small>
+          </button>
+        </div>
+
+        {isOfficer ? (
+          <div className="callout">Officer accounts are issued by your state land records office. Your role comes from that account. You cannot choose or change it here.</div>
+        ) : (
+          <div className="stack">
+            <button type="button" className="btn btn--primary btn--block" onClick={() => setShowDigiLocker(true)}>Continue with DigiLocker</button>
+            <button type="button" className="btn btn--block" onClick={handleGoogleSignIn}>Continue with Google</button>
+            <div className="rule-label"><span>Or continue with email</span></div>
           </div>
         )}
 
         {errorMsg && <div className="callout callout--alert" role="alert">{errorMsg}</div>}
         {infoMsg && <div className="callout callout--verified" role="status">{infoMsg}</div>}
 
-        <div className="stack">
-          <button type="button" className="btn btn--block" onClick={handleGoogleSignIn}>Continue with Google</button>
-          <button type="button" className="btn btn--primary btn--block" onClick={() => setShowDigiLocker(true)}>
-            <span>Sign in with DigiLocker</span>
-            <ExternalLink size={14} aria-hidden="true" />
-          </button>
-        </div>
-
-        <div className="rule-label"><span>or use email</span></div>
-
         <form onSubmit={handleEmailAuthSubmit} className="stack">
           <label className="field">
-            Email address
+            {isOfficer ? 'Official email address' : 'Email address'}
             <span className="input-icon">
               <Mail size={16} aria-hidden="true" />
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" autoComplete="email" />
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={isOfficer ? 'name@office.example' : 'name@example.com'} autoComplete="email" />
             </span>
           </label>
 
@@ -272,13 +292,15 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
           <button type="button" className="link-btn" onClick={handleForgotPassword}>Forgot password? Send a reset email</button>
 
           <button className="btn btn--primary btn--block" type="submit" disabled={loading}>
-            {loading ? 'Signing in' : isSignUp ? 'Create account' : 'Sign in'} <ArrowRight size={16} aria-hidden="true" />
+            {loading ? 'Please wait' : isSignUp ? 'Create account' : 'Sign in'} <ArrowRight size={16} aria-hidden="true" />
           </button>
         </form>
 
-        <button type="button" className="link-btn link-btn--center" onClick={() => setIsSignUp(!isSignUp)}>
-          {isSignUp ? 'Already have an account? Sign in' : "No account yet? Register"}
-        </button>
+        {!isOfficer && (
+          <button type="button" className="link-btn link-btn--center" onClick={() => setIsSignUp(!isSignUp)}>
+            {isSignUp ? 'Already have an account? Sign in' : 'New here? Create a citizen account'}
+          </button>
+        )}
       </div>
 
       {showDigiLocker && (

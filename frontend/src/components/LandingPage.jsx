@@ -109,17 +109,30 @@ export default function LandingPage({ onLaunchMap, onLoginClick }) {
         </svg>
 
         <div className="hero-copy">
-          <p className="hero-kicker">Chennai, Nemili Revenue Village. Nine parcels, seeded records.</p>
-          <h1 id="hero-title">Five departments hold one plot. Their records do not agree.</h1>
+          <p className="hero-kicker">Sample sheet: Nemili Revenue Village, Chennai. Nine parcels, synthetic records.</p>
+          <h1 id="hero-title">Compare one parcel's land records across five departments.</h1>
           <p className="hero-lede">
-            LandSetu reads the Record of Rights, the Sub-Registrar deed, the zoning map, the building permit and the
-            tax roll against a single ULPIN, and shows exactly where they differ.
+            Look up a parcel by ULPIN, owner name or khata number. LandSetu lines up the Record of Rights, the deed,
+            the zoning map, the building permit and the tax roll, and marks where they disagree.
           </p>
           <div className="hero-actions">
             <button className="btn btn--primary" onClick={onLaunchMap}>Open the parcel map</button>
             <button className="btn" onClick={onLoginClick}>Sign in</button>
           </div>
         </div>
+      </section>
+
+      <section className="coverage" aria-labelledby="coverage-title">
+        <h2 id="coverage-title">Where records are available</h2>
+        <table className="data-table">
+          <thead><tr><th scope="col">State</th><th scope="col">Area</th><th scope="col">Status</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Tamil Nadu</th><td>Chennai, Nemili Revenue Village</td><td><span className="badge verified">Sample records loaded</span></td></tr>
+            <tr><th scope="row">Chandigarh</th><td>Sector 17</td><td><span className="badge verified">Sample records loaded</span></td></tr>
+            <tr><th scope="row">Other states</th><td>Record format mapped, no parcels loaded</td><td><span className="badge self_declared">Not available yet</span></td></tr>
+          </tbody>
+        </table>
+        <p className="checks-note">All parcels, owners and identifiers are synthetic. None describe a real person or property.</p>
       </section>
 
       <section className="ledger" aria-labelledby="ledger-title">
@@ -143,7 +156,7 @@ export default function LandingPage({ onLaunchMap, onLoginClick }) {
       </section>
 
       <section className="checks" aria-labelledby="checks-title">
-        <h2 id="checks-title">What the rule engine checks on every parcel</h2>
+        <h2 id="checks-title">Checks run on every parcel</h2>
         <ol className="checks-list">
           <li><span className="checks-name">Boundary overlap</span><span>Interiors that intersect another parcel in the same state, with the shared area in square metres, measured on the ellipsoid.</span></li>
           <li><span className="checks-name">Protected zone</span><span>Any intersection with a notified eco-sensitive area, named with its zone id.</span></li>
@@ -165,10 +178,21 @@ export default function LandingPage({ onLaunchMap, onLoginClick }) {
       </section>
 
       <footer className="landing-foot">
-        <p><strong>LandSetu</strong>. All parcels, owners and identifiers in this demo are synthetic.</p>
         <div>
-          <a href="#tos" onClick={(e) => { e.preventDefault(); alert('Terms of Service: authorized government and public access only. All land records are synthetic demonstration data.'); }}>Terms of Service</a>
-          <a href="#privacy" onClick={(e) => { e.preventDefault(); alert('Privacy Policy: this demo uses synthetic data only. No personal data is collected.'); }}>Privacy Policy</a>
+          <p><strong>About this platform</strong></p>
+          <p>LandSetu shows a parcel's land records from different departments in one place and marks where they disagree. It reads records. It does not decide ownership.</p>
+        </div>
+        <div>
+          <p><strong>Questions and grievances</strong></p>
+          <p>Write to <a href="mailto:grievance@landsetu-demo.example">grievance@landsetu-demo.example</a>. This is a placeholder address; no mailbox is monitored.</p>
+        </div>
+        <div>
+          <p><strong>Prototype notice</strong></p>
+          <p>Built for Smart India Hackathon problem statement SIH26014. This is a prototype, not a live government system. It holds no real land records.</p>
+          <p>
+            <a href="#tos" onClick={(e) => { e.preventDefault(); alert('Terms of Service: authorized government and public access only. All land records are synthetic demonstration data.'); }}>Terms of Service</a>
+            <a href="#privacy" onClick={(e) => { e.preventDefault(); alert('Privacy Policy: this demo uses synthetic data only. No personal data is collected.'); }}>Privacy Policy</a>
+          </p>
         </div>
       </footer>
     </div>
