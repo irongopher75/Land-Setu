@@ -23,14 +23,6 @@ const client = axios.create({
   withCredentials: true,
 });
 
-client.interceptors.request.use((config) => {
-  const token = localStorage.getItem('landsetu_jwt_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
 const isLocalhostBackendForbidden = () => {
   if (typeof window === 'undefined') return false;
   return window.location.protocol === 'https:' && API_BASE_URL.includes('localhost');
@@ -46,35 +38,28 @@ export const notifyFallback = (actionName, reason) => {
 
 export const checkSyncMode = async () => {
   if (isLocalhostBackendForbidden()) {
-    return { isBackendConnected: false, mode: 'OFFLINE_DEMO', label: '⚡ Offline Resilient Mode (Localhost Backend Unreachable from HTTPS)' };
+    return { isBackendConnected: false, mode: 'OFFLINE_DEMO', label: 'Offline mode (local backend unreachable from HTTPS)' };
   }
   try {
     const res = await client.get('/parcels/states/all', { timeout: 2000 });
     if (res.data) {
-      return { isBackendConnected: true, mode: 'PRIMARY_SYNC', label: '🟢 Cloud SQL / PostGIS Sync (REST API Active)' };
+      return { isBackendConnected: true, mode: 'PRIMARY_SYNC', label: 'Live sync (PostGIS API)' };
     }
   } catch (err) {}
-  return { isBackendConnected: false, mode: 'OFFLINE_DEMO', label: '⚡ Resilient Mode (Offline / Firestore Fallback)' };
+  return { isBackendConnected: false, mode: 'OFFLINE_DEMO', label: 'Offline mode (Firestore fallback)' };
 };
 
 export const mockLogin = async (role) => {
   const res = await client.post('/auth/mock-login', { role });
-  if (res.data && res.data.token) {
-    localStorage.setItem('landsetu_jwt_token', res.data.token);
-  }
   return res.data;
 };
 
 export const firebaseLogin = async (idToken) => {
   const res = await client.post('/auth/firebase-login', { id_token: idToken });
-  if (res.data && res.data.token) {
-    localStorage.setItem('landsetu_jwt_token', res.data.token);
-  }
   return res.data;
 };
 
 export const logout = async () => {
-  localStorage.removeItem('landsetu_jwt_token');
   return client.post('/auth/logout');
 };
 
@@ -255,7 +240,28 @@ export const getParcelPassport = async (ulpin) => {
   }
 };
 
-const OPEN_REQUEST_STATUSES = ['PENDING_AUDITOR_REVIEW', 'PENDING_STATE_ADMIN', 'PENDING_APPROVAL', 'PENDING', 'PENDING_DELETION_VILLAGE', 'PENDING_DELETION_AUDITOR'];
+// Split, merge and correction requests exist only in the backend database. The Firestore
+// and localStorage fallbacks cannot apply them, so they never go through those paths.
+export const REST_ONLY_REQUEST_TYPES = ['SPLIT', 'MERGE', 'CORRECTION'];
+const isRestOnlyRequest = (req) => !!req && REST_ONLY_REQUEST_TYPES.includes(req.type);
+
+const restError = (err, action) => {
+  if (err.response) return new Error(err.response.data?.detail || `${action} failed (${err.response.status}).`);
+  return new Error(`${action} needs the live LandSetu API, which is not reachable right now.`);
+};
+
+const restCall = async (method, url, action, data) => {
+  if (isLocalhostBackendForbidden()) throw restError({}, action);
+  try {
+    const res = await client.request({ method, url, data });
+    return res.data;
+  } catch (err) {
+    throw restError(err, action);
+  }
+};
+const restPost = (url, action, data) => restCall('post', url, action, data);
+
+const OPEN_REQUEST_STATUSES = ['PENDING_VILLAGE_REVIEW', 'PENDING_AUDITOR_REVIEW', 'PENDING_STATE_ADMIN', 'PENDING_APPROVAL', 'PENDING', 'PENDING_DELETION_VILLAGE', 'PENDING_DELETION_AUDITOR'];
 const DELETED_ULPINS_KEY = 'landsetu_deleted_ulpins';
 
 const requestTypeFromStatus = (status, fallbackType) => {
@@ -867,10 +873,13 @@ export const getPendingRequests = async () => {
   return Array.from(byId.values());
 };
 
-export const auditorPassRequest = async (requestId) => {
+export const auditorPassRequest = async (requestId, request = null) => {
   const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
   if (currentRole !== 'auditor' && currentRole !== 'state_admin') {
     throw new Error('Permission Denied: Only Compliance Auditors can pass compliance audit.');
+  }
+  if (isRestOnlyRequest(request)) {
+    return restPost(`/parcels/requests/${requestId}/auditor-pass`, 'Auditor review');
   }
 
   await updateBoundaryRequestInFirestore(requestId, 'PENDING_STATE_ADMIN', 'auditor');
@@ -885,10 +894,13 @@ export const auditorPassRequest = async (requestId) => {
   return { status: 'PENDING_STATE_ADMIN', message: `Request #${requestId} passed compliance audit and forwarded to State Admin!`, ulpin: req?.ulpin };
 };
 
-export const approveBoundaryRequest = async (requestId) => {
+export const approveBoundaryRequest = async (requestId, request = null) => {
   const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
   if (currentRole !== 'state_admin') {
     throw new Error('Permission Denied: Only State Administration Officers (state_admin) have final approval authority.');
+  }
+  if (isRestOnlyRequest(request)) {
+    return restPost(`/parcels/requests/${requestId}/approve`, 'Final approval');
   }
 
   const fsReq = await getFirestoreBoundaryRequest(requestId).catch(() => null);
@@ -930,10 +942,13 @@ export const approveBoundaryRequest = async (requestId) => {
   return { status: 'APPROVED', message: `Request ${requestId} approved successfully!`, ulpin: req?.ulpin };
 };
 
-export const rejectBoundaryRequest = async (requestId) => {
+export const rejectBoundaryRequest = async (requestId, request = null) => {
   const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
   if (!['auditor', 'state_admin', 'village_officer'].includes(currentRole)) {
     throw new Error('Permission Denied: Only Village Officers, Auditors, or State Administration Officers can reject requests.');
+  }
+  if (isRestOnlyRequest(request)) {
+    return restPost(`/parcels/requests/${requestId}/reject`, 'Rejection');
   }
 
   if (!isLocalhostBackendForbidden()) {
@@ -1109,4 +1124,87 @@ const getFallbackProtectedZonesGeoJSON = (stateName) => {
       { type: "Feature", properties: { zone_id: "ECO-ZONE-TN-01", name: "Guindy Forest Buffer Zone", type: "protected_zone" }, geometry: { type: "Polygon", coordinates: [[[80.2650, 13.0800], [80.2850, 13.0800], [80.2850, 13.0815], [80.2650, 13.0815], [80.2650, 13.0800]]] } }
     ]
   };
+};
+
+
+// ---------------------------------------------------------------------------
+// Split / merge / correction requests, history, search, analytics
+// ---------------------------------------------------------------------------
+
+export const villagePassRequest = (requestId) =>
+  restPost(`/parcels/requests/${requestId}/village-pass`, 'Village verification');
+
+export const requestSplit = (ulpin, partGeometries, reason, requestedBy) =>
+  restPost(`/parcels/${encodeURIComponent(ulpin)}/split-request`, 'Split request', {
+    parts: partGeometries.map((geometry) => ({ geometry })),
+    reason,
+    requested_by: requestedBy || 'Village Land Officer',
+  });
+
+export const requestMerge = (ulpin, mergeWith, reason, requestedBy) =>
+  restPost(`/parcels/${encodeURIComponent(ulpin)}/merge-request`, 'Merge request', {
+    merge_with: mergeWith,
+    reason,
+    requested_by: requestedBy || 'Village Land Officer',
+  });
+
+export const requestCorrection = (ulpin, { layer, field, requestedValue, evidence, requestedBy }) =>
+  restPost(`/parcels/${encodeURIComponent(ulpin)}/correction-request`, 'Correction request', {
+    layer, field, requested_value: requestedValue, evidence, requested_by: requestedBy,
+  });
+
+export const getAnalyticsSummary = () => restCall('get', '/parcels/analytics/summary', 'Analytics');
+
+// Offline history: only the department layers are available, no request trail.
+const historyFromLayers = (parcel) => {
+  const L = parcel?.layers || {};
+  const events = [];
+  const add = (date, kind, title, detail, source, confidence) =>
+    events.push({ date: date || null, kind, title, detail: detail || '', source, confidence });
+  if (L.ror) add(L.ror.last_verified, 'ror', `Record of Rights: owner ${L.ror.owner_name || 'not recorded'}`, `Khata ${L.ror.khata_no || 'not recorded'}`, L.ror.source, L.ror.confidence);
+  if (L.registration) add(L.registration.date, 'registration', `Registration: ${L.registration.transaction_type || 'transaction'} ${L.registration.last_transaction_id || ''}`.trim(), L.registration.buyer_name ? `Buyer ${L.registration.buyer_name}` : '', L.registration.source, L.registration.confidence);
+  if (L.building_permit) add(L.building_permit.date, 'permit', `Building permit ${L.building_permit.permit_id || ''} ${L.building_permit.status || ''}`.trim(), L.building_permit.approved_fsi != null ? `Approved FSI ${L.building_permit.approved_fsi}` : '', L.building_permit.source, L.building_permit.confidence);
+  if (L.tax) add(L.tax.last_verified, 'tax', 'Property tax assessed', L.tax.annual_value ? `Annual value Rs ${L.tax.annual_value}` : '', L.tax.source, L.tax.confidence);
+  events.sort((a, b) => (a.date === null) - (b.date === null) || String(a.date).localeCompare(String(b.date)));
+  return events;
+};
+
+export const getParcelHistory = async (ulpin) => {
+  if (!isLocalhostBackendForbidden()) {
+    try {
+      const res = await client.get(`/parcels/${encodeURIComponent(ulpin)}/history`);
+      return { events: res.data.events, source: 'live' };
+    } catch (err) { /* fall through to layer-only history */ }
+  }
+  const parcel = await getParcelDetail(ulpin);
+  return { events: historyFromLayers(parcel), source: 'offline' };
+};
+
+export const searchParcels = async (q, state) => {
+  const term = String(q || '').trim();
+  if (term.length < 2) return [];
+  if (!isLocalhostBackendForbidden()) {
+    try {
+      const res = await client.get('/parcels/search', { params: { q: term, state: state || undefined } });
+      return res.data;
+    } catch (err) { /* offline fallback below */ }
+  }
+  const needle = term.toLowerCase();
+  const local = JSON.parse(localStorage.getItem('landsetu_custom_parcels') || '{}');
+  const seeds = ['TamilNadu', 'Chandigarh'].flatMap((st) => getFallbackSeedParcelsGeoJSON(st).features.map((f) => ({
+    ulpin: f.properties.ulpin, state: f.properties.state, owner_name: f.properties.owner_name, khata_no: null, geometry: f.geometry,
+  })));
+  const custom = Object.values(local).map((p) => ({
+    ulpin: p.ulpin, state: p.state, owner_name: p.layers?.ror?.owner_name, khata_no: p.layers?.ror?.khata_no, geometry: p.geometry,
+  }));
+  return [...seeds, ...custom]
+    .filter((p) => [p.ulpin, p.owner_name, p.khata_no].some((v) => String(v || '').toLowerCase().includes(needle)))
+    .slice(0, 20)
+    .map((p) => {
+      const ring = p.geometry?.coordinates?.[0] || [];
+      const n = Math.max(ring.length - 1, 1);
+      const centroid = ring.length ? [ring.slice(0, n).reduce((a, c) => a + c[0], 0) / n, ring.slice(0, n).reduce((a, c) => a + c[1], 0) / n] : null;
+      const matched_on = String(p.ulpin).toLowerCase().includes(needle) ? 'ulpin' : String(p.owner_name || '').toLowerCase().includes(needle) ? 'owner' : 'khata';
+      return { ulpin: p.ulpin, state: p.state, owner_name: p.owner_name, khata_no: p.khata_no, centroid, matched_on };
+    });
 };

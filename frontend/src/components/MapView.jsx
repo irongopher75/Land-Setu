@@ -4,21 +4,22 @@ import * as turf from '@turf/turf';
 import { PlusCircle, Edit3, Check, X, MapPin, Sparkles, Search, Lock, Navigation, Target, ClipboardList, AlertTriangle } from 'lucide-react';
 import { getParcelsGeoJSON, getProtectedZonesGeoJSON, createCustomParcel, identifyStateByCoords, getPendingRequests, getApprovedCustomParcels, requestParcelDeletion, deleteParcelDirectly, getDeletedUlpins } from '../api';
 import ApprovalQueueModal from './ApprovalQueueModal';
+import RestructurePanel from './RestructurePanel';
+import { colors, landUseColor } from '../palette';
 
 const SHOW_SEEDED_PARCELS = import.meta.env.VITE_SHOW_SEEDED_PARCELS === 'true';
 
-// Draggable Vertex Handle Icon
+// Draggable vertex handle and GPS marker. Styled in index.css.
 const handleIcon = L.divIcon({
   className: 'custom-vertex-marker',
-  html: '<div style="width: 18px; height: 18px; background: #06b6d4; border: 3px solid #ffffff; border-radius: 50%; box-shadow: 0 0 14px rgba(6,182,212,0.9); cursor: grab;"></div>',
+  html: '<div class="vertex-handle"></div>',
   iconSize: [18, 18],
   iconAnchor: [9, 9]
 });
 
-// GPS User Location Icon
 const userLocationIcon = L.divIcon({
   className: 'user-location-marker',
-  html: '<div style="width: 24px; height: 24px; background: #3b82f6; border: 3.5px solid #ffffff; border-radius: 50%; box-shadow: 0 0 24px #3b82f6, 0 0 0 12px rgba(59, 130, 246, 0.25); cursor: pointer;"></div>',
+  html: '<div class="gps-marker"></div>',
   iconSize: [24, 24],
   iconAnchor: [12, 12]
 });
@@ -144,7 +145,7 @@ const evaluateParcelsOverlap = (featureCollection, protectedZones) => {
   return { ...featureCollection, features };
 };
 
-export default function MapView({ selectedState, onSelectParcel, selectedUlpin, editingParcel, onClearEditingParcel, onAutoDetectState, role = 'citizen' }) {
+export default function MapView({ selectedState, onSelectParcel, selectedUlpin, editingParcel, onClearEditingParcel, onAutoDetectState, role = 'citizen', restructure = null, onRestructureClose, focusPoint = null }) {
   const [parcelsGeoJSON, setParcelsGeoJSON] = useState(null);
   const [protectedGeoJSON, setProtectedGeoJSON] = useState(null);
 
@@ -176,6 +177,9 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
   const parcelsLayerRef = useRef(null);
   const protectedLayerRef = useRef(null);
   const drawingLayerRef = useRef(null);
+  // Set by RestructurePanel while a split or merge is in progress.
+  const restructureClickRef = useRef(null);
+  const restructureParcelClickRef = useRef(null);
   const userLocLayerRef = useRef(null);
 
   const stateCenters = {
@@ -198,22 +202,18 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
 
   const getLandUseTheme = (landUseStr = 'residential') => {
     const lower = String(landUseStr).toLowerCase();
-    if (lower.includes('eco') || lower.includes('protect') || lower.includes('forest')) {
-      return { fill: '#a855f7', border: '#8b5cf6', label: '🌿 Ecological / Forest Zone' };
-    }
-    if (lower.includes('agri') || lower.includes('farm') || lower.includes('crop')) {
-      return { fill: '#eab308', border: '#d97706', label: '🌾 Agricultural Area' };
-    }
-    if (lower.includes('indus') || lower.includes('factory') || lower.includes('manufactur')) {
-      return { fill: '#ea580c', border: '#c2410c', label: '🏭 Industrial Area' };
-    }
-    if (lower.includes('trans') || lower.includes('road') || lower.includes('infra') || lower.includes('comm')) {
-      return { fill: '#06b6d4', border: '#0f766e', label: '🚗 Transport / Infra Area' };
-    }
-    return { fill: '#3b82f6', border: '#1d4ed8', label: '🏡 Residential Area' };
+    const ink = colors().ink;
+    let key = 'residential';
+    let label = 'Residential';
+    if (lower.includes('eco') || lower.includes('protect') || lower.includes('forest')) { key = 'ecological'; label = 'Ecological or forest'; }
+    else if (lower.includes('agri') || lower.includes('farm') || lower.includes('crop')) { key = 'agricultural'; label = 'Agricultural'; }
+    else if (lower.includes('indus') || lower.includes('factory') || lower.includes('manufactur')) { key = 'industrial'; label = 'Industrial'; }
+    else if (lower.includes('comm') || lower.includes('trans') || lower.includes('road') || lower.includes('infra')) { key = 'commercial'; label = 'Commercial or infrastructure'; }
+    return { fill: landUseColor(key), border: ink, label };
   };
 
   const getParcelStyle = (feature) => {
+    const c = colors();
     const isSelected = feature.properties?.ulpin === selectedUlpin;
     const isApproved = feature.properties?.is_approved || feature.properties?.status === 'APPROVED';
     const hasFlags = feature.properties?.has_flags;
@@ -221,54 +221,34 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
     const landUse = feature.properties?.land_use || feature.properties?.zone_category || feature.properties?.layers?.zoning?.land_use || 'residential';
     const theme = getLandUseTheme(landUse);
 
+    // Flags are never colour alone: seal outline plus dashes.
     if (hasOverlap) {
-      return {
-        fillColor: '#ef4444',
-        fillOpacity: isSelected ? 0.85 : 0.65,
-        color: '#b91c1c',
-        weight: isSelected ? 5.5 : 4,
-        dashArray: '4, 4'
-      };
+      return { fillColor: c.seal, fillOpacity: isSelected ? 0.6 : 0.45, color: c.seal, weight: isSelected ? 5 : 4, dashArray: '4, 4' };
     }
-
     if (isSelected) {
-      return {
-        fillColor: theme.fill,
-        fillOpacity: 0.75,
-        color: '#ffffff',
-        weight: 4.5,
-        dashArray: ''
-      };
+      return { fillColor: theme.fill, fillOpacity: 0.75, color: c.ink, weight: 4, dashArray: '' };
     }
-
     if (isApproved) {
-      return {
-        fillColor: theme.fill,
-        fillOpacity: 0.55,
-        color: theme.border,
-        weight: 3.5,
-        dashArray: ''
-      };
+      return { fillColor: theme.fill, fillOpacity: 0.55, color: c.sageInk, weight: 3, dashArray: '' };
     }
-
     if (hasFlags) {
-      return {
-        fillColor: '#ef4444',
-        fillOpacity: 0.5,
-        color: '#dc2626',
-        weight: 3,
-        dashArray: ''
-      };
+      return { fillColor: c.seal, fillOpacity: 0.35, color: c.seal, weight: 3, dashArray: '8, 4' };
     }
-
-    return {
-      fillColor: theme.fill,
-      fillOpacity: 0.4,
-      color: theme.border,
-      weight: 2,
-      dashArray: ''
-    };
+    return { fillColor: theme.fill, fillOpacity: 0.4, color: c.ink, weight: 1.5, dashArray: '' };
   };
+
+  const moveEndTimerRef = useRef(null);
+  const handleMapMoveEndRef = useRef(null);
+
+  const handleMapMoveEnd = async (lat, lng) => {
+    try {
+      const info = await identifyStateByCoords(lat, lng);
+      if (info && info.name) {
+        setDetectedStateInfo(info);
+      }
+    } catch (err) {}
+  };
+  handleMapMoveEndRef.current = handleMapMoveEnd;
 
   // 1. Initialize Pure Leaflet Map EXACTLY ONCE on mount
   useEffect(() => {
@@ -301,11 +281,21 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
     userLocLayerRef.current = L.layerGroup().addTo(map);
 
     map.on('moveend', () => {
-      const c = map.getCenter();
-      handleMapMoveEnd(c.lat, c.lng);
+      if (moveEndTimerRef.current) clearTimeout(moveEndTimerRef.current);
+      moveEndTimerRef.current = setTimeout(() => {
+        if (!mapInstanceRef.current) return;
+        const c = map.getCenter();
+        if (handleMapMoveEndRef.current) {
+          handleMapMoveEndRef.current(c.lat, c.lng);
+        }
+      }, 400);
     });
 
     return () => {
+      if (moveEndTimerRef.current) {
+        clearTimeout(moveEndTimerRef.current);
+        moveEndTimerRef.current = null;
+      }
       if (mapInstanceRef.current) {
         try {
           mapInstanceRef.current.off();
@@ -320,7 +310,6 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
       }
     };
   }, []); // RUNS ONCE ON MOUNT!
-
   // Update map click handler dynamically for drawing mode
   useEffect(() => {
     if (!mapInstanceRef.current) return;
@@ -329,12 +318,21 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
     const onMapClick = (e) => {
       if (isDrawingMode) {
         handleMapClickPosition([e.latlng.lat, e.latlng.lng]);
+      } else if (restructureClickRef.current) {
+        restructureClickRef.current([e.latlng.lat, e.latlng.lng]);
       }
     };
 
     map.off('click');
     map.on('click', onMapClick);
   }, [isDrawingMode]);
+
+  // Fly to a search result
+  useEffect(() => {
+    if (mapInstanceRef.current && focusPoint) {
+      mapInstanceRef.current.flyTo(focusPoint.center, 17, { duration: 1 });
+    }
+  }, [focusPoint]);
 
   // Fly map on state change
   useEffect(() => {
@@ -355,14 +353,14 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
     if (protectedGeoJSON) {
       const geoLayer = L.geoJSON(protectedGeoJSON, {
         style: {
-          fillColor: '#a855f7',
-          fillOpacity: 0.25,
-          color: '#c084fc',
+          fillColor: colors().protectedZone,
+          fillOpacity: 0.2,
+          color: colors().protectedZone,
           weight: 2,
           dashArray: '6, 6'
         },
         onEachFeature: (feat, layer) => {
-          layer.bindTooltip(`🛡️ ${feat.properties.name}`, { sticky: true });
+          layer.bindTooltip(`Protected zone: ${feat.properties.name}`, { sticky: true });
         }
       });
       protectedLayerRef.current.addLayer(geoLayer);
@@ -386,37 +384,32 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
           const theme = getLandUseTheme(landUse);
 
           const tooltipContent = `
-            <div style="font-family: sans-serif; font-size: 12px; padding: 4px; max-width: 270px;">
+            <div class="map-tip">
               ${hasOverlap ? `
-                <div style="background-color: #fef2f2; border: 1.5px solid #ef4444; border-radius: 6px; padding: 6px; margin-bottom: 6px;">
-                  <strong style="color: #dc2626; font-size: 12px; display: flex; align-items: center; gap: 4px;">⚠️ CAUTION: OVERLAPPING ZONE DETECTED!</strong>
-                  <div style="color: #991b1b; font-size: 11px; margin-top: 3px; line-height: 1.3;">
-                    Spatial conflict with: <strong>${(props.overlapping_with || []).join(', ')}</strong>
-                  </div>
+                <div class="map-tip-alert">
+                  <strong>Overlapping parcels</strong>
+                  <div>Conflicts with: <strong>${(props.overlapping_with || []).join(', ')}</strong></div>
                 </div>
               ` : ''}
-              <strong style="color: #1d4ed8;">ULPIN: ${props.ulpin}</strong><br/>
+              <strong class="data-id">${props.ulpin}</strong><br/>
               ${props.owner_name ? `Owner: <strong>${props.owner_name}</strong><br/>` : ''}
-              Zoning Category: <strong style="color: ${theme.border};">${theme.label}</strong><br/>
-              Status: <span style="color: ${hasOverlap ? '#dc2626' : isApproved ? '#059669' : props.has_flags ? '#ef4444' : '#10b981'}; font-weight: bold;">
-                ${hasOverlap ? '⚠️ OVERLAP CONFLICT (RED)' : isApproved ? '✅ OFFICIAL APPROVED BOUNDARY' : props.has_flags ? `⚠️ Flagged (${props.flag_count} rules)` : '✅ Clean'}
-              </span>
+              Zoning: <strong>${theme.label}</strong><br/>
+              Status: <strong class="${hasOverlap || props.has_flags ? 'is-alert' : 'is-verified'}">
+                ${hasOverlap ? 'Overlap conflict' : isApproved ? 'Approved boundary' : props.has_flags ? `Flagged (${props.flag_count} rules)` : 'Clean'}
+              </strong>
             </div>
           `;
 
           const popupContent = `
-            <div style="font-family: sans-serif; font-size: 13px; padding: 4px; min-width: 210px;">
-              <strong style="color: #1d4ed8; font-size: 14px;">ULPIN: ${props.ulpin}</strong><br/>
-              <div style="margin: 4px 0 8px 0; color: #334155; font-size: 12px;">
+            <div class="map-tip">
+              <strong class="data-id">${props.ulpin}</strong>
+              <div>
                 ${props.owner_name ? `Owner: <strong>${props.owner_name}</strong><br/>` : ''}
                 Zoning: <strong>${theme.label}</strong>
               </div>
               ${role === 'state_admin' ? `
-                <button
-                  onclick="if(window.LandSetuDeleteParcel) window.LandSetuDeleteParcel('${props.ulpin}')"
-                  style="width: 100%; background: linear-gradient(135deg, #ef4444, #b91c1c); color: #ffffff; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer;"
-                >
-                  📩 Request Land Deletion
+                <button class="btn btn--seal-solid btn--block" onclick="if(window.LandSetuDeleteParcel) window.LandSetuDeleteParcel('${props.ulpin}')">
+                  Request land deletion
                 </button>
               ` : ''}
             </div>
@@ -427,6 +420,11 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
 
           layer.on({
             click: () => {
+              if (restructureParcelClickRef.current) {
+                restructureParcelClickRef.current(feature);
+                return;
+              }
+              if (restructure) return;
               if (!isDrawingMode) {
                 onSelectParcel(props.ulpin);
               }
@@ -444,22 +442,22 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
       });
       parcelsLayerRef.current.addLayer(geoLayer);
     }
-  }, [parcelsGeoJSON, selectedUlpin, role, isDrawingMode]);
+  }, [parcelsGeoJSON, selectedUlpin, role, isDrawingMode, restructure]);
 
   // Global Governance Deletion Handler for Leaflet Popups
   useEffect(() => {
     window.LandSetuDeleteParcel = async (ulpinToDelete) => {
       if (role !== 'state_admin') {
-        alert('🔒 Permission Denied: Only State Administration Officers can initiate land deletion requests.');
+        alert('Permission denied. Only State Administration Officers can initiate land deletion requests.');
         return;
       }
       const confirmed = window.confirm(
-        `⚠️ Are you sure you want to initiate land deletion for ULPIN '${ulpinToDelete}'?\n\nThis will submit a deletion request into the Governance Approval Pipeline.\n\nFlow:\n1. State Admin Initiates Request (Done)\n2. Village Land Officer Approves (Stage 1)\n3. Compliance Auditor Authorizes (Stage 2)`
+        `Are you sure you want to initiate land deletion for ULPIN '${ulpinToDelete}'?\n\nThis will submit a deletion request into the Governance Approval Pipeline.\n\nFlow:\n1. State Admin Initiates Request (Done)\n2. Village Land Officer Approves (Stage 1)\n3. Compliance Auditor Authorizes (Stage 2)`
       );
       if (!confirmed) return;
       try {
         const res = await requestParcelDeletion(ulpinToDelete, 'Initiated from GIS Map');
-        alert(`📩 ${res.message}`);
+        alert(res.message);
         await loadMapData();
         fetchPendingCount();
       } catch (err) {
@@ -610,14 +608,6 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
     setVertices((prev) => [...prev, latLng]);
   };
 
-  const handleMapMoveEnd = async (lat, lng) => {
-    try {
-      const info = await identifyStateByCoords(lat, lng);
-      if (info && info.name) {
-        setDetectedStateInfo(info);
-      }
-    } catch (err) {}
-  };
 
   const handleVertexDrag = (index, newLat, newLng) => {
     setVertices((prev) => {
@@ -636,10 +626,10 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
     if (isDrawingMode && vertices && vertices.length > 0) {
       const theme = getLandUseTheme(selectedLandUse);
       const poly = L.polygon(vertices, {
-        color: isDrawingOverlapping ? '#b91c1c' : theme.border,
-        fillColor: isDrawingOverlapping ? '#ef4444' : theme.fill,
-        fillOpacity: isDrawingOverlapping ? 0.75 : 0.55,
-        weight: isDrawingOverlapping ? 4.5 : 3,
+        color: colors().ink,
+        fillColor: theme.fill,
+        fillOpacity: 0.55,
+        weight: 3,
         dashArray: '6, 6'
       });
       drawingLayerRef.current.addLayer(poly);
@@ -678,7 +668,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
     );
 
     if (!isInsideIndia) {
-      setReshapeError('⚠️ Land allocation is strictly restricted within the territory of India (Lat: 6.5°-35.7°N, Lng: 68.1°-97.4°E).');
+      setReshapeError('Land allocation is strictly restricted within the territory of India (Lat: 6.5°-35.7°N, Lng: 68.1°-97.4°E).');
       setSaving(false);
       return;
     }
@@ -711,7 +701,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
       });
 
       if (result.status === 'PENDING_APPROVAL' || result.status === 'PENDING_AUDITOR_REVIEW') {
-        alert(`📩 ${result.message}`);
+        alert(result.message);
         setIsDrawingMode(false);
         setVertices([]);
         setReshapeError('');
@@ -720,7 +710,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
         return;
       }
 
-      alert("✅ Boundary change approved & committed to master GIS database!");
+      alert("Boundary change approved and committed to the master GIS database.");
 
       if (onAutoDetectState && targetState !== selectedState) {
         onAutoDetectState(targetState);
@@ -736,7 +726,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
     } catch (err) {
       console.error('Failed to save custom boundary:', err);
       const msg = err.response?.data?.detail || err.message || 'Evaluation error';
-      setReshapeError(`⚠️ ${msg}`);
+      setReshapeError(msg);
     } finally {
       setSaving(false);
     }
@@ -745,200 +735,108 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
   const currentArea = calculatePolygonAreaSqm(vertices);
 
   return (
-    <div className="map-view-container" style={{ position: 'relative', width: '100%', height: '100%' }}>
-      {/* Pure Native Leaflet Map Mount Container */}
-      <div
-        ref={mapContainerRef}
-        className="leaflet-dom-map-host"
-        style={{ width: '100%', height: '100%', zIndex: 1 }}
-      />
+    <div className="map-view-container">
+      <div ref={mapContainerRef} className="leaflet-dom-map-host" />
 
-      {/* Top Map Action Bar & Auto State Detection Pill */}
-      <div style={{ position: 'absolute', top: 20, left: 20, zIndex: 900, display: 'flex', flexDirection: 'column', gap: '10px' }} className="map-toolbar">
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', padding: '8px 14px', borderRadius: '20px', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#0f172a', boxShadow: '0 4px 16px rgba(15,23,42,0.1)' }}>
-            <MapPin size={14} color="var(--accent-primary)" />
-            <span>Auto-Identified State: <strong style={{ color: 'var(--accent-primary)' }}>{detectedStateInfo.label || detectedStateInfo.name}</strong> ({detectedStateInfo.capital})</span>
-            <span style={{ fontSize: '0.7rem', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', padding: '2px 6px', borderRadius: '10px', fontWeight: 700 }}>
-              AUTO SPATIAL
-            </span>
-          </div>
-
-          <button
-            onClick={() => locateUserAndCenter(false)}
-            disabled={locating}
-            style={{ background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', padding: '8px 14px', borderRadius: '20px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 16px rgba(15,23,42,0.1)' }}
-          >
-            <Target size={14} color="#3b82f6" /> {locating ? 'Locating GPS...' : 'My GPS Location'}
-          </button>
-
-          {(role === 'auditor' || role === 'state_admin' || role === 'village_officer') && (
-            <button
-              onClick={() => setShowApprovalModal(true)}
-              style={{
-                background: pendingCount > 0 ? 'linear-gradient(135deg, #eab308, #ca8a04)' : '#ffffff',
-                border: pendingCount > 0 ? 'none' : '1px solid #cbd5e1',
-                color: pendingCount > 0 ? '#ffffff' : '#0f172a',
-                padding: '8px 14px',
-                borderRadius: '20px',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                boxShadow: '0 4px 16px rgba(15,23,42,0.1)'
-              }}
-            >
-              <ClipboardList size={14} color={pendingCount > 0 ? '#ffffff' : '#eab308'} />
-              Governance Queue {pendingCount > 0 && <span style={{ background: '#ef4444', color: '#fff', borderRadius: '10px', padding: '1px 7px', fontSize: '0.72rem' }}>{pendingCount}</span>}
-            </button>
-          )}
+      <div className="map-toolbar">
+        <div className="map-chip">
+          <MapPin size={14} aria-hidden="true" />
+          <span>State: <strong>{detectedStateInfo.label || detectedStateInfo.name}</strong> ({detectedStateInfo.capital})</span>
+          <span className="badge verified">Auto-detected</span>
         </div>
 
-        {locationError && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b', padding: '6px 12px', borderRadius: '8px', fontSize: '0.78rem' }}>
-            {locationError}
-          </div>
+        <button className="btn map-chip-btn" onClick={() => locateUserAndCenter(false)} disabled={locating}>
+          <Target size={14} aria-hidden="true" /> {locating ? 'Locating' : 'My location'}
+        </button>
+
+        {(role === 'auditor' || role === 'state_admin' || role === 'village_officer') && (
+          <button className={`btn map-chip-btn ${pendingCount > 0 ? 'btn--seal' : ''}`} onClick={() => setShowApprovalModal(true)}>
+            <ClipboardList size={14} aria-hidden="true" />
+            Approval queue {pendingCount > 0 && <span className="badge stale tabular">{pendingCount} pending</span>}
+          </button>
         )}
+
+        {locationError && <div className="callout callout--alert" role="alert">{locationError}</div>}
       </div>
 
-      {/* Floating Action Button: Add / Reshape Boundary */}
-      {!isDrawingMode && (
-        <div style={{ position: 'absolute', bottom: 30, right: 30, zIndex: 900 }}>
+      {!isDrawingMode && !restructure && (
+        <div className="map-fab-zone">
           {role !== 'citizen' ? (
             <button
-              className="fab-btn"
+              className="btn btn--primary"
               onClick={() => {
                 setVertices([]);
                 setCustomUlpin(`ULPIN-${selectedState.substring(0,2).toUpperCase()}-${Date.now().toString().slice(-4)}`);
                 setCustomOwner('New Land Owner');
                 setIsDrawingMode(true);
               }}
-              style={{
-                background: 'linear-gradient(135deg, #2563eb, #06b6d4)',
-                color: '#fff',
-                border: 'none',
-                padding: '14px 22px',
-                borderRadius: '30px',
-                fontWeight: 700,
-                fontSize: '0.95rem',
-                cursor: 'pointer',
-                boxShadow: '0 8px 24px rgba(37, 99, 235, 0.4)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
             >
-              <PlusCircle size={20} /> Mark Custom Land Boundary
+              <PlusCircle size={18} aria-hidden="true" /> Mark parcel boundary
             </button>
           ) : (
-            <div
-              style={{
-                background: 'rgba(15, 23, 42, 0.85)',
-                border: '1px solid var(--border-card)',
-                color: 'var(--text-muted)',
-                padding: '10px 16px',
-                borderRadius: '20px',
-                fontSize: '0.8rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                backdropFilter: 'blur(8px)'
-              }}
-            >
-              <Lock size={14} color="#38bdf8" /> Citizen Access (Read-Only GIS Map)
-            </div>
+            <div className="map-readonly-note"><Lock size={14} aria-hidden="true" /> Citizen access. Map is read only.</div>
           )}
         </div>
       )}
 
-      {/* Interactive Boundary Reshaper Control Panel */}
       {isDrawingMode && (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 24,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 990,
-            background: '#ffffff',
-            border: '1.5px solid #cbd5e1',
-            borderRadius: '16px',
-            padding: '16px 20px',
-            width: '90%',
-            maxWidth: '560px',
-            boxShadow: '0 12px 36px rgba(15,23,42,0.2)'
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Edit3 size={18} color="var(--accent-primary)" />
-              <strong style={{ fontSize: '0.95rem', color: '#0f172a' }}>Vector Boundary Editor ({selectedState})</strong>
-            </div>
+        <div className="map-editor">
+          <div className="row row--between">
+            <div className="title-row"><Edit3 size={18} aria-hidden="true" /><strong>Boundary editor ({selectedState})</strong></div>
             <button
+              className="icon-btn"
+              aria-label="Close editor"
               onClick={() => {
                 setIsDrawingMode(false);
                 setVertices([]);
                 setReshapeError('');
                 if (onClearEditingParcel) onClearEditingParcel();
               }}
-              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b' }}
             >
               <X size={18} />
             </button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
-            <div>
-              <label style={{ fontSize: '0.75rem', color: '#475569', fontWeight: 600 }}>ULPIN Identifier</label>
-              <input
-                type="text"
-                value={customUlpin}
-                onChange={(e) => setCustomUlpin(e.target.value)}
-                style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.82rem', background: '#f8fafc', color: '#0f172a' }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: '0.75rem', color: '#475569', fontWeight: 600 }}>Owner Name</label>
-              <input
-                type="text"
-                value={customOwner}
-                onChange={(e) => setCustomOwner(e.target.value)}
-                style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.82rem', background: '#f8fafc', color: '#0f172a' }}
-              />
-            </div>
+          <div className="field-row">
+            <label className="field">ULPIN
+              <input className="data-id" type="text" value={customUlpin} onChange={(e) => setCustomUlpin(e.target.value)} />
+            </label>
+            <label className="field">Owner name
+              <input type="text" value={customOwner} onChange={(e) => setCustomOwner(e.target.value)} />
+            </label>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f1f5f9', padding: '8px 12px', borderRadius: '8px', marginBottom: '12px' }}>
-            <span style={{ fontSize: '0.8rem', color: '#334155' }}>Vertices: <strong>{vertices.length} points</strong></span>
-            <span style={{ fontSize: '0.8rem', color: '#0369a1', fontWeight: 700 }}>Calculated Area: {currentArea} sqm</span>
+          <div className="stat-line">
+            <span>Vertices</span><strong className="tabular">{vertices.length}</strong>
+          </div>
+          <div className="stat-line">
+            <span>Calculated area</span><strong className="tabular">{currentArea} sqm</strong>
           </div>
 
-          {reshapeError && (
-            <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', padding: '8px 12px', borderRadius: '8px', fontSize: '0.78rem', marginBottom: '12px' }}>
-              {reshapeError}
-            </div>
-          )}
+          {reshapeError && <div className="note note--alert" role="alert">{reshapeError}</div>}
 
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button
-              onClick={() => setVertices((prev) => prev.slice(0, -1))}
-              disabled={vertices.length === 0}
-              style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', fontWeight: 600, fontSize: '0.82rem', cursor: vertices.length === 0 ? 'not-allowed' : 'pointer' }}
-            >
-              Undo Point
-            </button>
-
-            <button
-              onClick={saveCustomBoundary}
-              disabled={saving || vertices.length < 3}
-              style={{ flex: 1.5, padding: '8px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#ffffff', fontWeight: 700, fontSize: '0.85rem', cursor: (saving || vertices.length < 3) ? 'not-allowed' : 'pointer', opacity: (saving || vertices.length < 3) ? 0.6 : 1 }}
-            >
-              {saving ? 'Evaluating Rules...' : 'Submit Boundary Change'}
+          <div className="btn-row">
+            <button className="btn" onClick={() => setVertices((prev) => prev.slice(0, -1))} disabled={vertices.length === 0}>Undo point</button>
+            <button className="btn btn--primary" onClick={saveCustomBoundary} disabled={saving || vertices.length < 3}>
+              {saving ? 'Checking rules' : 'Submit boundary change'}
             </button>
           </div>
         </div>
+      )}
+      {restructure && mapInstanceRef.current && (
+        <RestructurePanel
+          map={mapInstanceRef.current}
+          mode={restructure.mode}
+          parcel={restructure.parcel}
+          clickRef={restructureClickRef}
+          parcelClickRef={restructureParcelClickRef}
+          onClose={onRestructureClose}
+          onSubmitted={(res) => {
+            alert(`${restructure.mode === 'split' ? 'Split' : 'Merge'} request #${res.request_id} submitted for auditor review.`);
+            fetchPendingCount();
+            onRestructureClose();
+          }}
+        />
       )}
 
       {/* Approval Governance Queue Modal */}

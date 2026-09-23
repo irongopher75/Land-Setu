@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, ShieldCheck, Download, Search, Filter, Calendar, FileText, CheckCircle, Clock } from 'lucide-react';
+import { X, ShieldCheck, Download, Search } from 'lucide-react';
+import { getFirestorePendingRequests } from '../firebaseFirestore';
 
 export default function AuditLogModal({ stateFilter, role, onClose }) {
   const [logs, setLogs] = useState([]);
@@ -10,9 +11,12 @@ export default function AuditLogModal({ stateFilter, role, onClose }) {
     loadAuditLogs();
   }, [stateFilter]);
 
-  const loadAuditLogs = () => {
+  const loadAuditLogs = async () => {
     const rawReqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
-    const deletedUlpins = JSON.parse(localStorage.getItem('landsetu_deleted_parcels') || '[]');
+    let remoteReqs = [];
+    try {
+      remoteReqs = await getFirestorePendingRequests();
+    } catch (e) {}
 
     const generatedLogs = [
       {
@@ -53,16 +57,22 @@ export default function AuditLogModal({ stateFilter, role, onClose }) {
       }
     ];
 
-    // Merge any actual pending/completed requests from storage
-    rawReqs.forEach((r, idx) => {
+    const allReqs = [...rawReqs];
+    remoteReqs.forEach(rr => {
+      if (!allReqs.some(r => String(r.id) === String(rr.id))) {
+        allReqs.push(rr);
+      }
+    });
+
+    allReqs.forEach((r, idx) => {
       generatedLogs.push({
         id: `AUD-LIVE-${r.id || idx}`,
-        timestamp: r.created_at || new Date().toISOString(),
+        timestamp: r.created_at || r.approvedAt || new Date().toISOString(),
         ulpin: r.ulpin,
         state: r.state || 'TamilNadu',
         district: 'District Office',
         action: r.status,
-        actor_role: r.requester_role || 'village_officer',
+        actor_role: r.approverRole || r.requester_role || 'village_officer',
         actor_name: r.requested_by || 'Revenue Inspector',
         details: r.reason || 'Boundary verification and multi-tier governance review.',
         sha256: `0x7f8a9b${idx}c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b`
@@ -92,94 +102,52 @@ export default function AuditLogModal({ stateFilter, role, onClose }) {
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-content glass-card" style={{ maxWidth: '920px', width: '95vw', padding: '1.75rem' }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.75rem' }}>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card modal-card--xwide" onClick={e => e.stopPropagation()}>
+        <div className="modal-head">
           <div>
-            <h2 style={{ color: '#fff', fontSize: '1.25rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <ShieldCheck size={22} color="#38bdf8" /> Immutable Governance Audit Trail & Activity Log
-            </h2>
-            <p style={{ color: '#94a3b8', fontSize: '0.825rem', margin: '0.25rem 0 0' }}>
-              Cryptographically verified audit trail of all state land approvals, boundary reshapes, and parcel deletions.
-            </p>
+            <h3 className="title-row"><ShieldCheck size={20} aria-hidden="true" /> Governance audit trail</h3>
+            <p>Every approval, boundary change and deletion, each with a SHA-256 hash.</p>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
-            <X size={20} />
-          </button>
+          <button className="icon-btn" onClick={onClose} aria-label="Close"><X size={18} /></button>
         </div>
 
-        {/* Filter Controls */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginBottom: '1.25rem' }}>
-          <div style={{ display: 'flex', gap: '0.75rem', flex: 1 }}>
-            <div style={{ position: 'relative', flex: 1 }}>
-              <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '10px' }} />
-              <input
-                type="text"
-                placeholder="Filter by ULPIN or Action..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                style={{ width: '100%', padding: '0.55rem 0.55rem 0.55rem 2.2rem', borderRadius: '6px', background: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.85rem' }}
-              />
-            </div>
-            <select
-              value={selectedRoleFilter}
-              onChange={e => setSelectedRoleFilter(e.target.value)}
-              style={{ padding: '0.55rem', borderRadius: '6px', background: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.85rem' }}
-            >
-              <option value="ALL">All Roles</option>
-              <option value="village_officer">Village Officer</option>
-              <option value="auditor">Compliance Auditor</option>
-              <option value="state_admin">State Admin</option>
-            </select>
-          </div>
-
-          <button
-            onClick={handleExportCsv}
-            className="btn-secondary"
-            style={{ padding: '0.55rem 1rem', borderRadius: '6px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}
-          >
-            <Download size={16} /> Export CSV Report
-          </button>
+        <div className="row row--wrap">
+          <span className="input-icon grow">
+            <Search size={16} aria-hidden="true" />
+            <input className="input" type="text" placeholder="Filter by ULPIN or action" aria-label="Filter by ULPIN or action" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+          </span>
+          <select className="input btn--auto" aria-label="Filter by role" value={selectedRoleFilter} onChange={e => setSelectedRoleFilter(e.target.value)}>
+            <option value="ALL">All roles</option>
+            <option value="village_officer">Village officer</option>
+            <option value="auditor">Auditor</option>
+            <option value="state_admin">State admin</option>
+          </select>
+          <button onClick={handleExportCsv} className="btn btn--auto"><Download size={16} aria-hidden="true" /> Export CSV</button>
         </div>
 
-        {/* Audit Log Table */}
-        <div style={{ maxHeight: '420px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left', color: '#cbd5e1' }}>
+        <div className="table-scroll">
+          <table className="data-table">
             <thead>
-              <tr style={{ background: 'rgba(15, 23, 42, 0.9)', borderBottom: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }}>
-                <th style={{ padding: '0.65rem 0.85rem' }}>Timestamp</th>
-                <th style={{ padding: '0.65rem 0.85rem' }}>ULPIN</th>
-                <th style={{ padding: '0.65rem 0.85rem' }}>Action</th>
-                <th style={{ padding: '0.65rem 0.85rem' }}>Actor</th>
-                <th style={{ padding: '0.65rem 0.85rem' }}>Verification SHA-256</th>
+              <tr>
+                <th>Time</th>
+                <th>ULPIN</th>
+                <th>Action</th>
+                <th>Actor</th>
+                <th>SHA-256</th>
               </tr>
             </thead>
             <tbody>
               {filteredLogs.map(log => (
-                <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(15, 23, 42, 0.4)' }}>
-                  <td style={{ padding: '0.65rem 0.85rem', whiteSpace: 'nowrap', color: '#94a3b8' }}>
-                    {new Date(log.timestamp).toLocaleString()}
+                <tr key={log.id}>
+                  <td className="tabular">{new Date(log.timestamp).toLocaleString('en-IN')}</td>
+                  <td><span className="data-id">{log.ulpin}</span></td>
+                  <td><span className={`badge ${log.action.includes('DELETED') || log.action.includes('AUDITED') ? 'verified' : 'self_declared'}`}>{log.action}</span></td>
+                  <td>
+                    <div>{log.actor_name}</div>
+                    <div className="subtle">{log.actor_role}</div>
                   </td>
-                  <td style={{ padding: '0.65rem 0.85rem', fontWeight: 600, color: '#60a5fa' }}>{log.ulpin}</td>
-                  <td style={{ padding: '0.65rem 0.85rem' }}>
-                    <span style={{
-                      padding: '0.15rem 0.45rem',
-                      borderRadius: '4px',
-                      fontSize: '0.725rem',
-                      fontWeight: 600,
-                      background: log.action.includes('DELETED') || log.action.includes('AUDITED') ? 'rgba(34, 197, 94, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                      color: log.action.includes('DELETED') || log.action.includes('AUDITED') ? '#4ade80' : '#60a5fa'
-                    }}>
-                      {log.action}
-                    </span>
-                  </td>
-                  <td style={{ padding: '0.65rem 0.85rem' }}>
-                    <div style={{ color: '#f8fafc', fontWeight: 500 }}>{log.actor_name}</div>
-                    <div style={{ color: '#64748b', fontSize: '0.7rem' }}>Role: {log.actor_role}</div>
-                  </td>
-                  <td style={{ padding: '0.65rem 0.85rem', fontFamily: 'monospace', fontSize: '0.7rem', color: '#38bdf8' }}>
-                    {log.sha256.substring(0, 18)}...
-                  </td>
+                  <td><span className="data-id">{log.sha256.substring(0, 18)}...</span></td>
                 </tr>
               ))}
             </tbody>

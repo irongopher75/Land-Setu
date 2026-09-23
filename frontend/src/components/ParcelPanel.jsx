@@ -1,41 +1,61 @@
-import React, { useState, useEffect } from 'react';
-import { X, AlertOctagon, QrCode, FileText, CheckCircle, ShieldAlert, Layers, Lock, Trash2, Link2, ShieldCheck, Cpu } from 'lucide-react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { X, QrCode, Lock, Trash2, Cpu } from 'lucide-react';
 import ConfidenceBadge from './ConfidenceBadge';
-import ParcelPassportQR from './ParcelPassportQR';
-import BlockchainExplorerModal from './BlockchainExplorerModal';
-import { getParcelDetail, getParcelPassport, requestParcelDeletion, deleteParcelDirectly, getParcelBlockchain } from '../api';
+import FlagDiff from './FlagDiff';
+import ParcelTimeline from './ParcelTimeline';
+import { getParcelDetail, getParcelPassport, requestParcelDeletion } from '../api';
 
-export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, onDeletionRequested }) {
+const ParcelPassportQR = lazy(() => import('./ParcelPassportQR'));
+const BlockchainExplorerModal = lazy(() => import('./BlockchainExplorerModal'));
+
+const RESTRUCTURE_ROLES = ['village_officer', 'officer', 'state_admin'];
+
+function Field({ label, value, mono, tone }) {
+  if (value === undefined || value === null || value === '') return null;
+  return (
+    <div className="field-item">
+      <span className="field-label">{label}</span>
+      <span className={`field-value ${mono ? 'data-id' : ''} ${tone ? `is-${tone}` : ''}`}>{value}</span>
+    </div>
+  );
+}
+
+function Layer({ title, layer, children }) {
+  return (
+    <section className="layer-section">
+      <div className="layer-section-title">
+        <span>{title}</span>
+        <ConfidenceBadge confidence={layer?.confidence} />
+      </div>
+      <div className="field-grid">{children}</div>
+    </section>
+  );
+}
+
+const NA = 'Not recorded';
+
+export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, onDeletionRequested, onStartRestructure, onRequestCorrection }) {
   const [parcel, setParcel] = useState(null);
   const [loading, setLoading] = useState(true);
   const [passportData, setPassportData] = useState(null);
   const [showQR, setShowQR] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showBlockchain, setShowBlockchain] = useState(false);
-  const [latestBlockHash, setLatestBlockHash] = useState('0x7f8a9b2c3d4e5f6a');
+  const [tab, setTab] = useState('record'); // 'record' | 'history'
 
   useEffect(() => {
-    if (ulpin) {
-      fetchParcelData();
-    }
-  }, [ulpin, role]);
-
-  const fetchParcelData = async () => {
+    if (!ulpin) return;
+    setTab('record');
     setLoading(true);
-    try {
-      const data = await getParcelDetail(ulpin);
-      setParcel(data);
-    } catch (err) {
-      console.error('Failed to fetch parcel detail:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    getParcelDetail(ulpin)
+      .then(setParcel)
+      .catch((err) => console.error('Failed to fetch parcel detail:', err))
+      .finally(() => setLoading(false));
+  }, [ulpin, role]);
 
   const handlePassportClick = async () => {
     try {
-      const pData = await getParcelPassport(ulpin);
-      setPassportData(pData);
+      setPassportData(await getParcelPassport(ulpin));
       setShowQR(true);
     } catch (err) {
       console.error('Failed to fetch passport:', err);
@@ -43,13 +63,11 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, o
   };
 
   const handleRequestDeletion = async () => {
-    if (!window.confirm(`⚠️ Are you sure you want to initiate land deletion for ULPIN '${ulpin}'?\n\nThis will submit a deletion request into the Governance Approval Pipeline.\n\nFlow:\n1. State Admin Initiates Request (Done)\n2. Village Land Officer Approves (Stage 1)\n3. Compliance Auditor Authorizes (Stage 2)`)) {
-      return;
-    }
+    if (!window.confirm(`Request deletion of ULPIN ${ulpin}?\n\nThe request goes to the village land officer, then to the auditor. The parcel is removed only after both approve.`)) return;
     setDeleting(true);
     try {
       const res = await requestParcelDeletion(ulpin, 'Initiated by State Admin Officer');
-      alert(`📩 ${res.message}`);
+      alert(res.message);
       if (onDeletionRequested) onDeletionRequested(ulpin);
       onClose();
     } catch (err) {
@@ -61,303 +79,136 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, o
 
   if (!ulpin) return null;
 
-  const layers = parcel?.layers || {};
+  const L = parcel?.layers || {};
   const flags = parcel?.flags || [];
 
   return (
     <>
-      <div className="parcel-drawer">
+      <aside className="parcel-drawer" aria-label={`Parcel ${ulpin}`}>
         <div className="drawer-header">
           <div>
-            <div className="drawer-ulpin">
-              <FileText color="var(--accent-primary)" size={20} />
-              {ulpin}
-            </div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-              State: <strong style={{ color: '#0f172a' }}>{parcel?.state || 'N/A'}</strong> | Area: <strong style={{ color: '#0f172a' }}>{parcel?.area_sqm ? `${parcel.area_sqm} sqm` : 'N/A'}</strong>
+            <div className="drawer-ulpin">{ulpin}</div>
+            <div className="drawer-meta">
+              {parcel?.state || NA} · <span className="tabular">{parcel?.area_sqm ? `${parcel.area_sqm} sq m` : NA}</span>
             </div>
           </div>
-          <button className="drawer-close" onClick={onClose}>
-            <X size={18} />
-          </button>
+          <button className="drawer-close" onClick={onClose} aria-label="Close parcel panel"><X size={18} /></button>
         </div>
 
         <div className="drawer-body">
           {loading ? (
-            <div style={{ padding: '40px 0', textWrap: 'nowrap', textAlign: 'center', color: 'var(--text-muted)' }}>
-              Loading unified parcel record...
-            </div>
+            <div className="drawer-loading">Loading the record for {ulpin}</div>
           ) : (
             <>
-              {/* Passport Generation, Boundary Reshape & Deletion Request CTAs */}
-              <div style={{ display: 'flex', gap: '8px', margin: '8px 0 16px 0', flexWrap: 'wrap' }}>
-                <button className="passport-btn" style={{ flex: 1, padding: '9px 10px', fontSize: '0.8rem' }} onClick={handlePassportClick}>
-                  <QrCode size={15} /> QR Passport
-                </button>
+              <div className="btn-row">
+                <button className="btn" onClick={handlePassportClick}><QrCode size={15} /> QR passport</button>
                 {role !== 'citizen' ? (
-                  <button
-                    className="passport-btn"
-                    style={{ flex: 1.1, padding: '9px 10px', fontSize: '0.8rem', background: 'linear-gradient(135deg, #06b6d4, #2563eb)' }}
-                    onClick={() => onReshapeBoundary && onReshapeBoundary(parcel)}
-                  >
-                    ✏️ Reshape
-                  </button>
+                  <button className="btn" onClick={() => onReshapeBoundary && onReshapeBoundary(parcel)}>Reshape boundary</button>
                 ) : (
-                  <button
-                    className="passport-btn"
-                    disabled
-                    style={{ flex: 1.1, padding: '9px 10px', fontSize: '0.78rem', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-dim)', border: '1px solid var(--border-card)', cursor: 'not-allowed', opacity: 0.6 }}
-                    title="Citizens have read-only access and cannot mark or reshape boundaries."
-                  >
-                    <Lock size={14} style={{ display: 'inline', marginRight: '4px' }} /> Read-Only
+                  <button className="btn" disabled title="Citizens have read-only access."><Lock size={14} /> Read only</button>
+                )}
+                {role === 'state_admin' && (
+                  <button className="btn btn--seal" onClick={handleRequestDeletion} disabled={deleting} title="Needs approval from the village land officer and the auditor.">
+                    <Trash2 size={15} /> {deleting ? 'Submitting' : 'Request deletion'}
                   </button>
                 )}
-
-                {role === 'state_admin' && (
-                <button
-                  className="passport-btn"
-                  style={{ flex: 1.2, padding: '9px 12px', fontSize: '0.8rem', background: 'linear-gradient(135deg, #ef4444, #b91c1c)', color: '#ffffff', fontWeight: 700, border: 'none' }}
-                  onClick={handleRequestDeletion}
-                  disabled={deleting}
-                  title="State Admin can request deletion. Village Land Officer and Auditor must both approve before the parcel is removed."
-                >
-                  <Trash2 size={15} /> {deleting ? 'Submitting request...' : 'Request deletion'}
-                </button>
-                )}
               </div>
 
-              {/* Immutable Blockchain Ledger Card */}
-              <div
-                style={{
-                  background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.9))',
-                  border: '1px solid rgba(16, 185, 129, 0.35)',
-                  borderRadius: '10px',
-                  padding: '12px 14px',
-                  margin: '12px 0 16px 0',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <ShieldCheck color="#10b981" size={18} />
-                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f8fafc' }}>
-                      ⛓️ SHA-256 Title Blockchain
-                    </span>
-                  </div>
-                  <span style={{ fontSize: '0.7rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
-                    Tamper-Proof
-                  </span>
-                </div>
-                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <div>Proof Chain: <strong style={{ color: 'var(--accent-cyan)' }}>Google Cloud Firestore + Web Crypto SHA-256</strong></div>
-                  <div>Latest Block Hash: <span style={{ fontFamily: 'monospace', color: '#38bdf8' }}>0x8f4a...92b1</span></div>
-                </div>
-                <button
-                  style={{
-                    width: '100%',
-                    background: 'linear-gradient(135deg, #059669, #0d9488)',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '7px',
-                    padding: '8px 12px',
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px'
-                  }}
-                  onClick={() => setShowBlockchain(true)}
-                >
-                  <Cpu size={15} /> Audit Blockchain Proof & Block History
-                </button>
-              </div>
-
-              {/* Active Flags Section */}
-              {flags.length > 0 && (
-                <div className="flags-card">
-                  <div className="flags-title">
-                    <AlertOctagon size={18} /> Spatial & Data Violation Flags ({flags.length})
-                  </div>
-                  {flags.map((flag, idx) => (
-                    <div key={idx} className="flag-box">
-                      <div className="flag-rule">{flag.rule.replace(/_/g, ' ')}</div>
-                      <div className="flag-reason">{flag.reason}</div>
-                      {flag.evidence && (
-                        <div className="flag-evidence">
-                          {JSON.stringify(flag.evidence)}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+              {RESTRUCTURE_ROLES.includes(role) && parcel?.geometry && (
+                <div className="btn-row">
+                  <button className="btn" onClick={() => onStartRestructure('split', parcel)}>Split parcel</button>
+                  <button className="btn" onClick={() => onStartRestructure('merge', parcel)}>Merge with neighbour</button>
                 </div>
               )}
+              <div className="btn-row">
+                <button className="btn" onClick={onRequestCorrection}>Request a record correction</button>
+              </div>
 
-              {/* Department Layers */}
+              <div className="panel-tabs" role="tablist">
+                <button role="tab" aria-selected={tab === 'record'} className={tab === 'record' ? 'is-active' : ''} onClick={() => setTab('record')}>Record</button>
+                <button role="tab" aria-selected={tab === 'history'} className={tab === 'history' ? 'is-active' : ''} onClick={() => setTab('history')}>History</button>
+              </div>
 
-              {/* 1. Record of Rights (RoR) */}
-              <div className="layer-section">
-                <div className="layer-section-title">
-                  <span>📜 Record of Rights (RoR)</span>
-                  <ConfidenceBadge confidence={layers.ror?.confidence} />
-                </div>
-                <div className="field-grid">
-                  <div className="field-item">
-                    <span className="field-label">Owner Name</span>
-                    <span className="field-value">{layers.ror?.owner_name || 'N/A'}</span>
+              {tab === 'history' ? (
+                <ParcelTimeline ulpin={ulpin} />
+              ) : (
+                <>
+                  <div className="ledger-block">
+                    <div className="ledger-block-head">
+                      <span>Title hash chain</span>
+                      <span className="badge verified">Tamper evident</span>
+                    </div>
+                    <div className="note">Each change to this parcel is chained with SHA-256 and stored in Firestore.</div>
+                    <button className="btn btn--block" onClick={() => setShowBlockchain(true)}><Cpu size={15} /> Audit hash chain</button>
                   </div>
-                  <div className="field-item">
-                    <span className="field-label">Khata / Patta No</span>
-                    <span className="field-value">{layers.ror?.khata_no || 'N/A'}</span>
-                  </div>
-                  {layers.ror?.owner_share && (
-                    <div className="field-item">
-                      <span className="field-label">Ownership Share</span>
-                      <span className="field-value">{layers.ror?.owner_share}</span>
+
+                  {flags.length > 0 && (
+                    <div className="flags-card">
+                      <div className="flags-title">Flags on this parcel ({flags.length})</div>
+                      {flags.map((flag, idx) => <FlagDiff key={idx} flag={flag} layers={L} />)}
                     </div>
                   )}
-                  {layers.ror?.source && (
-                    <div className="field-item">
-                      <span className="field-label">Source Authority</span>
-                      <span className="field-value">{layers.ror?.source}</span>
-                    </div>
+
+                  <Layer title="Record of Rights" layer={L.ror}>
+                    <Field label="Owner name" value={L.ror?.owner_name || NA} />
+                    <Field label="Khata or patta no." value={L.ror?.khata_no || NA} mono />
+                    <Field label="Ownership share" value={L.ror?.owner_share} />
+                    <Field label="Source" value={L.ror?.source && String(L.ror.source).replace(/_/g, ' ')} />
+                  </Layer>
+
+                  <Layer title="Sub-Registrar transactions" layer={L.registration}>
+                    <Field label="Deed reference" value={L.registration?.last_transaction_id || NA} mono />
+                    <Field label="Deed date" value={L.registration?.date || NA} />
+                    <Field label="Deed buyer" value={L.registration?.buyer_name} />
+                    <Field label="Source" value={L.registration?.source && String(L.registration.source).replace(/_/g, ' ')} />
+                  </Layer>
+
+                  <Layer title="Master plan and zoning" layer={L.zoning}>
+                    <Field label="Land use zone" value={L.zoning?.land_use || NA} />
+                    <Field label="Permitted FSI" value={L.zoning?.permitted_fsi ?? NA} />
+                  </Layer>
+
+                  <Layer title="Building permits" layer={L.building_permit}>
+                    <Field label="Permit status" value={L.building_permit?.status || NA} />
+                    <Field label="Approved FSI" value={L.building_permit?.approved_fsi ?? NA} />
+                    <Field label="Permit reference" value={L.building_permit?.permit_id || NA} mono />
+                  </Layer>
+
+                  <Layer title="Property tax" layer={L.tax}>
+                    <Field label="Annual valuation" value={L.tax?.annual_value ? `Rs ${L.tax.annual_value.toLocaleString('en-IN')}` : NA} />
+                    <Field label="Last verified" value={L.tax?.last_verified || NA} />
+                  </Layer>
+
+                  <Layer title="Financial encumbrances" layer={L.encumbrance}>
+                    <Field
+                      label="Active mortgage or lien"
+                      value={L.encumbrance?.active ? 'Yes, active' : 'None on record'}
+                      tone={L.encumbrance?.active ? 'alert' : 'verified'}
+                    />
+                  </Layer>
+
+                  {parcel?.raw_record && (
+                    <section className="layer-section">
+                      <div className="layer-section-title"><span>Raw department record</span></div>
+                      <pre className="raw-record">{JSON.stringify(parcel.raw_record, null, 2)}</pre>
+                    </section>
                   )}
-                </div>
-              </div>
-
-              {/* 2. Registration Layer */}
-              <div className="layer-section">
-                <div className="layer-section-title">
-                  <span>🏢 Sub-Registrar Transactions</span>
-                  <ConfidenceBadge confidence={layers.registration?.confidence} />
-                </div>
-                <div className="field-grid">
-                  <div className="field-item">
-                    <span className="field-label">Deed Ref ID</span>
-                    <span className="field-value">{layers.registration?.last_transaction_id || 'N/A'}</span>
-                  </div>
-                  <div className="field-item">
-                    <span className="field-label">Deed Date</span>
-                    <span className="field-value">{layers.registration?.date || 'N/A'}</span>
-                  </div>
-                  {layers.registration?.buyer_name && (
-                    <div className="field-item">
-                      <span className="field-label">Deed Buyer Name</span>
-                      <span className="field-value">{layers.registration?.buyer_name}</span>
-                    </div>
-                  )}
-                  {layers.registration?.source && (
-                    <div className="field-item">
-                      <span className="field-label">Source Dept</span>
-                      <span className="field-value">{layers.registration?.source}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* 3. Zoning Layer */}
-              <div className="layer-section">
-                <div className="layer-section-title">
-                  <span>🗺️ Master Plan & Zoning</span>
-                  <ConfidenceBadge confidence={layers.zoning?.confidence} />
-                </div>
-                <div className="field-grid">
-                  <div className="field-item">
-                    <span className="field-label">Land Use Zone</span>
-                    <span className="field-value" style={{ textTransform: 'capitalize' }}>
-                      {layers.zoning?.land_use || 'N/A'}
-                    </span>
-                  </div>
-                  <div className="field-item">
-                    <span className="field-label">Max Permitted FSI</span>
-                    <span className="field-value">{layers.zoning?.permitted_fsi ?? 'N/A'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 4. Building Permit Layer */}
-              <div className="layer-section">
-                <div className="layer-section-title">
-                  <span>🏗️ Building Permits</span>
-                  <ConfidenceBadge confidence={layers.building_permit?.confidence} />
-                </div>
-                <div className="field-grid">
-                  <div className="field-item">
-                    <span className="field-label">Permit Status</span>
-                    <span className="field-value" style={{ textTransform: 'capitalize' }}>
-                      {layers.building_permit?.status || 'N/A'}
-                    </span>
-                  </div>
-                  <div className="field-item">
-                    <span className="field-label">Approved FSI</span>
-                    <span className="field-value">{layers.building_permit?.approved_fsi ?? 'N/A'}</span>
-                  </div>
-                  <div className="field-item">
-                    <span className="field-label">License / Permit Ref</span>
-                    <span className="field-value">{layers.building_permit?.permit_id || 'N/A'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 5. Revenue Tax Layer */}
-              <div className="layer-section">
-                <div className="layer-section-title">
-                  <span>💰 Property Tax</span>
-                  <ConfidenceBadge confidence={layers.tax?.confidence} />
-                </div>
-                <div className="field-grid">
-                  <div className="field-item">
-                    <span className="field-label">Annual Valuation</span>
-                    <span className="field-value">
-                      {layers.tax?.annual_value ? `₹${layers.tax.annual_value.toLocaleString()}` : 'N/A'}
-                    </span>
-                  </div>
-                  <div className="field-item">
-                    <span className="field-label">Last Verified Date</span>
-                    <span className="field-value">{layers.tax?.last_verified || 'N/A'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 6. Encumbrance Layer */}
-              <div className="layer-section">
-                <div className="layer-section-title">
-                  <span>🔒 Financial Encumbrances</span>
-                  <ConfidenceBadge confidence={layers.encumbrance?.confidence} />
-                </div>
-                <div className="field-grid">
-                  <div className="field-item">
-                    <span className="field-label">Active Mortgage/Lien</span>
-                    <span className="field-value" style={{ color: layers.encumbrance?.active ? '#ef4444' : '#10b981' }}>
-                      {layers.encumbrance?.active ? 'YES (Active Mortgage)' : 'Clean (No Lien)'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Raw record audit view for officer / bank role */}
-              {parcel?.raw_record && (
-                <div className="layer-section">
-                  <div className="layer-section-title">
-                    <span>🔍 Raw Department Source Record</span>
-                  </div>
-                  <pre style={{ fontSize: '0.72rem', color: '#38bdf8', overflowX: 'auto', background: 'rgba(0,0,0,0.4)', padding: '10px', borderRadius: '8px' }}>
-                    {JSON.stringify(parcel.raw_record, null, 2)}
-                  </pre>
-                </div>
+                </>
               )}
             </>
           )}
         </div>
-      </div>
+      </aside>
 
       {showQR && (
-        <ParcelPassportQR passportData={passportData} onClose={() => setShowQR(false)} />
+        <Suspense fallback={null}>
+          <ParcelPassportQR passportData={passportData} onClose={() => setShowQR(false)} />
+        </Suspense>
       )}
-
       {showBlockchain && (
-        <BlockchainExplorerModal ulpin={ulpin} parcel={parcel} onClose={() => setShowBlockchain(false)} />
+        <Suspense fallback={null}>
+          <BlockchainExplorerModal ulpin={ulpin} parcel={parcel} onClose={() => setShowBlockchain(false)} />
+        </Suspense>
       )}
     </>
   );

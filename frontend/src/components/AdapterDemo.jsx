@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Play, Cpu, CheckCircle2, Layers } from 'lucide-react';
+import { Play, Cpu, CheckCircle2, Layers } from 'lucide-react';
 import { getRawSamples, previewAdapter } from '../api';
 
 const ALL_INDIAN_STATES = [
@@ -122,68 +122,46 @@ export default function AdapterDemo() {
   return (
     <div className="adapter-demo-container">
       <div>
-        <h2 style={{ fontFamily: 'var(--font-title)', fontSize: '1.6rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Cpu color="var(--accent-cyan)" /> Generic Config-Driven Schema Adapter Engine
-        </h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '4px' }}>
-          Demonstrating zero-code schema normalization: Different state raw formats across India map into the identical canonical schema using declarative YAML rules.
-        </p>
+        <h2 className="title-row"><Cpu aria-hidden="true" /> Schema adapter</h2>
+        <p className="subtle">Each state publishes records in its own format. A declarative YAML config maps every format into one canonical schema. No code change per state.</p>
       </div>
 
-      {/* Controls Bar */}
-      <div style={{ display: 'flex', gap: '16px', background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-card)', alignItems: 'center', flexWrap: 'wrap' }}>
-        <div className="state-selector">
-          <span>Target State:</span>
+      <div className="toolbar">
+        <label>Target state
           <select value={state} onChange={(e) => setState(e.target.value)}>
             {ALL_INDIAN_STATES.map((st) => (
               <option key={st.key} value={st.key}>{st.label}</option>
             ))}
           </select>
-        </div>
+        </label>
 
-        <div className="state-selector">
-          <span>Select Raw Record:</span>
+        <label>Raw record
           <select value={selectedIndex} onChange={(e) => handleRecordChange(Number(e.target.value))}>
             {currentRecords.map((r, i) => {
               const name = r.pattadar_peyar || r.owner_full_name || r.khatedar_nama || r.hissadar_hesaru || r.khatauni_owner || r.pattadar_namam || r.udama_peru || r.raiyat_naam || r.malik_naam || r.bhoomi_swami || 'Record';
               return (
                 <option key={i} value={i}>
-                  Record #{i + 1}: {r.ulpin || 'SAMPLE-001'} ({name})
+                  Record {i + 1}: {r.ulpin || 'SAMPLE-001'} ({name})
                 </option>
               );
             })}
           </select>
-        </div>
+        </label>
 
-        <button
-          className="passport-btn"
-          style={{ width: 'auto', padding: '8px 20px' }}
-          onClick={() => runAdapterPreview(state, rawRecord)}
-        >
-          <Play size={16} /> Execute Adapter Preview
+        <button className="btn btn--primary btn--auto" onClick={() => runAdapterPreview(state, rawRecord)}>
+          <Play size={16} aria-hidden="true" /> Run adapter
         </button>
       </div>
 
-      {/* Side-by-Side Comparison */}
       <div className="sandbox-grid">
-        {/* Left Box: Raw Record Input */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--accent-amber)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Layers size={16} /> Raw State Record Input ({state})
-          </div>
-          <pre className="code-box">
-            {rawRecord ? JSON.stringify(rawRecord, null, 2) : 'Select a record...'}
-          </pre>
+        <div className="stack--tight stack">
+          <div className="pane-title"><Layers size={16} aria-hidden="true" /> Raw record from {state}</div>
+          <pre className="code-box">{rawRecord ? JSON.stringify(rawRecord, null, 2) : 'Select a record.'}</pre>
         </div>
 
-        {/* Right Box: Live Normalized Canonical JSON */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--accent-emerald)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <CheckCircle2 size={16} /> Live Normalized Canonical Schema Output
-          </div>
-          <pre className="code-box" style={{ color: '#4ade80' }}>
-            {loading ? 'Running Schema Adapter...' : canonicalOutput ? JSON.stringify(canonicalOutput, null, 2) : 'No output'}
-          </pre>
+        <div className="stack--tight stack">
+          <div className="pane-title"><CheckCircle2 size={16} aria-hidden="true" /> Canonical output</div>
+          <pre className="code-box">{loading ? 'Running adapter.' : canonicalOutput ? JSON.stringify(canonicalOutput, null, 2) : 'No output.'}</pre>
         </div>
       </div>
     </div>

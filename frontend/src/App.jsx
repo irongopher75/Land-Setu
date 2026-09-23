@@ -11,6 +11,7 @@ const StateLogModal = lazy(() => import('./components/StateLogModal'));
 const CitizenServiceTrackerModal = lazy(() => import('./components/CitizenServiceTrackerModal'));
 const SatelliteAiChangeDetectionModal = lazy(() => import('./components/SatelliteAiChangeDetectionModal'));
 const AuditLogModal = lazy(() => import('./components/AuditLogModal'));
+const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard'));
 
 export default function App() {
   const [activeView, setActiveView] = useState('landing');
@@ -26,6 +27,9 @@ export default function App() {
   const [showCitizenTracker, setShowCitizenTracker] = useState(false);
   const [showSatelliteAi, setShowSatelliteAi] = useState(false);
   const [showAuditLog, setShowAuditLog] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [restructure, setRestructure] = useState(null); // { mode: 'split' | 'merge', parcel }
+  const [focusPoint, setFocusPoint] = useState(null);
   const [fallbackToast, setFallbackToast] = useState(null);
 
   // Monitor Network Fallbacks
@@ -40,14 +44,13 @@ export default function App() {
 
   // Monitor Firebase Auth State & Auto Redirect to Map View
   useEffect(() => {
+    if (!auth) return;
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setCurrentUser(user);
         setIsLoggedIn(true);
         const savedRole = localStorage.getItem('landsetu_role');
-        if (savedRole) {
-          setCurrentRole(savedRole);
-        }
+        if (savedRole) setCurrentRole(savedRole);
         setActiveView((prev) => (prev === 'login' || prev === 'landing' ? 'map' : prev));
       } else {
         setCurrentUser(null);
@@ -75,6 +78,18 @@ export default function App() {
     setActiveView('landing');
   };
 
+  const handleSearchPick = (hit) => {
+    setActiveView('map');
+    if (hit.state && hit.state !== selectedState) setSelectedState(hit.state);
+    if (hit.centroid) setFocusPoint({ center: [hit.centroid[1], hit.centroid[0]], nonce: Date.now() });
+    setSelectedUlpin(hit.ulpin);
+  };
+
+  const handleStartRestructure = (mode, parcelData) => {
+    setRestructure({ mode, parcel: parcelData });
+    setSelectedUlpin(null);
+  };
+
   const handleReshapeBoundary = (parcelData) => {
     setEditingParcel(parcelData);
     setSelectedUlpin(null);
@@ -83,26 +98,9 @@ export default function App() {
   return (
     <div className="app-container">
       {fallbackToast && (
-        <div style={{
-          position: 'fixed',
-          top: '70px',
-          right: '20px',
-          zIndex: 3000,
-          background: 'rgba(30, 41, 59, 0.95)',
-          border: '1px solid #38bdf8',
-          color: '#f8fafc',
-          padding: '10px 16px',
-          borderRadius: '10px',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-          fontSize: '0.8rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          backdropFilter: 'blur(8px)',
-          animation: 'slideUp 0.3s ease'
-        }}>
-          <span style={{ color: '#38bdf8', fontWeight: 'bold' }}>⚡ Offline Demo Resilience Mode:</span>
-          <span>{fallbackToast.actionName} fallback triggered at {fallbackToast.time}</span>
+        <div className="toast toast--top" role="status">
+          <strong>Offline demo mode.</strong>
+          <span>{fallbackToast.actionName} fell back to local data at {fallbackToast.time}</span>
         </div>
       )}
       <Navbar
@@ -111,21 +109,20 @@ export default function App() {
         selectedState={selectedState}
         setSelectedState={setSelectedState}
         currentRole={currentRole}
-        setCurrentRole={(newRole) => {
-          localStorage.setItem('landsetu_role', newRole);
-          setCurrentRole(newRole);
+        setCurrentRole={(r) => {
+          localStorage.setItem('landsetu_role', r);
+          setCurrentRole(r);
         }}
         isLoggedIn={isLoggedIn}
         currentUser={currentUser}
         onLogout={handleLogout}
         onOpenStateLogs={() => setShowStateLogs(true)}
-        onOpenCitizenTracker={() => setShowCitizenTracker(true)}
-        onOpenSatelliteAi={() => setShowSatelliteAi(true)}
-        onOpenAuditLog={() => setShowAuditLog(true)}
+        onOpenAnalytics={() => setShowAnalytics(true)}
+        onSearchPick={handleSearchPick}
       />
 
       <main className="main-content">
-        <Suspense fallback={<div style={{ padding: '2rem', color: '#fff' }}>Loading…</div>}>
+        <Suspense fallback={<div className="fill-note">Loading.</div>}>
         {activeView === 'landing' && (
           <LandingPage
             onLaunchMap={() => setActiveView('map')}
@@ -150,6 +147,9 @@ export default function App() {
               onClearEditingParcel={() => setEditingParcel(null)}
               onAutoDetectState={(newState) => setSelectedState(newState)}
               role={currentRole}
+              restructure={restructure}
+              onRestructureClose={() => setRestructure(null)}
+              focusPoint={focusPoint}
             />
             {selectedUlpin && (
               <ParcelPanel
@@ -158,6 +158,8 @@ export default function App() {
                 onClose={() => setSelectedUlpin(null)}
                 onReshapeBoundary={handleReshapeBoundary}
                 onDeletionRequested={() => setSelectedUlpin(null)}
+                onStartRestructure={handleStartRestructure}
+                onRequestCorrection={() => setShowCitizenTracker(true)}
               />
             )}
           </>
@@ -176,6 +178,10 @@ export default function App() {
             initialUlpin={selectedUlpin}
             onClose={() => setShowCitizenTracker(false)}
           />
+        )}
+
+        {showAnalytics && currentRole === 'state_admin' && (
+          <AnalyticsDashboard onClose={() => setShowAnalytics(false)} />
         )}
 
         {showSatelliteAi && (

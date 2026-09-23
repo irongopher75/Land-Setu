@@ -1,0 +1,72 @@
+.landing { background: var(--bg-parchment); color: var(--ink-navy); }
+
+/* Hero: the survey sheet is the picture. Copy sits on it, top left. */
+.hero { position: relative; border-bottom: var(--line-heavy) solid var(--ink-navy); }
+.hero-sheet { display: block; width: 100%; height: auto; }
+.hero-copy { position: absolute; top: clamp(24px, 5.5vw, 76px); left: clamp(24px, 5vw, 76px); width: min(46%, 560px); }
+.hero-kicker { font-size: var(--text-sm); color: var(--ink-muted); margin-bottom: var(--space-3); }
+.hero-copy h1 { font-size: var(--text-display); margin-bottom: var(--space-4); }
+.hero-lede { font-size: var(--text-lg); color: var(--ink-muted); max-width: 52ch; margin-bottom: var(--space-6); }
+.hero-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+.hero-actions .btn { padding: 12px var(--space-6); font-size: var(--text-base); }
+
+.sheet-frame { fill: none; stroke: var(--ink-navy); stroke-width: 1; }
+.zone { fill: var(--surface-sunk); stroke: var(--land-protected); stroke-width: 1.5; stroke-dasharray: 3 5; }
+.zone-label { font-family: var(--font-body); font-size: 13px; fill: var(--ink-muted); }
+.parcel { fill: var(--surface); stroke: var(--ink-navy); stroke-width: 1.5; }
+.parcel.is-flagged { stroke: var(--accent-seal); stroke-width: 2; }
+.overlap { fill: var(--accent-seal-tint); stroke: var(--accent-seal); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.pin circle { fill: var(--accent-seal); }
+.pin text, .key-n { font-family: var(--font-display); font-size: 14px; font-weight: 700; fill: var(--ink-on-seal); }
+.key-pin { fill: var(--accent-seal); }
+.callout-head { font-family: var(--font-body); font-size: 14px; font-weight: 700; fill: var(--ink-navy); }
+.callout-line { font-family: var(--font-body); font-size: 13px; fill: var(--ink-muted); }
+.callout-id { font-family: var(--font-mono); font-size: 12px; fill: var(--ink-navy); }
+.scalebar path, .north path { fill: none; stroke: var(--ink-navy); stroke-width: 1.5; }
+.north path { fill: var(--ink-navy); }
+.scalebar text, .north text { font-family: var(--font-body); font-size: 12px; fill: var(--ink-muted); font-variant-numeric: tabular-nums; }
+
+/* Sections: ruled ledger, not cards */
+.ledger, .checks, .roles { max-width: 1040px; margin: 0 auto; padding: var(--space-8) var(--space-6); border-bottom: var(--line) solid var(--rule-strong); }
+.ledger h2, .checks h2, .roles h2 { font-size: var(--text-xl); margin-bottom: var(--space-3); }
+.ledger-intro { max-width: 62ch; color: var(--ink-muted); margin-bottom: var(--space-4); }
+.ledger-table th[scope='row'] { font-weight: 600; white-space: nowrap; }
+.checks-list { list-style: none; counter-reset: rule; }
+.checks-list li { counter-increment: rule; display: grid; grid-template-columns: 2.5rem 200px 1fr; gap: var(--space-3); padding: var(--space-3) 0; border-top: var(--line) solid var(--rule); }
+.checks-list li::before { content: counter(rule); font-family: var(--font-display); font-weight: 700; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.checks-name { font-weight: 700; }
+.checks-note { margin-top: var(--space-4); color: var(--ink-muted); font-size: var(--text-sm); }
+.roles-list > div { display: grid; grid-template-columns: 200px 1fr; gap: var(--space-3); padding: var(--space-3) 0; border-top: var(--line) solid var(--rule); }
+.roles-list dt { font-weight: 700; }
+.landing-foot { max-width: 1040px; margin: 0 auto; padding: var(--space-6); display: flex; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; font-size: var(--text-sm); color: var(--ink-muted); }
+.landing-foot a { color: var(--ink-navy); margin-left: var(--space-4); }
+
+@media (max-width: 860px) {
+  .hero-sheet { min-height: 0; }
+  .hero-copy { position: static; width: auto; padding: var(--space-6) var(--space-4) var(--space-4); }
+  .hero { display: flex; flex-direction: column-reverse; }
+  .checks-list li, .roles-list > div { grid-template-columns: 2rem 1fr; }
+  .checks-list li span:last-child { grid-column: 2; }
+  .roles-list > div { grid-template-columns: 1fr; }
+  .ledger-table { display: block; overflow-x: auto; }
+}
+
+/*
+ * Survey-pen draw: plays once on load, then the sheet sits in its normal static styles above.
+ * Only animation-fill-mode `backwards` is used, so nothing depends on the animation to end visible.
+ * Hero copy is plain HTML and is never animated. Reduced motion skips all of it.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .sheet-frame { animation: pen 700ms var(--ease-out) backwards; }
+  .parcel { animation: pen-fill 700ms var(--ease-out) backwards; animation-delay: calc(500ms + var(--i, 0) * 200ms); }
+  .zone { animation: settle 500ms var(--ease-out) 300ms backwards; }
+  .overlap { animation: settle 400ms var(--ease-out) 2300ms backwards; }
+  .pins, .key { animation: settle 400ms var(--ease-out) 2500ms backwards; }
+  .scalebar, .north { animation: settle 400ms var(--ease-out) 2500ms backwards; }
+}
+@keyframes pen { from { stroke-dasharray: 1; stroke-dashoffset: 1; } to { stroke-dasharray: 1; stroke-dashoffset: 0; } }
+@keyframes pen-fill { from { stroke-dasharray: 1; stroke-dashoffset: 1; fill-opacity: 0; } 80% { fill-opacity: 0; } to { stroke-dasharray: 1; stroke-dashoffset: 0; fill-opacity: 1; } }
+@keyframes settle { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .sheet-frame, .parcel, .zone, .overlap, .pins, .key, .scalebar, .north { animation: none; }
+}

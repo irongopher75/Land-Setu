@@ -1,7 +1,14 @@
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, where, updateDoc, deleteDoc } from 'firebase/firestore';
 import { app } from './firebase';
 
-const db = getFirestore(app);
+let db = null;
+try {
+  if (app) {
+    db = getFirestore(app);
+  }
+} catch (err) {
+  console.warn("Firestore initialization notice:", err.message);
+}
 
 const prepareFirestoreData = (data) => {
   if (!data) return data;

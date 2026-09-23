@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, FileText, Filter, Search, ShieldCheck, Cpu, MapPin, AlertTriangle, Layers, Calendar, CheckCircle2, Trash2 } from 'lucide-react';
+import { X, FileText, Filter, Search, MapPin, Calendar } from 'lucide-react';
 import { getParcelsGeoJSON, getApprovedCustomParcels, getDeletedUlpins } from '../api';
 import { getFirestoreCustomParcels } from '../firebaseFirestore';
 
 const STATE_OPTIONS = [
-  { value: 'ALL', label: '🌐 All States (National Overview)' },
+  { value: 'ALL', label: 'All states (national overview)' },
   { value: 'TamilNadu', label: 'Tamil Nadu (Chennai)' },
   { value: 'Chandigarh', label: 'Chandigarh' },
   { value: 'Maharashtra', label: 'Maharashtra (Mumbai)' },
@@ -29,28 +29,8 @@ export default function StateLogModal({ initialState = 'TamilNadu', onClose, rol
   const [searchQuery, setSearchQuery] = useState('');
   const [eventFilter, setEventFilter] = useState('ALL');
 
-  if (currentRole !== 'state_admin') {
-    return (
-      <div className="modal-overlay">
-        <div className="modal-card" style={{ maxWidth: '420px', padding: '24px', textAlign: 'center', background: '#ffffff', borderRadius: '16px' }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>🔒</div>
-          <h3 style={{ color: '#dc2626', fontSize: '1.15rem', fontWeight: 800 }}>Access Restricted</h3>
-          <p style={{ fontSize: '0.84rem', color: '#475569', margin: '10px 0 16px 0', lineHeight: 1.4 }}>
-            State Activity & Transaction Logs are strictly reserved for <strong>State Administration Officers (state_admin)</strong>.
-          </p>
-          <button
-            onClick={onClose}
-            style={{ width: '100%', background: '#0f172a', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
-          >
-            Close Panel
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   useEffect(() => {
-    loadStateLogs();
+    if (currentRole === 'state_admin') loadStateLogs();
   }, [selectedState]);
 
   const loadStateLogs = async () => {
@@ -117,7 +97,7 @@ export default function StateLogModal({ initialState = 'TamilNadu', onClose, rol
             state: bState,
             ulpin: block.ulpin || `ULPIN-${bState.substring(0, 2).toUpperCase()}-101`,
             eventType: 'BLOCKCHAIN_DEED_COMMIT',
-            actor: block.created_by || '🏛️ Revenue Sub-Registrar',
+            actor: block.created_by || 'Revenue Sub-Registrar',
             role: 'Sub-Registrar Officer',
             hash: block.hash || '0x7f8a9b2c3d4e5f6a7b8c9d0e1f',
             prevHash: block.previous_hash || '0x0000000000000000',
@@ -138,12 +118,12 @@ export default function StateLogModal({ initialState = 'TamilNadu', onClose, rol
           state: pState,
           ulpin: ulpin,
           eventType: props.has_overlap ? 'SPATIAL_VIOLATION_FLAGGED' : 'PARCEL_RECORD_SYNC',
-          actor: '🌐 Master GIS Engine',
+          actor: 'Master GIS Engine',
           role: 'GIS Spatial Auditor',
           hash: `0x${Math.abs(ulpin.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0)).toString(16).padStart(16, '0')}`,
           prevHash: '0x1a2b3c4d5e6f7a8b',
           description: props.has_overlap
-            ? `⚠️ Red spatial overlap alert flagged for ${ulpin}.`
+            ? `Spatial overlap flagged for ${ulpin}.`
             : `Canonical GIS boundary synced for ${ulpin}. Area: ${props.area_sqm || 450} sqm.`
         });
       });
@@ -180,169 +160,87 @@ export default function StateLogModal({ initialState = 'TamilNadu', onClose, rol
     return true;
   });
 
-  return (
-    <div className="modal-overlay" style={{ touchAction: 'pan-y' }}>
-      <div className="state-log-modal-card">
-        {/* Modal Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid #e2e8f0', paddingBottom: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'linear-gradient(135deg, #059669, #0d9488)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <FileText color="#ffffff" size={20} />
-            </div>
-            <div className="state-log-header-text">
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', fontFamily: 'var(--font-title)', margin: 0 }}>
-                State-by-State Audit & Activity Logs
-              </h3>
-              <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '2px 0 0 0' }}>
-                Inspect transaction ledgers & SHA-256 block hashes by state.
-              </p>
+  if (currentRole !== 'state_admin') {
+    return (
+      <div className="modal-overlay">
+        <div className="modal-card">
+          <div className="modal-head">
+            <div>
+              <h3>Access restricted</h3>
+              <p>Activity and transaction logs are open to state administration officers only.</p>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }}>
-            <X size={22} />
-          </button>
+          <button className="btn btn--primary btn--block" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    );
+  }
+
+  const eventClass = (t) => (t === 'BLOCKCHAIN_DEED_COMMIT' ? 'verified' : t === 'SPATIAL_VIOLATION_FLAGGED' ? 'stale' : 'self_declared');
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-card modal-card--xwide">
+        <div className="modal-head">
+          <div>
+            <h3 className="title-row"><FileText size={20} aria-hidden="true" /> State audit and activity log</h3>
+            <p>Transaction ledger and SHA-256 block hashes, by state.</p>
+          </div>
+          <button className="icon-btn" onClick={onClose} aria-label="Close"><X size={18} /></button>
         </div>
 
-        {/* State Selection Dropdown & Controls */}
-        <div className="state-log-controls-row" style={{ display: 'flex', gap: '10px', alignItems: 'center', margin: '12px 0', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: '200px' }}>
-            <MapPin size={15} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', flexShrink: 0 }}>State:</span>
-            <select
-              value={selectedState}
-              onChange={(e) => setSelectedState(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '7px 10px',
-                borderRadius: '8px',
-                border: '1.5px solid #cbd5e1',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                color: '#0f172a',
-                background: '#f8fafc'
-              }}
-            >
+        <div className="toolbar">
+          <label><MapPin size={15} aria-hidden="true" /> State
+            <select value={selectedState} onChange={(e) => setSelectedState(e.target.value)}>
               {STATE_OPTIONS.map((st) => (
-                <option key={st.value} value={st.value}>
-                  {st.label}
-                </option>
+                <option key={st.value} value={st.value}>{st.label}</option>
               ))}
             </select>
-          </div>
-
-          {/* Event Filter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Filter size={14} color="#64748b" style={{ flexShrink: 0 }} />
-            <select
-              value={eventFilter}
-              onChange={(e) => setEventFilter(e.target.value)}
-              style={{ width: '100%', padding: '7px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.8rem', background: '#ffffff', color: '#0f172a' }}
-            >
-              <option value="ALL">All Event Types</option>
-              <option value="BLOCKCHAIN_DEED_COMMIT">⛓️ SHA-256 Title Commits</option>
-              <option value="PARCEL_RECORD_SYNC">🌐 Canonical GIS Syncs</option>
-              <option value="SPATIAL_VIOLATION_FLAGGED">⚠️ Spatial Overlap Flags</option>
+          </label>
+          <label><Filter size={15} aria-hidden="true" /> Event
+            <select value={eventFilter} onChange={(e) => setEventFilter(e.target.value)}>
+              <option value="ALL">All event types</option>
+              <option value="BLOCKCHAIN_DEED_COMMIT">SHA-256 title commits</option>
+              <option value="PARCEL_RECORD_SYNC">Canonical GIS syncs</option>
+              <option value="SPATIAL_VIOLATION_FLAGGED">Spatial overlap flags</option>
             </select>
-          </div>
+          </label>
         </div>
 
-        {/* State Summary Cards */}
-        <div className="state-log-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', marginBottom: '12px' }}>
-          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '8px 10px', borderRadius: '8px' }}>
-            <div style={{ fontSize: '0.7rem', color: '#166534', fontWeight: 700 }}>Total Parcels</div>
-            <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#15803d', marginTop: '2px' }}>{stats.totalParcels}</div>
-          </div>
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', padding: '8px 10px', borderRadius: '8px' }}>
-            <div style={{ fontSize: '0.7rem', color: '#991b1b', fontWeight: 700 }}>Violation Flags</div>
-            <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#dc2626', marginTop: '2px' }}>{stats.flaggedParcels}</div>
-          </div>
-          <div style={{ background: '#e0f2fe', border: '1px solid #bae6fd', padding: '8px 10px', borderRadius: '8px' }}>
-            <div style={{ fontSize: '0.7rem', color: '#075985', fontWeight: 700 }}>Total Land Area</div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0369a1', marginTop: '2px' }}>{stats.totalAreaSqm.toLocaleString()} sqm</div>
-          </div>
-          <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', padding: '8px 10px', borderRadius: '8px' }}>
-            <div style={{ fontSize: '0.7rem', color: '#5b21b6', fontWeight: 700 }}>Title Blocks</div>
-            <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#7c3aed', marginTop: '2px' }}>{stats.blockchainBlocks}</div>
-          </div>
-        </div>
+        <dl className="stat-strip">
+          <div><dt>Parcels</dt><dd>{stats.totalParcels}</dd></div>
+          <div><dt>Flagged</dt><dd className="is-alert">{stats.flaggedParcels}</dd></div>
+          <div><dt>Area</dt><dd>{stats.totalAreaSqm.toLocaleString('en-IN')} <small>sqm</small></dd></div>
+          <div><dt>Title blocks</dt><dd>{stats.blockchainBlocks}</dd></div>
+        </dl>
 
-        {/* Search Bar */}
-        <div style={{ position: 'relative', marginBottom: '10px' }}>
-          <Search size={15} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
-          <input
-            type="text"
-            placeholder="Search state log by ULPIN, hash, or action..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '8px 10px 8px 32px',
-              borderRadius: '8px',
-              border: '1px solid #cbd5e1',
-              fontSize: '0.8rem',
-              background: '#f8fafc',
-              color: '#0f172a'
-            }}
-          />
-        </div>
+        <span className="input-icon">
+          <Search size={15} aria-hidden="true" />
+          <input className="input" type="text" placeholder="Search by ULPIN, hash or action" aria-label="Search the log" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+        </span>
 
-        {/* Log Entries Table List */}
-        <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '10px', background: '#f8fafc', WebkitOverflowScrolling: 'touch' }}>
+        <div className="table-scroll">
           {loading ? (
-            <div style={{ padding: '30px', textAlign: 'center', color: '#64748b', fontSize: '0.84rem' }}>
-              Loading state activity logs...
-            </div>
+            <div className="fill-note">Loading log entries. Entries already shown stay on screen.</div>
           ) : filteredLogs.length === 0 ? (
-            <div style={{ padding: '30px', textAlign: 'center', color: '#64748b', fontSize: '0.84rem' }}>
-              No log entries found for the selected state and filter.
-            </div>
+            <div className="fill-note">No log entries for this state and filter.</div>
           ) : (
             filteredLogs.map((log) => (
-              <div
-                key={log.id}
-                style={{
-                  padding: '10px 12px',
-                  borderBottom: '1px solid #e2e8f0',
-                  background: '#ffffff',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '5px'
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '4px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                    <span
-                      style={{
-                        fontSize: '0.66rem',
-                        fontWeight: 700,
-                        padding: '1px 6px',
-                        borderRadius: '8px',
-                        background: log.eventType === 'BLOCKCHAIN_DEED_COMMIT' ? '#dcfce7' : log.eventType === 'SPATIAL_VIOLATION_FLAGGED' ? '#fef2f2' : '#e0f2fe',
-                        color: log.eventType === 'BLOCKCHAIN_DEED_COMMIT' ? '#15803d' : log.eventType === 'SPATIAL_VIOLATION_FLAGGED' ? '#dc2626' : '#0369a1',
-                        border: '1px solid currentColor'
-                      }}
-                    >
-                      {log.eventType}
-                    </span>
-                    <strong style={{ fontSize: '0.84rem', color: '#1d4ed8', wordBreak: 'break-all' }}>{log.ulpin}</strong>
-                    <span style={{ fontSize: '0.72rem', color: '#64748b' }}>({log.state})</span>
+              <div key={log.id} className="log-entry">
+                <div className="row row--between row--wrap">
+                  <div className="row row--wrap">
+                    <span className={`badge ${eventClass(log.eventType)}`}>{log.eventType}</span>
+                    <strong className="data-id">{log.ulpin}</strong>
+                    <span className="subtle">{log.state}</span>
                   </div>
-
-                  <div style={{ fontSize: '0.7rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                    <Calendar size={12} />
-                    {new Date(log.timestamp).toLocaleDateString()} {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  <div className="subtle row tabular"><Calendar size={12} aria-hidden="true" />
+                    {new Date(log.timestamp).toLocaleDateString('en-IN')} {new Date(log.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
-
-                <div style={{ fontSize: '0.8rem', color: '#1e293b', lineHeight: 1.3 }}>
-                  {log.description}
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', color: '#64748b', marginTop: '2px', flexWrap: 'wrap', gap: '4px' }}>
-                  <div>Actor: <strong style={{ color: '#0f172a' }}>{log.actor}</strong></div>
-                  <div style={{ fontFamily: 'monospace', color: '#0284c7', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px', whiteSpace: 'nowrap' }}>
-                    Hash: <span>{log.hash}</span>
-                  </div>
+                <div>{log.description}</div>
+                <div className="row row--between row--wrap subtle">
+                  <div>Actor: <strong>{log.actor}</strong></div>
+                  <div className="log-hash data-id">Hash: {log.hash}</div>
                 </div>
               </div>
             ))
