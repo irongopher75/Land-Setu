@@ -76,11 +76,11 @@ const KNOWN_ROLES = ['citizen', 'village_officer', 'auditor', 'state_admin'];
 // every action, so this only decides what the interface shows.
 export const resolveRole = async (user) => {
   try {
-    const session = await firebaseLogin(await user.getIdToken());
+    const session = await firebaseLogin(await user.getIdToken(true));
     if (session && KNOWN_ROLES.includes(session.role)) return session.role;
   } catch (err) { /* service unreachable, try the account claim */ }
   try {
-    const claims = (await user.getIdTokenResult()).claims;
+    const claims = (await user.getIdTokenResult(true)).claims;
     if (KNOWN_ROLES.includes(claims.role)) return claims.role;
   } catch (err) { /* no claim */ }
   return 'citizen';
