@@ -17,7 +17,7 @@ export default function ParcelSearch({ selectedState, onPick }) {
     setBusy(true);
     const t = setTimeout(() => {
       searchParcels(q, null)
-        .then((r) => live && setResults(r))
+        .then((r) => live && setResults(Array.isArray(r) ? r : []))
         .catch(() => live && setResults([]))
         .finally(() => live && setBusy(false));
     }, 250);

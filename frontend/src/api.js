@@ -23,6 +23,16 @@ const client = axios.create({
   withCredentials: true,
 });
 
+// Firebase Hosting rewrites unknown paths, including /api/*, to index.html with status 200.
+// Treat an HTML reply to an API call as "no backend" so every caller takes its offline path.
+client.interceptors.response.use((res) => {
+  const type = String(res.headers?.['content-type'] || '');
+  if (type.includes('text/html')) {
+    return Promise.reject(new Error('API unavailable: received a web page instead of data'));
+  }
+  return res;
+});
+
 const isLocalhostBackendForbidden = () => {
   if (typeof window === 'undefined') return false;
   return window.location.protocol === 'https:' && API_BASE_URL.includes('localhost');
@@ -1173,7 +1183,7 @@ export const getParcelHistory = async (ulpin) => {
   if (!isLocalhostBackendForbidden()) {
     try {
       const res = await client.get(`/parcels/${encodeURIComponent(ulpin)}/history`);
-      return { events: res.data.events, source: 'live' };
+      if (Array.isArray(res.data?.events)) return { events: res.data.events, source: 'live' };
     } catch (err) { /* fall through to layer-only history */ }
   }
   const parcel = await getParcelDetail(ulpin);
@@ -1186,7 +1196,7 @@ export const searchParcels = async (q, state) => {
   if (!isLocalhostBackendForbidden()) {
     try {
       const res = await client.get('/parcels/search', { params: { q: term, state: state || undefined } });
-      return res.data;
+      if (Array.isArray(res.data)) return res.data;
     } catch (err) { /* offline fallback below */ }
   }
   const needle = term.toLowerCase();
