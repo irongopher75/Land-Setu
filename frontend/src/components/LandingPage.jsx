@@ -9,8 +9,9 @@ const KEY_X = 984;
 function useProjection() {
   return useMemo(() => {
     const all = [...hero.parcels.flatMap((p) => p.ring), ...hero.zone.ring];
-    const lon0 = Math.min(...all.map((c) => c[0]));
-    const lon1 = Math.max(...all.map((c) => c[0]));
+    // Fixed frame so the sheet layout does not change when the sample zone changes shape.
+    const lon0 = 80.265;
+    const lon1 = 80.285;
     const lat1 = Math.max(...all.map((c) => c[1]));
     const cosLat = Math.cos(((lat1 + Math.min(...all.map((c) => c[1]))) / 2) * (Math.PI / 180));
     const scale = SHEET.mapW / ((lon1 - lon0) * cosLat); // sheet units per degree of latitude
