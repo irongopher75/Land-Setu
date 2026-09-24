@@ -38,6 +38,14 @@ const isLocalhostBackendForbidden = () => {
   return window.location.protocol === 'https:' && API_BASE_URL.includes('localhost');
 };
 
+// The fallback is expected whenever no backend is hosted. Say so once, not on every map load.
+const warned = new Set();
+const noticeOnce = (message) => {
+  if (warned.has(message)) return;
+  warned.add(message);
+  console.info(message);
+};
+
 export const notifyFallback = (actionName, reason) => {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('landsetu-fallback-notice', {
@@ -110,7 +118,7 @@ export const getParcelsGeoJSON = async (state) => {
         geojson = res.data;
       }
     } catch (err) {
-      console.warn('Backend API notice, using static seed parcels GeoJSON fallback:', err.message);
+      noticeOnce('LandSetu: records service not reachable, showing the bundled sample parcels.');
     }
   }
 
@@ -132,7 +140,7 @@ export const getProtectedZonesGeoJSON = async (state) => {
         return res.data;
       }
     } catch (err) {
-      console.warn('Backend API notice, using static seed zones GeoJSON fallback:', err.message);
+      noticeOnce('LandSetu: records service not reachable, showing the bundled sample parcels.');
     }
   }
   return getFallbackProtectedZonesGeoJSON(state || 'TamilNadu');
