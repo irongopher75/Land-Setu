@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import hero from '../assets/hero-parcels.json';
 import '../landing.css';
+import { useT } from '../i18n';
 
 // Real seed geometry (backend/mock_data/tamilnadu_geometries.geojson) projected into a 1200 x 700 sheet.
 const SHEET = { w: 1200, h: 900, left: 40, top: 400, mapW: 1120 };
@@ -57,6 +58,7 @@ function KeyEntry({ n, y, lines }) {
 }
 
 export default function LandingPage({ onLaunchMap, onLoginClick }) {
+  const { t } = useT();
   const P = useProjection();
   const p1189 = byId('1189');
   const p1190 = byId('1190');
@@ -110,15 +112,12 @@ export default function LandingPage({ onLaunchMap, onLoginClick }) {
         </svg>
 
         <div className="hero-copy">
-          <p className="hero-kicker">Sample sheet: Nemili Revenue Village, Chennai. Nine parcels, synthetic records.</p>
-          <h1 id="hero-title">Compare one parcel's land records across five departments.</h1>
-          <p className="hero-lede">
-            Look up a parcel by ULPIN, owner name or khata number. LandSetu lines up the Record of Rights, the deed,
-            the zoning map, the building permit and the tax roll, and marks where they disagree.
-          </p>
+          <p className="hero-kicker">{t('hero.kicker')}</p>
+          <h1 id="hero-title">{t('hero.title')}</h1>
+          <p className="hero-lede">{t('hero.lede')}</p>
           <div className="hero-actions">
-            <button className="btn btn--primary" onClick={onLaunchMap}>Open the parcel map</button>
-            <button className="btn" onClick={onLoginClick}>Sign in</button>
+            <a className="btn btn--primary" href="#/search">{t('hero.search')}</a>
+            <button className="btn" onClick={onLaunchMap}>{t('hero.map')}</button>
           </div>
         </div>
       </section>
@@ -136,66 +135,14 @@ export default function LandingPage({ onLaunchMap, onLoginClick }) {
         <p className="checks-note">All parcels, owners and identifiers are synthetic. None describe a real person or property.</p>
       </section>
 
-      <section className="ledger" aria-labelledby="ledger-title">
-        <h2 id="ledger-title">Who holds what today</h2>
-        <p className="ledger-intro">
-          Each department keeps its own register, in its own format, under its own identifier. A buyer, a bank or a
-          court has to visit all five and reconcile them by hand.
-        </p>
-        <table className="data-table ledger-table">
-          <thead>
-            <tr><th scope="col">Department</th><th scope="col">Register</th><th scope="col">Answers</th><th scope="col">Typical gap</th></tr>
-          </thead>
-          <tbody>
-            <tr><th scope="row">Revenue</th><td>Record of Rights, khata</td><td>Who is the owner of record</td><td>Owner not updated after sale</td></tr>
-            <tr><th scope="row">Sub-Registrar</th><td>Deed of registration</td><td>Who bought it, and when</td><td>Deed buyer differs from RoR owner</td></tr>
-            <tr><th scope="row">Town planning</th><td>Master plan zoning</td><td>What may be built, at what FSI</td><td>Permit approved above the limit</td></tr>
-            <tr><th scope="row">Municipal corporation</th><td>Building permit</td><td>What was approved</td><td>Permit issued inside a protected zone</td></tr>
-            <tr><th scope="row">Revenue, tax</th><td>Property tax roll</td><td>Who pays, on what value</td><td>Assessment years out of date</td></tr>
-          </tbody>
-        </table>
-      </section>
-
-      <section className="checks" aria-labelledby="checks-title">
-        <h2 id="checks-title">Checks run on every parcel</h2>
+      <section className="checks" aria-labelledby="start-title">
+        <h2 id="start-title">What you can do here</h2>
         <ol className="checks-list">
-          <li><span className="checks-name">Boundary overlap</span><span>Interiors that intersect another parcel in the same state, with the shared area in square metres, measured on the ellipsoid.</span></li>
-          <li><span className="checks-name">Protected zone</span><span>Any intersection with a notified eco-sensitive area, named with its zone id.</span></li>
-          <li><span className="checks-name">Ownership mismatch</span><span>Record of Rights owner against Sub-Registrar buyer, shown side by side.</span></li>
-          <li><span className="checks-name">FSI violation</span><span>Approved permit FSI against the zoning limit, with the excess.</span></li>
-          <li><span className="checks-name">Active encumbrance</span><span>Mortgage or legal charge registered against the parcel.</span></li>
+          <li><span className="checks-name"><a href="#/search">Search a parcel</a></span><span>By ULPIN, owner name or khata number. See the record from each department and any flags.</span></li>
+          <li><span className="checks-name"><a href="#/how-it-works">Understand a flag</a></span><span>What each check compares and what the verified, self-declared and stale labels mean.</span></li>
+          <li><span className="checks-name"><a href="#/grievance">Request a correction</a></span><span>File a request with a supporting document and follow it through three review stages.</span></li>
         </ol>
-        <p className="checks-note">Every field carries its source department and a confidence label: verified, self-declared or stale.</p>
       </section>
-
-      <section className="roles" aria-labelledby="roles-title">
-        <h2 id="roles-title">Who can do what</h2>
-        <dl className="roles-list">
-          <div><dt>Citizen</dt><dd>Search a parcel, read its record, request a correction with a supporting document.</dd></div>
-          <div><dt>Village land officer</dt><dd>Verify corrections, file boundary edits, splits and merges.</dd></div>
-          <div><dt>Auditor</dt><dd>Review every request before it reaches the state, and authorize deletions.</dd></div>
-          <div><dt>State admin</dt><dd>Give final approval, request deletions, read state-wide counts.</dd></div>
-        </dl>
-      </section>
-
-      <footer className="landing-foot">
-        <div>
-          <p><strong>About this platform</strong></p>
-          <p>LandSetu shows a parcel's land records from different departments in one place and marks where they disagree. It reads records. It does not decide ownership.</p>
-        </div>
-        <div>
-          <p><strong>Questions and grievances</strong></p>
-          <p>Write to <a href="mailto:grievance@landsetu-demo.example">grievance@landsetu-demo.example</a>. This is a placeholder address; no mailbox is monitored.</p>
-        </div>
-        <div>
-          <p><strong>Prototype notice</strong></p>
-          <p>Built for Smart India Hackathon problem statement SIH26014. This is a prototype, not a live government system. It holds no real land records.</p>
-          <p>
-            <a href="#tos" onClick={(e) => { e.preventDefault(); alert('Terms of Service: authorized government and public access only. All land records are synthetic demonstration data.'); }}>Terms of Service</a>
-            <a href="#privacy" onClick={(e) => { e.preventDefault(); alert('Privacy Policy: this demo uses synthetic data only. No personal data is collected.'); }}>Privacy Policy</a>
-          </p>
-        </div>
-      </footer>
     </div>
   );
 }

@@ -1,6 +1,19 @@
 import React, { lazy, Suspense, useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import LandingPage from './components/LandingPage';
+import SiteFooter from './components/SiteFooter';
+import { useRoute, navigate } from './router';
+import AboutPage from './pages/AboutPage';
+import HowItWorksPage from './pages/HowItWorksPage';
+import CoveragePage from './pages/CoveragePage';
+import ServicesPage from './pages/ServicesPage';
+import FaqPage from './pages/FaqPage';
+import GrievancePage from './pages/GrievancePage';
+import TermsPage from './pages/TermsPage';
+import PrivacyPage from './pages/PrivacyPage';
+import AccessibilityPage from './pages/AccessibilityPage';
+import NotFoundPage from './pages/NotFoundPage';
+import SearchPage from './pages/SearchPage';
 import { logout, resolveRole } from './api';
 import { auth, signOut as firebaseSignOut, onAuthStateChanged } from './firebase';
 
@@ -14,7 +27,17 @@ const AuditLogModal = lazy(() => import('./components/AuditLogModal'));
 const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard'));
 
 export default function App() {
-  const [activeView, setActiveView] = useState('landing');
+  const route = useRoute();
+  const VIEWS = {
+    '/': 'landing', '/map': 'map', '/login': 'login', '/search': 'search', '/about': 'about',
+    '/how-it-works': 'how-it-works', '/coverage': 'coverage', '/services': 'services', '/faq': 'faq',
+    '/grievance': 'grievance', '/terms': 'terms', '/privacy': 'privacy', '/accessibility': 'accessibility',
+  };
+  const activeView = VIEWS[route.path] || 'not-found';
+  const setActiveView = (view) => {
+    const path = Object.keys(VIEWS).find((k) => VIEWS[k] === view) || '/';
+    navigate(path);
+  };
   const [selectedState, setSelectedState] = useState('TamilNadu');
   const [selectedUlpin, setSelectedUlpin] = useState(null);
   const [editingParcel, setEditingParcel] = useState(null);
@@ -53,7 +76,7 @@ export default function App() {
           localStorage.setItem('landsetu_role', role);
           setCurrentRole(role);
         });
-        setActiveView((prev) => (prev === 'login' || prev === 'landing' ? 'map' : prev));
+        if (window.location.hash === '#/login') navigate('/map');
       } else {
         setCurrentUser(null);
         setIsLoggedIn(false);
@@ -61,6 +84,12 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  // On every page change: back to the top and move focus to the page, so keyboard and screen reader users start there.
+  useEffect(() => {
+    const main = document.getElementById('main-content');
+    if (main) { main.scrollTop = 0; main.focus({ preventScroll: true }); }
+  }, [route.path]);
 
   // A parcel from another state must not stay open beside a different state's map.
   const changeState = (next) => {
@@ -84,7 +113,7 @@ export default function App() {
     setIsLoggedIn(false);
     setCurrentUser(null);
     setCurrentRole('citizen');
-    setActiveView('landing');
+    navigate('/');
   };
 
   const handleSearchPick = (hit) => {
@@ -130,7 +159,7 @@ export default function App() {
         onSearchPick={handleSearchPick}
       />
 
-      <main className="main-content">
+      <main id="main-content" tabIndex={-1} className={`main-content ${activeView === 'map' ? 'main-content--map' : ''}`}>
         <Suspense fallback={<div className="fill-note">Loading.</div>}>
         {activeView === 'landing' && (
           <LandingPage
@@ -145,6 +174,18 @@ export default function App() {
             onExploreDemo={() => setActiveView('map')}
           />
         )}
+
+        {activeView === 'search' && <SearchPage initialQuery={route.params.q || ''} onPick={handleSearchPick} />}
+        {activeView === 'about' && <AboutPage />}
+        {activeView === 'how-it-works' && <HowItWorksPage />}
+        {activeView === 'coverage' && <CoveragePage />}
+        {activeView === 'services' && <ServicesPage />}
+        {activeView === 'faq' && <FaqPage />}
+        {activeView === 'grievance' && <GrievancePage onRequestCorrection={() => setShowCitizenTracker(true)} />}
+        {activeView === 'terms' && <TermsPage />}
+        {activeView === 'privacy' && <PrivacyPage />}
+        {activeView === 'accessibility' && <AccessibilityPage />}
+        {activeView === 'not-found' && <NotFoundPage />}
 
         {activeView === 'map' && (
           <>
@@ -210,6 +251,7 @@ export default function App() {
           />
         )}
         </Suspense>
+        {activeView !== 'map' && <SiteFooter />}
       </main>
     </div>
   );

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getAllStates } from '../api';
 import ParcelSearch from './ParcelSearch';
+import { LANGUAGES, useT } from '../i18n';
 
 const ROLE_LABEL = {
   village_officer: 'Village Land Officer',
@@ -8,7 +9,19 @@ const ROLE_LABEL = {
   state_admin: 'State Admin Officer',
 };
 
-export default function Navbar({ activeView, setActiveView, selectedState, setSelectedState, currentRole, isLoggedIn, currentUser, onLogout, onOpenStateLogs, onOpenAnalytics, onSearchPick }) {
+const LINKS = [
+  { view: 'landing', path: '/', key: 'nav.home' },
+  { view: 'search', path: '/search', key: 'nav.search' },
+  { view: 'map', path: '/map', key: 'nav.map' },
+  { view: 'how-it-works', path: '/how-it-works', key: 'nav.how' },
+  { view: 'coverage', path: '/coverage', key: 'nav.coverage' },
+  { view: 'services', path: '/services', key: 'nav.services' },
+  { view: 'faq', path: '/faq', key: 'nav.help' },
+  { view: 'grievance', path: '/grievance', key: 'nav.grievance' },
+];
+
+export default function Navbar({ activeView, selectedState, setSelectedState, currentRole, isLoggedIn, currentUser, onLogout, onOpenStateLogs, onOpenAnalytics, onSearchPick }) {
+  const { t, lang, setLang } = useT();
   const [states, setStates] = useState([]);
 
   useEffect(() => {
@@ -17,56 +30,66 @@ export default function Navbar({ activeView, setActiveView, selectedState, setSe
     return () => { live = false; };
   }, []);
 
-  const tab = (view, label) => (
-    <button className={`tab-btn ${activeView === view ? 'active' : ''}`} aria-current={activeView === view ? 'page' : undefined} onClick={() => setActiveView(view)}>
-      {label}
-    </button>
-  );
-
   const initial = String(currentUser?.displayName || currentUser?.email || 'U').trim().charAt(0).toUpperCase();
 
   return (
-    <header className="navbar">
-      <div className="nav-brand" onClick={() => setActiveView('landing')}>
-        <span className="brand-title">LandSetu</span>
-      </div>
+    <header className="site-header">
+      <a className="skip-link" href="#main-content">{t('skip')}</a>
+      <div className="navbar">
+        <a className="nav-brand" href="#/" aria-label="LandSetu home">
+          <span className="brand-title">LandSetu</span>
+          <span className="brand-sub">Land records portal</span>
+        </a>
 
-      <div className="nav-controls">
-        <div className="view-tabs">
-          {tab('landing', 'Home')}
-          {tab('map', 'Parcel map')}
-          {currentRole === 'state_admin' && <button className="tab-btn" onClick={onOpenStateLogs}>State activity</button>}
-          {currentRole === 'state_admin' && <button className="tab-btn" onClick={onOpenAnalytics}>Analytics</button>}
-        </div>
+        <div className="nav-controls">
+          {activeView === 'map' && <ParcelSearch selectedState={selectedState} onPick={onSearchPick} />}
 
-        {activeView === 'map' && <ParcelSearch selectedState={selectedState} onPick={onSearchPick} />}
+          {activeView === 'map' && (
+            <label className="state-selector">
+              State
+              <select value={selectedState} onChange={(e) => setSelectedState(e.target.value)}>
+                {states.map((s) => <option key={s.name} value={s.name}>{s.label} ({s.capital})</option>)}
+              </select>
+            </label>
+          )}
 
-        {activeView === 'map' && (
           <label className="state-selector">
-            State
-            <select value={selectedState} onChange={(e) => setSelectedState(e.target.value)}>
-              {states.map((s) => <option key={s.name} value={s.name}>{s.label} ({s.capital})</option>)}
+            <span className="sr-only">{t('lang.label')}</span>
+            <select value={lang} onChange={(e) => setLang(e.target.value)} aria-label={t('lang.label')}>
+              {LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
             </select>
           </label>
-        )}
 
-        {isLoggedIn ? (
-          <>
-            <span className="role-tag">{ROLE_LABEL[currentRole] || 'Citizen'}</span>
-            <details className="profile-menu">
-              <summary aria-label="Account menu"><span className="avatar" aria-hidden="true">{initial}</span></summary>
-              <div className="profile-pop">
-                <div className="profile-name">{currentUser?.displayName || 'Signed in'}</div>
-                {currentUser?.email && <div className="subtle">{currentUser.email}</div>}
-                <div className="subtle">{ROLE_LABEL[currentRole] || 'Citizen'}</div>
-                <button className="btn btn--block" onClick={onLogout}>Sign out</button>
-              </div>
-            </details>
-          </>
-        ) : (
-          tab('login', 'Sign in')
-        )}
+          {isLoggedIn ? (
+            <>
+              <span className="role-tag">{ROLE_LABEL[currentRole] || 'Citizen'}</span>
+              <details className="profile-menu">
+                <summary aria-label="Account menu"><span className="avatar" aria-hidden="true">{initial}</span></summary>
+                <div className="profile-pop">
+                  <div className="profile-name">{currentUser?.displayName || 'Signed in'}</div>
+                  {currentUser?.email && <div className="subtle">{currentUser.email}</div>}
+                  <div className="subtle">{ROLE_LABEL[currentRole] || 'Citizen'}</div>
+                  <button className="btn btn--block" onClick={onLogout}>{t('nav.signout')}</button>
+                </div>
+              </details>
+            </>
+          ) : (
+            <a className={`btn ${activeView === 'login' ? 'btn--primary' : ''}`} href="#/login">{t('nav.signin')}</a>
+          )}
+        </div>
       </div>
+
+      <nav className="site-nav" aria-label="Primary">
+        <ul>
+          {LINKS.map((l) => (
+            <li key={l.view}>
+              <a href={`#${l.path}`} aria-current={activeView === l.view ? 'page' : undefined} className={activeView === l.view ? 'active' : ''}>{t(l.key)}</a>
+            </li>
+          ))}
+          {currentRole === 'state_admin' && isLoggedIn && <li><button className="tab-btn" onClick={onOpenStateLogs}>State activity</button></li>}
+          {currentRole === 'state_admin' && isLoggedIn && <li><button className="tab-btn" onClick={onOpenAnalytics}>Analytics</button></li>}
+        </ul>
+      </nav>
     </header>
   );
 }

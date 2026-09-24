@@ -1,0 +1,51 @@
+/* Text pages, site header rows, footer, skip link. Tokens live in index.css. */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.skip-link { position: absolute; left: var(--space-3); top: -60px; z-index: 5000; background: var(--ink-navy); color: var(--ink-on-navy); padding: var(--space-2) var(--space-4); }
+.skip-link:focus { top: var(--space-2); }
+#main-content:focus { outline: none; }
+
+.site-header { position: relative; z-index: 1000; }
+.navbar { position: relative; }
+.brand-sub { font-size: var(--text-xs); color: var(--ink-muted); margin-left: var(--space-2); border-left: var(--line) solid var(--rule-strong); padding-left: var(--space-2); }
+.nav-brand { text-decoration: none; }
+.site-nav { background: var(--surface); border-bottom: var(--line) solid var(--rule-strong); overflow-x: auto; }
+.site-nav ul { list-style: none; display: flex; gap: var(--space-1); padding: 0 var(--space-6); white-space: nowrap; }
+.site-nav a, .site-nav .tab-btn { display: block; padding: var(--space-2) var(--space-3); font-size: var(--text-sm); font-weight: 600; color: var(--ink-navy); text-decoration: none; border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: none; cursor: pointer; font-family: inherit; }
+.site-nav a:hover, .site-nav .tab-btn:hover { background: var(--surface-sunk); }
+.site-nav a.active { border-bottom-color: var(--ink-navy); }
+.main-content--map { overflow: hidden; }
+
+.page { max-width: 880px; margin: 0 auto; padding: var(--space-8) var(--space-6); display: flex; flex-direction: column; gap: var(--space-4); }
+.page h1 { font-size: var(--text-xl); }
+.page h2 { font-size: var(--text-lg); margin-top: var(--space-4); }
+.page p, .page li { max-width: 68ch; }
+.page section { display: flex; flex-direction: column; gap: var(--space-3); }
+.page a:not(.btn) { color: var(--ink-navy); text-underline-offset: 3px; }
+.crumbs { font-size: var(--text-sm); color: var(--ink-muted); }
+.plain-list { padding-left: var(--space-6); display: flex; flex-direction: column; gap: var(--space-2); }
+.page .checks-list li { grid-template-columns: 2.5rem 200px 1fr; }
+.page .roles-list > div { display: grid; grid-template-columns: 200px 1fr; gap: var(--space-3); padding: var(--space-3) 0; border-top: var(--line) solid var(--rule); }
+.page .btn { text-decoration: none; }
+.page .ledger-table { display: table; }
+.faq details { border-top: var(--line) solid var(--rule-strong); padding: var(--space-3) 0; }
+.faq details:last-child { border-bottom: var(--line) solid var(--rule-strong); }
+.faq summary { font-weight: 600; cursor: pointer; }
+.faq p { margin-top: var(--space-2); }
+
+.site-footer { background: var(--ink-navy); color: var(--ink-on-navy); margin-top: var(--space-8); }
+.site-footer-grid { max-width: 1040px; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-6); display: grid; grid-template-columns: 1.4fr 1fr 1.2fr; gap: var(--space-8); font-size: var(--text-sm); }
+.site-footer h2 { font-size: var(--text-base); margin: 0 0 var(--space-2); color: var(--ink-on-navy); }
+.site-footer p { margin-bottom: var(--space-4); }
+.site-footer ul { list-style: none; display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-4); }
+.site-footer a { color: var(--ink-on-navy); text-underline-offset: 3px; }
+.site-footer :focus-visible { outline-color: var(--ink-on-navy); }
+.site-footer-base { border-top: var(--line) solid rgba(246, 242, 233, 0.35); max-width: 1040px; margin: 0 auto; padding: var(--space-3) var(--space-6) var(--space-6); display: flex; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; font-size: var(--text-xs); }
+
+@media (max-width: 840px) {
+  .site-nav ul { padding: 0 var(--space-3); }
+  .page { padding: var(--space-6) var(--space-4); }
+  .page .checks-list li, .page .roles-list > div { grid-template-columns: 1fr; }
+  .page .checks-list li::before { display: none; }
+  .site-footer-grid { grid-template-columns: 1fr; gap: var(--space-4); }
+  .brand-sub { display: none; }
+}
