@@ -92,8 +92,25 @@ service cloud.firestore {
       return !(field in data) || data[field] is number;
     }
 
+    // Role-based Access Control (RBAC) via Firebase Auth Custom User Claims
+    function hasRole(allowedRoles) {
+      return isAuthenticated() && ('role' in request.auth.token) && request.auth.token.role in allowedRoles;
+    }
+
+    function isGovernanceOfficer() {
+      return hasRole(['village_officer', 'auditor', 'state_admin', 'officer']);
+    }
+
+    function isAdminOrAuditor() {
+      return hasRole(['auditor', 'state_admin']);
+    }
+
+    function isStateAdmin() {
+      return hasRole(['state_admin']);
+    }
+
     // ===============================================================
-    // Domain Validators
+    // Domain & Governance State Transition Validators
     // ===============================================================
 
     function isValidUser(data) {
@@ -127,6 +144,24 @@ service cloud.firestore {
         isValidOptionalString(data, 'createdAt', 0, 50) &&
         isValidOptionalString(data, 'approverRole', 0, 100) &&
         isValidOptionalString(data, 'approvedAt', 0, 50);
+    }
+
+    function isValidBoundaryRequestCreate(data) {
+      return isValidBoundaryRequest(data) && (
+        (data.status in ['PENDING', 'PENDING_APPROVAL', 'PENDING_AUDITOR_REVIEW'] && isGovernanceOfficer()) ||
+        (data.status == 'PENDING_DELETION_VILLAGE' && isAdminOrAuditor())
+      );
+    }
+
+    function isValidBoundaryRequestUpdate(data, prev) {
+      return isValidBoundaryRequest(data) && (
+        (data.status == 'APPROVED' && isStateAdmin()) ||
+        (data.status == 'PENDING_STATE_ADMIN' && isAdminOrAuditor()) ||
+        (data.status == 'PENDING_DELETION_AUDITOR' && hasRole(['village_officer', 'auditor', 'state_admin'])) ||
+        (data.status == 'DELETED' && isAdminOrAuditor()) ||
+        (data.status == 'REJECTED' && isGovernanceOfficer()) ||
+        (data.status == prev.status && isGovernanceOfficer())
+      );
     }
 
     function isValidDeletedParcel(data) {
@@ -164,43 +199,42 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Custom parcels collection
+    // Custom parcels collection - read authenticated, writes restricted to governance officers
     match /custom_parcels/{ulpin} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidCustomParcel(request.resource.data);
-      allow update: if isAuthenticated() && isValidCustomParcel(request.resource.data);
-      allow delete: if isAuthenticated();
+      allow create: if isGovernanceOfficer() && isValidCustomParcel(request.resource.data);
+      allow update: if isGovernanceOfficer() && isValidCustomParcel(request.resource.data);
+      allow delete: if isAdminOrAuditor();
     }
 
-    // Boundary requests collection
+    // Boundary requests collection - role-gated state transition pipeline
     match /boundary_requests/{reqId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidBoundaryRequest(request.resource.data);
-      allow update: if isAuthenticated() && isValidBoundaryRequest(request.resource.data);
-      allow delete: if isAuthenticated();
+      allow read: if isGovernanceOfficer();
+      allow create: if isAuthenticated() && isValidBoundaryRequestCreate(request.resource.data);
+      allow update: if isAuthenticated() && isValidBoundaryRequestUpdate(request.resource.data, resource.data);
+      allow delete: if isStateAdmin();
     }
 
-    // Deleted parcels collection
+    // Deleted parcels collection - auditor/admin authorized deletions only
     match /deleted_parcels/{ulpin} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidDeletedParcel(request.resource.data);
-      allow update: if isAuthenticated() && isValidDeletedParcel(request.resource.data);
-      allow delete: if isAuthenticated();
+      allow create: if isAdminOrAuditor() && isValidDeletedParcel(request.resource.data);
+      allow update, delete: if isStateAdmin();
     }
 
-    // Deed Blockchain: Append-only immutable ledger
+    // Deed Blockchain: Append-only ledger restricted to governance officers
     match /deed_blockchain/{docId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidDeedBlock(request.resource.data);
+      allow create: if isGovernanceOfficer() && isValidDeedBlock(request.resource.data);
       allow update, delete: if false;
     }
 
-    // Protected zones collection
+    // Protected zones collection - governance officer access
     match /protected_zones/{zoneId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidProtectedZone(request.resource.data);
-      allow update: if isAuthenticated() && isValidProtectedZone(request.resource.data);
-      allow delete: if isAuthenticated();
+      allow create: if isGovernanceOfficer() && isValidProtectedZone(request.resource.data);
+      allow update: if isGovernanceOfficer() && isValidProtectedZone(request.resource.data);
+      allow delete: if isAdminOrAuditor();
     }
 
     // Default deny for all other paths
