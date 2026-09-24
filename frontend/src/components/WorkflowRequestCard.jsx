@@ -46,10 +46,13 @@ function Summary({ req }) {
   );
 }
 
+import { useAuthInfo } from '../authContext';
+
 export default function WorkflowRequestCard({ req, role, onVillagePass, onAuditorPass, onApprove, onReject }) {
   const activeIdx = STAGES.findIndex((s) => s.status === req.status);
   const actor = STAGES[activeIdx]?.actor;
-  const canAct = role === actor;
+  const { isSuper } = useAuthInfo();
+  const canAct = role === actor || isSuper;
   const canReject = canAct || role === 'state_admin';
 
   const passHandler = { village_officer: onVillagePass, auditor: onAuditorPass, state_admin: onApprove }[actor];

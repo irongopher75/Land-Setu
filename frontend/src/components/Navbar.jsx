@@ -7,6 +7,7 @@ const ROLE_LABEL = {
   village_officer: 'Village Land Officer',
   auditor: 'Land Auditor',
   state_admin: 'State Admin Officer',
+  super_admin: 'Super Administrator',
 };
 
 const LINKS = [
@@ -90,7 +91,7 @@ export default function Navbar({ activeView, selectedState, setSelectedState, cu
           {isLoggedIn && currentRole !== 'citizen' && (
             <li><a href="#/officer" className={activeView.startsWith('officer') ? 'active' : ''} aria-current={activeView.startsWith('officer') ? 'page' : undefined}>Officer console</a></li>
           )}
-          {currentRole === 'state_admin' && isLoggedIn && <li><button className="tab-btn" onClick={onOpenStateLogs}>State activity</button></li>}
+          {(currentRole === 'state_admin' || currentRole === 'super_admin') && isLoggedIn && <li><button className="tab-btn" onClick={onOpenStateLogs}>State activity</button></li>}
         </ul>
       </nav>
     </header>

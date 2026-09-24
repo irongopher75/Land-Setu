@@ -3,6 +3,7 @@ import Navbar from './components/Navbar';
 import LandingPage from './components/LandingPage';
 import SiteFooter from './components/SiteFooter';
 import { useRoute, navigate } from './router';
+import { AuthContext } from './authContext';
 import AboutPage from './pages/AboutPage';
 import HowItWorksPage from './pages/HowItWorksPage';
 import CoveragePage from './pages/CoveragePage';
@@ -56,6 +57,9 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [currentRole, setCurrentRole] = useState(() => localStorage.getItem('landsetu_role') || 'citizen');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  // A super administrator counts as a state administrator everywhere except account management.
+  const isSuper = currentRole === 'super_admin';
+  const effectiveRole = isSuper ? 'state_admin' : currentRole;
 
   // Modals
   const [showStateLogs, setShowStateLogs] = useState(false);
@@ -148,6 +152,7 @@ export default function App() {
   };
 
   return (
+    <AuthContext.Provider value={{ isSuper }}>
     <div className="app-container">
       {fallbackToast && (
         <div className="toast toast--top" role="status">
@@ -201,13 +206,13 @@ export default function App() {
         {activeView === 'accessibility' && <AccessibilityPage />}
         {activeView === 'bank' && <BankPage />}
         {activeView === 'developers' && <DevelopersPage />}
-        {activeView === 'officer' && <DashboardPage role={currentRole} isLoggedIn={isLoggedIn} />}
-        {activeView === 'officer-queue' && <QueuePage role={currentRole} isLoggedIn={isLoggedIn} />}
-        {activeView === 'officer-editor' && <EditorPage role={currentRole} isLoggedIn={isLoggedIn} />}
-        {activeView === 'officer-audit' && <AuditPage role={currentRole} isLoggedIn={isLoggedIn} selectedState={selectedState} />}
-        {activeView === 'officer-import' && <ImportPage role={currentRole} isLoggedIn={isLoggedIn} />}
-        {activeView === 'officer-analytics' && <AnalyticsPage role={currentRole} isLoggedIn={isLoggedIn} />}
-        {activeView === 'officer-users' && <UsersPage role={currentRole} isLoggedIn={isLoggedIn} />}
+        {activeView === 'officer' && <DashboardPage role={effectiveRole} isLoggedIn={isLoggedIn} />}
+        {activeView === 'officer-queue' && <QueuePage role={effectiveRole} isLoggedIn={isLoggedIn} />}
+        {activeView === 'officer-editor' && <EditorPage role={effectiveRole} isLoggedIn={isLoggedIn} />}
+        {activeView === 'officer-audit' && <AuditPage role={effectiveRole} isLoggedIn={isLoggedIn} selectedState={selectedState} />}
+        {activeView === 'officer-import' && <ImportPage role={effectiveRole} isLoggedIn={isLoggedIn} />}
+        {activeView === 'officer-analytics' && <AnalyticsPage role={effectiveRole} isLoggedIn={isLoggedIn} />}
+        {activeView === 'officer-users' && <UsersPage role={effectiveRole} isLoggedIn={isLoggedIn} />}
         {activeView === 'not-found' && <NotFoundPage />}
 
         {activeView === 'map' && (
@@ -220,7 +225,7 @@ export default function App() {
               onClearEditingParcel={() => setEditingParcel(null)}
               onAutoDetectState={changeState}
               signedIn={isLoggedIn}
-              role={currentRole}
+              role={effectiveRole}
               restructure={restructure}
               onRestructureClose={() => setRestructure(null)}
               focusPoint={focusPoint}
@@ -228,7 +233,7 @@ export default function App() {
             {selectedUlpin && (
               <ParcelPanel
                 ulpin={selectedUlpin}
-                role={currentRole}
+                role={effectiveRole}
                 onClose={() => setSelectedUlpin(null)}
                 onReshapeBoundary={handleReshapeBoundary}
                 onDeletionRequested={() => setSelectedUlpin(null)}
@@ -242,7 +247,7 @@ export default function App() {
         {showStateLogs && (
           <StateLogModal
             initialState={selectedState}
-            role={currentRole}
+            role={effectiveRole}
             onClose={() => setShowStateLogs(false)}
           />
         )}
@@ -254,7 +259,7 @@ export default function App() {
           />
         )}
 
-        {showAnalytics && currentRole === 'state_admin' && (
+        {showAnalytics && effectiveRole === 'state_admin' && (
           <AnalyticsDashboard onClose={() => setShowAnalytics(false)} />
         )}
 
@@ -269,7 +274,7 @@ export default function App() {
         {showAuditLog && (
           <AuditLogModal
             stateFilter={selectedState}
-            role={currentRole}
+            role={effectiveRole}
             onClose={() => setShowAuditLog(false)}
           />
         )}
@@ -277,5 +282,6 @@ export default function App() {
         {activeView !== 'map' && <SiteFooter />}
       </main>
     </div>
+    </AuthContext.Provider>
   );
 }

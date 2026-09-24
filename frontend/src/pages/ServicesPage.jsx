@@ -12,6 +12,7 @@ export default function ServicesPage() {
           <tr><th scope="row">Village land officer</th><td>Verify corrections, file boundary edits, splits and merges</td><td>Give final approval</td></tr>
           <tr><th scope="row">Auditor</th><td>Review every request before it reaches the state, authorize deletions</td><td>File a request and approve it</td></tr>
           <tr><th scope="row">State administrator</th><td>Give final approval, request deletions, read state-wide counts</td><td>Approve a deletion they filed</td></tr>
+          <tr><th scope="row">Super administrator</th><td>Everything above, at every stage. Create accounts and assign roles. Every change is logged.</td><td>Change their own role, or remove the last super administrator</td></tr>
         </tbody>
       </table>
       <p><a className="btn btn--primary" href="#/login">Officer sign in</a></p>

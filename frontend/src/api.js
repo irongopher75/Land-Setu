@@ -108,7 +108,7 @@ export const wakeBackend = () => {
   client.get('/health', { timeout: 65000 }).catch(() => {});
 };
 
-const KNOWN_ROLES = ['citizen', 'village_officer', 'auditor', 'state_admin'];
+const KNOWN_ROLES = ['citizen', 'village_officer', 'auditor', 'state_admin', 'super_admin'];
 
 // Role for display. The server session is the source of truth. If the records service is not
 // reachable, fall back to the role claim on the signed-in account. The server still enforces
@@ -378,7 +378,7 @@ export const getDeletedUlpins = async () => {
 
 export const requestParcelDeletion = async (ulpin, reason = "State Admin requested parcel deletion") => {
   const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
-  if (currentRole !== 'state_admin') {
+  if (currentRole !== 'state_admin' && currentRole !== 'super_admin') {
     throw new Error('Permission Denied: Only State Administration Officers (state_admin) can request land parcel deletion.');
   }
 
@@ -463,7 +463,7 @@ export const deleteParcelDirectly = async (ulpin) => {
 
 export const villageApproveDeletion = async (requestId) => {
   const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
-  if (currentRole !== 'village_officer') {
+  if (currentRole !== 'village_officer' && currentRole !== 'super_admin') {
     throw new Error('Permission Denied: Only Village Land Officers can approve Stage 1 deletion. State Admin cannot self-approve.');
   }
 
@@ -494,7 +494,7 @@ export const villageApproveDeletion = async (requestId) => {
 
 export const auditorApproveDeletion = async (requestId) => {
   const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
-  if (currentRole !== 'auditor') {
+  if (currentRole !== 'auditor' && currentRole !== 'super_admin') {
     throw new Error('Permission Denied: Only Compliance Auditors can issue final deletion authorization. State Admin cannot self-approve.');
   }
 
@@ -966,7 +966,7 @@ export const getPendingRequests = async () => {
 
 export const auditorPassRequest = async (requestId, request = null) => {
   const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
-  if (currentRole !== 'auditor' && currentRole !== 'state_admin') {
+  if (currentRole !== 'auditor' && currentRole !== 'state_admin' && currentRole !== 'super_admin') {
     throw new Error('Permission Denied: Only Compliance Auditors can pass compliance audit.');
   }
   if (isRestOnlyRequest(request)) {
@@ -987,7 +987,7 @@ export const auditorPassRequest = async (requestId, request = null) => {
 
 export const approveBoundaryRequest = async (requestId, request = null) => {
   const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
-  if (currentRole !== 'state_admin') {
+  if (currentRole !== 'state_admin' && currentRole !== 'super_admin') {
     throw new Error('Permission Denied: Only State Administration Officers (state_admin) have final approval authority.');
   }
   if (isRestOnlyRequest(request)) {
@@ -1035,7 +1035,7 @@ export const approveBoundaryRequest = async (requestId, request = null) => {
 
 export const rejectBoundaryRequest = async (requestId, request = null) => {
   const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
-  if (!['auditor', 'state_admin', 'village_officer'].includes(currentRole)) {
+  if (!['auditor', 'state_admin', 'village_officer', 'super_admin'].includes(currentRole)) {
     throw new Error('Permission Denied: Only Village Officers, Auditors, or State Administration Officers can reject requests.');
   }
   if (isRestOnlyRequest(request)) {
@@ -1299,3 +1299,19 @@ export const searchParcels = async (q, state) => {
       return { ulpin: p.ulpin, state: p.state, owner_name: p.owner_name, khata_no: p.khata_no, centroid, matched_on };
     });
 };
+
+// Account and role administration (super administrators). These need the live records service.
+const adminCall = async (method, url, data) => {
+  try {
+    const res = await client.request({ method, url, data });
+    return res.data;
+  } catch (err) {
+    const detail = err.response?.data?.detail;
+    throw new Error(typeof detail === 'string' ? detail : 'Account management needs the live LandSetu API, which is not reachable right now.');
+  }
+};
+export const listAccounts = () => adminCall('get', '/admin/users');
+export const createAccount = (email, displayName, role) => adminCall('post', '/admin/users', { email, display_name: displayName || null, role });
+export const setAccountRole = (uid, role) => adminCall('put', `/admin/users/${encodeURIComponent(uid)}/role`, { role });
+export const setAccountDisabled = (uid, disabled) => adminCall('put', `/admin/users/${encodeURIComponent(uid)}/disabled`, { disabled });
+export const listRoleAudit = () => adminCall('get', '/admin/audit');

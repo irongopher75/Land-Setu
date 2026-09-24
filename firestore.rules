@@ -98,15 +98,15 @@ service cloud.firestore {
     }
 
     function isGovernanceOfficer() {
-      return hasRole(['village_officer', 'auditor', 'state_admin', 'officer']);
+      return hasRole(['village_officer', 'auditor', 'state_admin', 'officer', 'super_admin']);
     }
 
     function isAdminOrAuditor() {
-      return hasRole(['auditor', 'state_admin']);
+      return hasRole(['auditor', 'state_admin', 'super_admin']);
     }
 
     function isStateAdmin() {
-      return hasRole(['state_admin']);
+      return hasRole(['state_admin', 'super_admin']);
     }
 
     // ===============================================================
@@ -157,7 +157,7 @@ service cloud.firestore {
       return isValidBoundaryRequest(data) && (
         (data.status == 'APPROVED' && isStateAdmin()) ||
         (data.status == 'PENDING_STATE_ADMIN' && isAdminOrAuditor()) ||
-        (data.status == 'PENDING_DELETION_AUDITOR' && hasRole(['village_officer', 'auditor', 'state_admin'])) ||
+        (data.status == 'PENDING_DELETION_AUDITOR' && hasRole(['village_officer', 'auditor', 'state_admin', 'super_admin'])) ||
         (data.status == 'DELETED' && isAdminOrAuditor()) ||
         (data.status == 'REJECTED' && isGovernanceOfficer()) ||
         (data.status == prev.status && isGovernanceOfficer())

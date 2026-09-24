@@ -63,3 +63,18 @@ class BoundaryChangeRequest(Base):
     payload = Column(JSON, nullable=True)
     # Audit trail: [{"at": iso, "status": str, "role": str, "note": str}], oldest first.
     history = Column(JSON, nullable=True)
+
+
+class RoleAudit(Base):
+    """Who changed which account, when. Written by the admin endpoints."""
+    __tablename__ = "role_audit"
+
+    id = Column(Integer, primary_key=True, index=True)
+    at = Column(String, nullable=False)
+    actor_uid = Column(String, nullable=False)
+    actor_email = Column(String, nullable=True)
+    target_uid = Column(String, nullable=False, index=True)
+    target_email = Column(String, nullable=True)
+    action = Column(String, nullable=False)  # create | set_role | disable | enable
+    old_role = Column(String, nullable=True)
+    new_role = Column(String, nullable=True)

@@ -5,12 +5,12 @@
     python scripts/manage_accounts.py show admin@landsetu.gov.in
         Prints the account and its role claim. This answers "does this account have a role?".
 
-    python scripts/manage_accounts.py set-role <email> <citizen|village_officer|auditor|state_admin>
+    python scripts/manage_accounts.py set-role <email> <citizen|village_officer|auditor|state_admin|bank|super_admin>
 
     python scripts/manage_accounts.py rename <old-email> <new-email>
 
     python scripts/manage_accounts.py create-demo
-        Creates four demo accounts (or updates them if they exist) and sets their roles.
+        Creates five demo accounts (or updates them if they exist) and sets their roles.
         Set DEMO_PASSWORD to choose the password, otherwise one is generated and printed once.
 
 The server reads the role only from the `role` custom claim (app/routes/auth.py). An account
@@ -23,12 +23,13 @@ import sys
 import firebase_admin
 from firebase_admin import auth
 
-ROLES = ("citizen", "village_officer", "auditor", "state_admin")
+ROLES = ("citizen", "village_officer", "auditor", "state_admin", "bank", "super_admin")
 DEMO = [
     ("demo.citizen@landsetu-demo.example", "citizen", "Demo Citizen"),
     ("demo.officer@landsetu-demo.example", "village_officer", "Demo Village Officer"),
     ("demo.auditor@landsetu-demo.example", "auditor", "Demo Auditor"),
     ("demo.stateadmin@landsetu-demo.example", "state_admin", "Demo State Administrator"),
+    ("demo.superadmin@landsetu-demo.example", "super_admin", "Demo Super Administrator"),
 ]
 
 
@@ -68,7 +69,7 @@ def create_demo():
             u = auth.create_user(email=email, password=password, display_name=name, email_verified=True)
         auth.set_custom_user_claims(u.uid, {"role": role})
         print(f"{role:16} {email}")
-    print(f"\npassword for all four: {password}")
+    print(f"\npassword for all five: {password}")
     print("Sign in on the Land officer tab (officer roles) or the Citizen tab (citizen).")
 
 

@@ -433,7 +433,7 @@ class RequestDeletionPayload(BaseModel):
 @router.post("/{ulpin}/request-deletion")
 def request_parcel_deletion(ulpin: str, payload: Optional[RequestDeletionPayload] = None, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
     """State Admin endpoint to initiate a parcel deletion request requiring Auditor + Land Officer approval."""
-    if role != "state_admin":
+    if role not in ("state_admin", "super_admin"):
         raise HTTPException(
             status_code=403,
             detail="Permission denied: Only State Administration Officers (state_admin) can initiate land deletion requests."
@@ -481,7 +481,7 @@ def request_parcel_deletion(ulpin: str, payload: Optional[RequestDeletionPayload
 @router.post("/requests/{request_id}/village-approve-deletion")
 def village_approve_deletion(request_id: int, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
     """Village Officer endpoint to approve land deletion (Stage 1)."""
-    if role != "village_officer":
+    if role not in ("village_officer", "super_admin"):
         raise HTTPException(
             status_code=403,
             detail="Permission denied: Only Village Land Officers can approve Stage 1 deletion. State Admin cannot self-approve."
@@ -506,7 +506,7 @@ def village_approve_deletion(request_id: int, role: str = Depends(get_current_ro
 @router.post("/requests/{request_id}/auditor-approve-deletion")
 def auditor_approve_deletion(request_id: int, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
     """Auditor endpoint to authorize final land deletion (Stage 2)."""
-    if role != "auditor":
+    if role not in ("auditor", "super_admin"):
         raise HTTPException(
             status_code=403,
             detail="Permission denied: Only Compliance Auditors can issue final deletion authorization. State Admin cannot self-approve."
@@ -536,7 +536,7 @@ def auditor_approve_deletion(request_id: int, role: str = Depends(get_current_ro
 @router.post("/requests/{request_id}/auditor-pass")
 def auditor_pass_request(request_id: int, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
     """Auditor endpoint to pass compliance audit and forward request to State Admin."""
-    if role not in ("auditor", "state_admin"):
+    if role not in ("auditor", "state_admin", "super_admin"):
         raise HTTPException(
             status_code=403,
             detail="Permission denied: Only Compliance Auditors can pass audit and forward to State Admin."
@@ -558,7 +558,7 @@ def auditor_pass_request(request_id: int, role: str = Depends(get_current_role),
 @router.post("/requests/{request_id}/approve")
 def approve_boundary_request(request_id: int, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
     """State Admin approval endpoint to commit a lower authority boundary change request."""
-    if role != "state_admin":
+    if role not in ("state_admin", "super_admin"):
         raise HTTPException(
             status_code=403,
             detail="Permission denied: Only State Administration Officers (state_admin) can issue final approval for boundary change requests."
@@ -626,11 +626,11 @@ def reject_boundary_request(request_id: int, role: str = Depends(get_current_rol
     if not req:
         raise HTTPException(status_code=404, detail="Boundary change request not found")
 
-    village_can_reject = role == "village_officer" and req.status in ("PENDING_DELETION_VILLAGE", "PENDING_VILLAGE_REVIEW")
-    auditor_can_reject = role == "auditor" and (
+    village_can_reject = role in ("village_officer", "super_admin") and req.status in ("PENDING_DELETION_VILLAGE", "PENDING_VILLAGE_REVIEW")
+    auditor_can_reject = role in ("auditor", "super_admin") and (
         req.status in ("PENDING_DELETION_AUDITOR", "PENDING_AUDITOR_REVIEW", "PENDING_APPROVAL")
     )
-    admin_can_reject = role == "state_admin"
+    admin_can_reject = role in ("state_admin", "super_admin")
 
     if not (village_can_reject or auditor_can_reject or admin_can_reject):
         raise HTTPException(

@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import WorkflowRequestCard from './WorkflowRequestCard';
+import { useAuthInfo } from '../authContext';
 import { getPendingRequests, auditorPassRequest, approveBoundaryRequest, rejectBoundaryRequest, villageApproveDeletion, auditorApproveDeletion, villagePassRequest, REST_ONLY_REQUEST_TYPES } from '../api';
 
 export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionMsg, setActionMsg] = useState('');
+  const { isSuper } = useAuthInfo();
 
   useEffect(() => {
     fetchRequests();
@@ -134,13 +136,13 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
         )}
 
         <div className="wf-actions">
-          {isDeletion && req.status === 'PENDING_DELETION_VILLAGE' && role === 'village_officer' && (
+          {isDeletion && req.status === 'PENDING_DELETION_VILLAGE' && (role === 'village_officer' || isSuper) && (
             <button className="btn btn--primary" onClick={() => handleVillageApproveDeletion(req.id, req.ulpin)}>Approve deletion</button>
           )}
-          {isDeletion && req.status === 'PENDING_DELETION_AUDITOR' && role === 'auditor' && (
+          {isDeletion && req.status === 'PENDING_DELETION_AUDITOR' && (role === 'auditor' || isSuper) && (
             <button className="btn btn--seal-solid" onClick={() => handleAuditorApproveDeletion(req.id, req.ulpin)}>Authorize deletion</button>
           )}
-          {!isDeletion && role === 'auditor' && isStage1 && (
+          {!isDeletion && (role === 'auditor' || isSuper) && isStage1 && (
             <button className="btn btn--primary" onClick={() => handleAuditorPass(req.id, req.ulpin)}>Pass audit and forward to state admin</button>
           )}
           {!isDeletion && role === 'state_admin' && (

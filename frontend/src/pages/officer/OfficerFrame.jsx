@@ -1,5 +1,6 @@
 import React from 'react';
 import PageShell from '../../components/PageShell';
+import { useAuthInfo } from '../../authContext';
 
 const OFFICER_ROLES = ['village_officer', 'auditor', 'state_admin'];
 
@@ -10,18 +11,19 @@ const NAV = [
   { path: '/officer/audit', label: 'Audit log' },
   { path: '/officer/import', label: 'Data import', roles: ['state_admin'] },
   { path: '/officer/analytics', label: 'Analytics', roles: ['state_admin'] },
-  { path: '/officer/users', label: 'Users and roles', roles: ['state_admin'] },
+  { path: '/officer/users', label: 'Users and roles', superOnly: true },
 ];
 
 // Common frame for officer pages: access check, section navigation, page title.
-export default function OfficerFrame({ title, path, role, isLoggedIn, allow = OFFICER_ROLES, wide = false, children }) {
-  const permitted = isLoggedIn && allow.includes(role);
+export default function OfficerFrame({ title, path, role, isLoggedIn, allow = OFFICER_ROLES, superOnly = false, wide = false, children }) {
+  const { isSuper } = useAuthInfo();
+  const permitted = isLoggedIn && (superOnly ? isSuper : allow.includes(role));
   return (
     <PageShell title={title}>
       {isLoggedIn && OFFICER_ROLES.includes(role) && (
         <nav className="officer-nav" aria-label="Officer console">
           <ul>
-            {NAV.filter((n) => !n.roles || n.roles.includes(role)).map((n) => (
+            {NAV.filter((n) => (n.superOnly ? isSuper : !n.roles || n.roles.includes(role))).map((n) => (
               <li key={n.path}><a href={`#${n.path}`} className={n.path === path ? 'active' : ''} aria-current={n.path === path ? 'page' : undefined}>{n.label}</a></li>
             ))}
           </ul>

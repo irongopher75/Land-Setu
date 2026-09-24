@@ -97,12 +97,12 @@ If any API call fails, the SPA falls back to bundled sample data. A response tha
 
 - **Routing:** hash routes (`#/search`, `#/faq`, `#/officer/queue` and others) in `frontend/src/router.js`. Every page is linkable and works with the single-page host rewrite.
 - **Public pages:** Home, Search, Parcel map, How it works, Coverage, For land officers, Help, Grievance, About, Terms, Privacy, Accessibility, Lender verification preview, Developer API, 404.
-- **Officer console** (role-gated): Dashboard, Approval queue, Parcel editor guide, Audit log, and for state administrators Data import, Analytics and Users and roles. Users and roles is a **[Planned]** stub.
+- **Officer console** (role-gated): Dashboard, Approval queue, Parcel editor guide, Audit log, and for state administrators Data import, Analytics and Users and roles. Users and roles is for super administrators and manages accounts and roles.
 - **Internationalization:** 12 languages in `frontend/src/locales*.js`. Draft translations of navigation, footer and the home hero. Text pages are English only. See section 6.
 
 ### 1.6 Testing and delivery
 
-- 23 backend tests (`backend/tests/`) cover authentication, roles, the rule engine, the flag cache, the workflow pipeline, and public access. They run on SQLite. **The PostGIS code path is not covered by an automated test.**
+- 30 backend tests (`backend/tests/`) cover authentication, roles, the rule engine, the flag cache, the workflow pipeline, and public access. They run on SQLite. **The PostGIS code path is not covered by an automated test.**
 - GitHub Actions (`.github/workflows/firebase-hosting-merge.yml`) runs the backend tests and the frontend build on every push to `main`, then deploys the frontend to Firebase Hosting if both pass.
 
 ---
@@ -325,6 +325,11 @@ Access: **Public** needs no session (a visitor is treated as a citizen). **Signe
 | POST | `/parcels/requests/{id}/approve` | Final approval | Role-checked |
 | POST | `/parcels/requests/{id}/reject` | Reject at the caller's stage | Role-checked |
 | GET | `/parcels/analytics/summary` | Counts per state | state_admin |
+| GET | `/admin/users` | List accounts with their roles | super_admin |
+| POST | `/admin/users` | Create an account with a role and a one-time password | super_admin |
+| PUT | `/admin/users/{uid}/role` | Assign a role | super_admin |
+| PUT | `/admin/users/{uid}/disabled` | Disable or enable an account | super_admin |
+| GET | `/admin/audit` | Recent account and role changes | super_admin |
 | POST | `/adapter/preview` | Run a state record through the adapter | Public |
 | GET | `/adapter/raw-samples` | Sample raw records per state | Public |
 
@@ -375,6 +380,7 @@ This section separates what is enforced today from what is not. Where a control 
 | `village_officer` | `role` claim on the account | Verify corrections, file boundary edits, splits and merges. First approval stage. |
 | `auditor` | Claim | Independent review stage. Authorizes deletions. |
 | `state_admin` | Claim | Final approval, requests deletions, reads analytics. Cannot approve a deletion the same account filed. |
+| `super_admin` | Claim, set with `manage_accounts.py` for the first one | Passes every role check and can act at every stage of the pipeline. The only role that can list accounts, create accounts, assign roles and disable accounts (`/admin/*`). Cannot change its own role or disable itself, and the last super administrator cannot be removed. Every change is recorded in a `role_audit` table. Actions by a super administrator carry that role in the request history. |
 | `bank` | Claim | Valid in the backend and can read the pending list and the passport. **[Partial]** There is no lender sign-in path or full interface. A preview page (Lender verification) shows clearance and encumbrance only. |
 | `officer` | Claim | Legacy general officer role, accepted alongside the named roles. |
 
@@ -411,7 +417,7 @@ The server is the authority. The interface reads the same claim so it can show o
 4. **Single-node free hosting.** No redundancy, sleeping service, no backups. See section 7.
 5. **State detection accuracy.** Simplified outlines can misassign points near borders. It affects display and default state only, not access control.
 6. **Browser-side ledger.** See the controls table.
-7. **Manual role assignment.** Roles are set with a command-line script by an administrator. A Users and roles page with an audit trail is **[Planned]**.
+7. **First super administrator.** The first one must be set with the command-line script, because no one can promote themselves. After that, roles are managed in the Users and roles page, which needs the service account key on the API host.
 8. **Third-party identity.** Sign-in relies on an external identity service hosted outside India. See the data-residency note in section 7.
 
 ---
@@ -564,7 +570,7 @@ A `docker-compose.yml` runs a local stack (PostGIS database, API, frontend, and 
 | 12 | Translations are drafts, text pages English only | Section 6 | Native-speaker review, full page translation |
 | 13 | No notifications on request status changes, no service-request tracker for citizens beyond ULPIN lookup | Features | Email or SMS notification on stage change |
 | 14 | No AI or satellite change detection beyond a labelled demo panel | Features | Real model integration in a later phase |
-| 15 | Users and roles page is a stub | Section 5 | Role administration with audit trail |
+| 15 | Role changes need the Firebase service account key set on the API host. A LandSetu session already issued keeps its old role for up to 30 minutes. | Section 5 | Server-side session list |
 
 **Phases.**
 - **Phase 0, hackathon demo (now):** everything tagged Implemented, plus the honest-status documentation in this file.
@@ -600,7 +606,7 @@ backend/
   mock_data/             synthetic CSV and GeoJSON for Tamil Nadu and Chandigarh
   alembic/versions/      3 migration revisions
   scripts/set_role.py    assign a role claim to an account
-  tests/                 23 tests
+  tests/                 30 tests
 frontend/
   src/App.jsx, router.js, i18n.jsx, api.js
   src/pages/             text pages, lender preview, developer API, officer console

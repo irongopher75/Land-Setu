@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from sqlalchemy import text
 from app.db import engine, Base, IS_SQLITE
-from app.routes import auth, adapter, parcels, workflow
+from app.routes import auth, adapter, parcels, workflow, admin
 from app.seed import seed_database
 
 app = FastAPI(
@@ -27,6 +27,7 @@ app.add_middleware(
 
 # Register APIRouters
 app.include_router(auth.router)
+app.include_router(admin.router)
 app.include_router(adapter.router)
 app.include_router(workflow.router)  # before parcels: /parcels/search must win over /parcels/{ulpin}
 app.include_router(parcels.router)

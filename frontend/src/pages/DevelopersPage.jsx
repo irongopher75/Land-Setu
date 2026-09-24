@@ -17,6 +17,8 @@ const ROWS = [
   ['POST', '/parcels/{ulpin}/merge-request', 'Propose a merge', 'Officer'],
   ['GET', '/parcels/requests/pending', 'Open requests', 'Officer'],
   ['GET', '/parcels/analytics/summary', 'Counts by state', 'State admin'],
+  ['GET', '/admin/users', 'List accounts and roles', 'Super admin'],
+  ['PUT', '/admin/users/{uid}/role', 'Assign a role', 'Super admin'],
   ['POST', '/adapter/preview', 'Map a state record to the common schema', 'Officer'],
 ];
 

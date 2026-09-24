@@ -20,7 +20,9 @@ if not SECRET_KEY or len(SECRET_KEY) < 32:
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
-VALID_ROLES = {"citizen", "village_officer", "auditor", "state_admin", "officer", "bank"}
+VALID_ROLES = {"citizen", "village_officer", "auditor", "state_admin", "officer", "bank", "super_admin"}
+# Roles an administrator may assign. "officer" is a legacy role and is not assignable.
+ASSIGNABLE_ROLES = ("citizen", "village_officer", "auditor", "state_admin", "bank", "super_admin")
 
 def create_jwt_token(role: str, uid: str = "") -> str:
     now = datetime.now(timezone.utc)
@@ -64,7 +66,8 @@ def set_auth_cookies(response: Response, role: str, uid: str = "") -> tuple[str,
     )
     return access_token, refresh_token
 
-def get_current_role(authorization: str | None = Header(None), landsetu_session: str | None = Cookie(None)) -> str:
+def get_current_payload(authorization: str | None = Header(None), landsetu_session: str | None = Cookie(None)) -> dict:
+    """Decoded session token: sub (account uid) and role."""
     token = landsetu_session
     if authorization and authorization.lower().startswith("bearer "):
         token = authorization[7:].strip()
@@ -74,23 +77,26 @@ def get_current_role(authorization: str | None = Header(None), landsetu_session:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], issuer="landsetu", audience="landsetu-web")
         if payload.get("type") and payload.get("type") != "access":
             raise ValueError("Invalid token type")
-        role = payload.get("role")
-        if role not in VALID_ROLES:
+        if payload.get("role") not in VALID_ROLES:
             raise ValueError("Unknown role")
-        return role
+        return payload
     except (jwt.PyJWTError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid or expired session")
+
+def get_current_role(payload: dict = Depends(get_current_payload)) -> str:
+    return payload["role"]
 
 def get_optional_role(authorization: str | None = Header(None), landsetu_session: str | None = Cookie(None)) -> str:
     """Role for public reads. A visitor with no session is treated as a citizen.
     A session that is present but invalid or expired still fails with 401, so a client can refresh it."""
     if not landsetu_session and not (authorization and authorization.lower().startswith("bearer ")):
         return "citizen"
-    return get_current_role(authorization, landsetu_session)
+    return get_current_payload(authorization, landsetu_session)["role"]
 
 def require_roles(*allowed_roles: str):
     def dependency(role: str = Depends(get_current_role)) -> str:
-        if role not in allowed_roles:
+        # super_admin passes every role check.
+        if role != "super_admin" and role not in allowed_roles:
             raise HTTPException(status_code=403, detail="Insufficient permissions")
         return role
     return dependency
