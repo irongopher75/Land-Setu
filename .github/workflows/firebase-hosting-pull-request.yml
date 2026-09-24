@@ -7,8 +7,8 @@ permissions:
   pull-requests: write
 
 jobs:
-  backend_check:
-    name: Check FastAPI backend imports and compiles
+  backend_tests:
+    name: Run FastAPI Backend Pytest Suite
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,16 +20,14 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
-      - name: Compile and import the API
+      - name: Execute Pytest Suite
         env:
-          JWT_SECRET: "ci_build_secret_key_minimum_32_chars_long_not_used_in_production"
+          JWT_SECRET: "ci_test_secret_key_minimum_32_chars_long_for_security_test"
           DEMO_LOGIN_ENABLED: "false"
           ALLOW_SQLITE_FALLBACK: "true"
-          DATABASE_URL: "sqlite:///./ci_check.db"
           PYTHONPATH: "backend"
         run: |
-          python -m compileall -q backend/app
-          python -c "import app.main"
+          pytest backend/tests
 
   frontend_build:
     name: Build React Frontend
@@ -43,7 +41,7 @@ jobs:
 
   preview_deploy:
     name: Deploy Firebase Preview Channel
-    needs: [backend_check, frontend_build]
+    needs: [backend_tests, frontend_build]
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     steps:
