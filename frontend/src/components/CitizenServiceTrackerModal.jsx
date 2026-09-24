@@ -15,6 +15,7 @@ const STAGE_TEXT = {
   PENDING_VILLAGE_REVIEW: 'Waiting for the village land officer to verify your documents.',
   PENDING_APPROVAL: 'Verified by the village officer. Waiting for the auditor.',
   PENDING_STATE_ADMIN: 'Passed audit. Waiting for final approval by the state administrator.',
+  PENDING_FAST_REVIEW: 'A spelling-level correction. One review by an auditor or the state administrator decides it.',
   APPROVED: 'Approved. The record has been corrected.',
   REJECTED: 'Rejected.',
 };
@@ -70,7 +71,7 @@ export default function CitizenServiceTrackerModal({ initialUlpin, onClose }) {
         <div className="modal-head">
           <div>
             <h3>Request a record correction</h3>
-            <p>Goes to the village land officer, then the auditor, then the state administrator.</p>
+            <p>A spelling-level fix to a name or reference goes to one reviewer. Anything else goes to the village land officer, then the auditor, then the state administrator.</p>
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="Close"><X size={18} /></button>
         </div>

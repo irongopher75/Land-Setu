@@ -60,7 +60,8 @@ def test_split_pipeline(client):
     res = run_pipeline(client, rid)
     assert res.status_code == 200, res.text
     db = SessionLocal()
-    assert db.query(Parcel).filter(Parcel.ulpin == "WF-SPLIT").first() is None
+    src = db.query(Parcel).filter(Parcel.ulpin == "WF-SPLIT").first()
+    assert src is not None and src.status == "superseded" and src.superseded_by  # kept, never deleted
     kids = db.query(Parcel).filter(Parcel.ulpin.in_(["WF-SPLIT-S1", "WF-SPLIT-S2"])).all()
     assert len(kids) == 2 and abs(sum(k.area_sqm for k in kids) - 1000) < 1
     assert kids[0].raw_record["lineage"]["split_from"] == "WF-SPLIT"
@@ -81,7 +82,8 @@ def test_merge_pipeline(client):
     assert r.status_code == 200, r.text
     assert run_pipeline(client, r.json()["request_id"]).status_code == 200
     db = SessionLocal()
-    assert db.query(Parcel).filter(Parcel.ulpin == "WF-M2").first() is None
+    other = db.query(Parcel).filter(Parcel.ulpin == "WF-M2").first()
+    assert other is not None and other.status == "superseded" and other.superseded_by == "WF-M1"  # kept, never deleted
     m = db.query(Parcel).filter(Parcel.ulpin == "WF-M1").first()
     assert m.area_sqm == 2000
     db.close()

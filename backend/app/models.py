@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, JSON
+from sqlalchemy import Column, Integer, String, Float, JSON, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from app.db import Base, IS_SQLITE
 
@@ -30,6 +30,12 @@ class Parcel(Base):
     # Cached RuleEngine output. NULL means stale or never computed: the next
     # reader recomputes and stores it. A list ([]) means "computed, no flags".
     flags = Column(FlagsType, nullable=True)
+    # Lifecycle. A parcel is never removed: an approved deletion sets `archived`, and a split or merge
+    # sets `superseded` on the parcel it replaces. Default views show only `active`.
+    status = Column(String, nullable=False, default="active", server_default="active", index=True)
+    archived_at = Column(String, nullable=True)
+    archived_reason = Column(String, nullable=True)
+    superseded_by = Column(String, nullable=True)  # ULPIN(s) that replace this parcel, comma separated
 
 class ProtectedZone(Base):
     __tablename__ = "protected_zones"
@@ -63,6 +69,10 @@ class BoundaryChangeRequest(Base):
     payload = Column(JSON, nullable=True)
     # Audit trail: [{"at": iso, "status": str, "role": str, "note": str}], oldest first.
     history = Column(JSON, nullable=True)
+    # HIGH: village officer, auditor, state admin. FAST: one auditor or state admin. See app/workflow.py.
+    track = Column(String, nullable=False, default="HIGH", server_default="HIGH")
+    # Account that filed the request. Nobody may approve a request they filed, at any stage.
+    requester_uid = Column(String, nullable=True)
 
 
 class RoleAudit(Base):
@@ -78,3 +88,27 @@ class RoleAudit(Base):
     action = Column(String, nullable=False)  # create | set_role | disable | enable
     old_role = Column(String, nullable=True)
     new_role = Column(String, nullable=True)
+
+
+class ParcelAuditLog(Base):
+    """Append-only, hash-chained record of every state transition of a parcel or its requests.
+
+    entry_hash = SHA-256(prev_hash + canonical JSON of the entry). The chain is per ULPIN and starts
+    from a fixed genesis value. Rows are never updated or deleted (a database trigger enforces it).
+    """
+    __tablename__ = "parcel_audit_log"
+    __table_args__ = (UniqueConstraint("ulpin", "seq", name="uq_parcel_audit_seq"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    ulpin = Column(String, index=True, nullable=False)
+    seq = Column(Integer, nullable=False)
+    request_id = Column(Integer, nullable=True)
+    event = Column(String, nullable=False)  # imported, created, submitted, under_review, approved, rejected, archived, superseded
+    from_status = Column(String, nullable=True)
+    to_status = Column(String, nullable=True)
+    actor_role = Column(String, nullable=False)
+    note = Column(String, nullable=True)
+    payload_digest = Column(String, nullable=True)  # SHA-256 of the request payload at that moment
+    created_at = Column(String, nullable=False)
+    prev_hash = Column(String, nullable=False)
+    entry_hash = Column(String, nullable=False)

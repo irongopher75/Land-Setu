@@ -76,10 +76,11 @@ flowchart LR
 | Rule engine | `backend/app/rules.py` | **[Implemented]** | Five rules, cached result on the parcel row, neighbour invalidation. See section 3. |
 | Workflow pipeline | `backend/app/workflow.py`, `backend/app/routes/workflow.py`, `backend/app/routes/parcels.py` | **[Implemented]** | Multi-stage approval for boundary, deletion, split, merge and correction requests. |
 | State detection | `backend/app/states.py` | **[Partial]** | Point-in-polygon against hand-simplified state outlines plus bounding boxes. Not official boundaries. See section 3. |
-| Migrations | `backend/alembic/versions/` (3 revisions) | **[Partial]** | The running service builds tables with `create_all` at startup. Alembic revisions exist for upgrading older databases. |
+| Migrations | `backend/alembic/versions/` (4 revisions) | **[Partial]** | The running service builds tables with `create_all` at startup. Alembic revisions exist for upgrading older databases. |
 | Web application | `frontend/src/` | **[Implemented]** | React 18, Vite, Leaflet, Turf.js, Axios. Pages are listed in 1.5. |
 | Identity | `frontend/src/firebase.js`, `backend/app/routes/auth.py` | **[Implemented]** | Firebase Auth issues identity. The API exchanges the ID token for its own session. |
-| Title hash chain | `frontend/src/blockchain.js`, `frontend/src/firebaseFirestore.js` | **[Partial]** | SHA-256 blocks are computed in the browser and stored in Firestore. It is a tamper-evidence demonstration, not a server-side ledger. See section 5. |
+| Audit log | `backend/app/audit.py`, `parcel_audit_log` | **[Implemented]** | Hash-chained, append-only, verified on read. See sections 2 and 5. |
+| Legacy chain | `frontend/src/blockchain.js` | **[Partial]** | Older browser-side chain, shown only when the API is unreachable. |
 | Offline fallback | `frontend/src/api.js`, `frontend/src/firebaseFirestore.js` | **[Partial]** | When the API is unreachable the app shows bundled sample parcels and keeps drawn parcels in localStorage and Firestore. This is a second store and a known consistency risk. |
 | Vector tiles, partitioning | none | **[Planned]** | See section 7. |
 
@@ -102,7 +103,7 @@ If any API call fails, the SPA falls back to bundled sample data. A response tha
 
 ### 1.6 Testing and delivery
 
-- 30 backend tests (`backend/tests/`) cover authentication, roles, the rule engine, the flag cache, the workflow pipeline, and public access. They run on SQLite. **The PostGIS code path is not covered by an automated test.**
+- 48 backend tests (`backend/tests/`) cover authentication, roles, the rule engine, the flag cache, the workflow pipeline, and public access. They run on SQLite. **The PostGIS code path is not covered by an automated test.**
 - GitHub Actions (`.github/workflows/firebase-hosting-merge.yml`) runs the backend tests and the frontend build on every push to `main`, then deploys the frontend to Firebase Hosting if both pass.
 
 ---
@@ -129,6 +130,8 @@ The primary key of the domain is the **ULPIN** (`parcels.ulpin`, unique, indexed
 | `layers` | JSON | The five department layers plus encumbrance. See 2.3. |
 | `raw_record` | JSON | The unmodified source row as received from the state |
 | `flags` | JSONB on PostgreSQL | Cached rule engine output. `NULL` means stale or never computed. `[]` means computed, no flags. |
+| `status` | `active`, `archived` or `superseded` | Lifecycle. A parcel is never deleted. Approved removal sets `archived`. A split or merge sets `superseded` on the parcel it replaces. Default views show only `active`. Archived parcels stay readable by ULPIN. |
+| `archived_at`, `archived_reason`, `superseded_by` | string | Why and when a parcel left the active set, and which parcel replaced it |
 
 **`protected_zones`**: `zone_id` (unique), `state`, `name`, `geometry` (PostGIS `POLYGON`, SRID 4326).
 
@@ -143,7 +146,11 @@ The primary key of the domain is the **ULPIN** (`parcels.ulpin`, unique, indexed
 | `geometry`, `area_sqm`, `reason` | Proposed boundary and reason |
 | `payload` | Type-specific data. SPLIT: `{parts: [{ulpin, geometry, area_sqm}]}`. MERGE: `{merge_ulpins: [...]}`. CORRECTION: `{layer, field, current, requested, evidence}`. |
 | `history` | Audit trail: `[{at, status, role, note}]`, oldest first |
+| `track` | `HIGH` (village officer, auditor, state admin) or `FAST` (one auditor or state admin) |
+| `requester_uid` | Account that filed the request. No one, including a super administrator, may act on a request they filed. |
 | `approved_by`, `approver_role`, `created_at` | Decision fields |
+
+**`parcel_audit_log`** is the append-only audit log. One row per state transition of a parcel or request: `ulpin`, `seq` (per parcel), `request_id`, `event` (`imported`, `created`, `submitted`, `under_review`, `approved`, `rejected`, `archived`, `superseded`), `from_status`, `to_status`, `actor_role`, `note`, `payload_digest`, `created_at`, `prev_hash`, `entry_hash`. `entry_hash = SHA-256(prev_hash + canonical JSON of the entry)`, starting from a fixed genesis value, chained per ULPIN. A database trigger refuses UPDATE and DELETE (and TRUNCATE on PostgreSQL). `GET /parcels/{ulpin}/audit-chain` recomputes every hash and reports `verified`. It exposes roles only, so it is public.
 
 The frontend also uses six Firestore collections as a browser-side store: `users`, `custom_parcels`, `boundary_requests`, `deleted_parcels`, `deed_blockchain` and `protected_zones`.
 
@@ -399,9 +406,9 @@ The server is the authority. The interface reads the same claim so it can show o
 | Role checks per route | **[Implemented]** | Tested for citizen, officer, auditor and state admin paths. |
 | Public reads at citizen level | **[Implemented]** | Citizens see only a defined set of fields per layer. The raw source record is withheld. |
 | Input validation | **[Implemented]** | Pydantic models, ULPIN pattern, polygon validity, vertex cap, escaped search wildcards. |
-| Approval separation of duties | **[Implemented]** | Each stage needs a different role. A filer cannot approve their own request. |
-| Request audit trail | **[Partial]** | Each request stores its status history in the database. Rows can be edited by anyone with database access, so it is not tamper-evident on the server. |
-| Title hash chain | **[Partial]** | SHA-256 chain computed in the browser and stored in Firestore. It shows the idea of tamper evidence. It is not a trusted ledger, because the browser computes it. |
+| Approval separation of duties | **[Implemented]** | Two tracks. High rigor (boundary, split, merge, deletion, and any correction that changes ownership, share, land use or a different person or reference) needs the village officer, auditor and state administrator. Fast track (spelling-level fixes to owner name or khata reference) needs one auditor or state administrator. The account that filed a request can never act on it, at any stage, whatever its role. |
+| Audit log | **[Implemented]** | Hash-chained, append-only `parcel_audit_log`, guarded by a database trigger and verified on read. A person with database administrator rights could still rewrite the whole chain. External anchoring of the head hash is **[Planned]**. |
+| Legacy browser-side chain | **[Partial]** | The earlier chain computed in the browser and stored in Firestore is shown only when the API is unreachable, labelled as not verified. |
 | Firestore rules | **[Partial]** | The rules in the repository restrict writes by role claim and status transition and compile in a dry run. **They are not yet deployed.** The rules currently live in the project allow any signed-in user to write to several collections. |
 | Rate limiting | **[Partial]** | Configured in the nginx load balancer of the docker-compose stack. The Render deployment has no rate limit. |
 | Token revocation | **[Planned]** | Access tokens live 30 minutes and cannot be revoked earlier. There is no server-side session list. |
@@ -558,7 +565,7 @@ A `docker-compose.yml` runs a local stack (PostGIS database, API, frontend, and 
 |---|---|---|---|
 | 1 | Firestore write rules written but not deployed | Section 5 | Deploy after officer role claims are set |
 | 2 | Two stores (PostgreSQL and browser-side Firestore/localStorage) | Section 1 | PostgreSQL authoritative, browser store as a sync queue |
-| 3 | Browser-side hash chain is not a trusted ledger | Section 5 | Server-side append-only audit log |
+| 3 | Audit log head hash is not anchored outside the database | Section 5 | Periodic external anchoring |
 | 4 | State detection uses simplified outlines | Section 3 | Official state and district boundaries stored locally |
 | 5 | Adapter does not coerce types and ignores `terminology_map` | Section 2 | Typed canonical schema, apply terminology map |
 | 6 | Only two states have parcel data | Appendix A | Batch import with validation |
@@ -604,9 +611,9 @@ backend/
   app/routes/            auth, parcels, workflow, adapter
   configs/*.yaml         one mapping file per state
   mock_data/             synthetic CSV and GeoJSON for Tamil Nadu and Chandigarh
-  alembic/versions/      3 migration revisions
+  alembic/versions/      4 migration revisions
   scripts/set_role.py    assign a role claim to an account
-  tests/                 30 tests
+  tests/                 48 tests
 frontend/
   src/App.jsx, router.js, i18n.jsx, api.js
   src/pages/             text pages, lender preview, developer API, officer console

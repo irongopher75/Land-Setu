@@ -321,3 +321,5 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; line-height
 .audience-tabs small { font-weight: 400; font-size: var(--text-xs); color: var(--ink-muted); }
 .audience-tabs button.is-active { background: var(--ink-navy); color: var(--ink-on-navy); }
 .audience-tabs button.is-active small { color: var(--ink-on-navy); }
+.chain-status--broken { border-color: var(--accent-seal); background: var(--accent-seal-tint); }
+.chain-status--broken strong { color: var(--accent-seal); }

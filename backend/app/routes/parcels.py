@@ -10,9 +10,11 @@ from app.db import get_db
 from app.models import Parcel, ProtectedZone, BoundaryChangeRequest
 from app.schemas import ParcelListItem, CanonicalParcelResponse, FlagItem
 from app.rules import RuleEngine, parse_geometry_shape, invalidate_neighbor_flags
-from app.routes.auth import get_current_role, get_optional_role, require_roles, SECRET_KEY, ALGORITHM
+from app.routes.auth import get_current_role, get_current_payload, get_optional_role, require_roles, SECRET_KEY, ALGORITHM
 from app.states import INDIAN_STATES, detect_state_from_coords
-from app.workflow import advance_request, apply_request, NEW_TYPES
+from app.workflow import (advance_request, apply_request, archive_parcel, forbid_self_approval, NEW_TYPES,
+                          FAST_STATUS)
+from app import audit
 
 router = APIRouter(prefix="/parcels", tags=["Parcels"])
 
@@ -64,7 +66,11 @@ def filter_fields_by_role(parcel_dict: dict, role: str) -> dict:
             "area_sqm": parcel_dict.get("area_sqm"),
             "layers": cleaned_layers,
             "flags": parcel_dict.get("flags", []),
-            "raw_record": None
+            "raw_record": None,
+            "status": parcel_dict.get("status", "active"),
+            "archived_at": parcel_dict.get("archived_at"),
+            "archived_reason": parcel_dict.get("archived_reason"),
+            "superseded_by": parcel_dict.get("superseded_by"),
         }
 
     return parcel_dict
@@ -72,7 +78,7 @@ def filter_fields_by_role(parcel_dict: dict, role: str) -> dict:
 @router.get("", response_model=List[ParcelListItem])
 def list_parcels(state: Optional[str] = Query(None), offset: int = Query(0, ge=0),
                  limit: int = Query(100, ge=1, le=250), db: Session = Depends(get_db)):
-    query = db.query(Parcel)
+    query = db.query(Parcel).filter(Parcel.status == "active")
     if state:
         query = query.filter(Parcel.state == state)
 
@@ -131,7 +137,7 @@ def get_protected_zones_geojson(state: Optional[str] = Query(None), db: Session 
 @router.get("/geojson/all")
 def get_all_parcels_geojson(state: Optional[str] = Query(None), offset: int = Query(0, ge=0),
                             limit: int = Query(500, ge=1, le=1000), db: Session = Depends(get_db)):
-    query = db.query(Parcel)
+    query = db.query(Parcel).filter(Parcel.status == "active")
     if state:
         query = query.filter(Parcel.state == state)
 
@@ -169,7 +175,8 @@ def get_parcel_detail(ulpin: str, role: str = Depends(get_optional_role), db: Se
         raise HTTPException(status_code=404, detail=f"Parcel with ULPIN '{ulpin}' not found")
 
     geom_shape = parse_geometry_shape(parcel.geometry)
-    flags = RuleEngine.evaluate_parcel_rules(db, parcel)
+    # An archived or superseded parcel stays readable. Its rule flags are not evaluated.
+    flags = RuleEngine.evaluate_parcel_rules(db, parcel) if parcel.status == "active" else []
 
     full_canonical = {
         "ulpin": parcel.ulpin,
@@ -178,10 +185,34 @@ def get_parcel_detail(ulpin: str, role: str = Depends(get_optional_role), db: Se
         "area_sqm": parcel.area_sqm,
         "layers": parcel.layers or {},
         "flags": flags,
-        "raw_record": parcel.raw_record
+        "raw_record": parcel.raw_record,
+        "status": parcel.status,
+        "archived_at": parcel.archived_at,
+        "archived_reason": parcel.archived_reason,
+        "superseded_by": parcel.superseded_by,
     }
 
     return filter_fields_by_role(full_canonical, role)
+
+
+@router.get("/{ulpin}/audit-chain")
+def get_audit_chain(ulpin: str, db: Session = Depends(get_db)):
+    """The tamper-evident audit log of one parcel. Roles only, no personal data, so it is public.
+    The hashes are recomputed here on every call; `verified` is false if any entry was altered."""
+    if not db.query(Parcel.id).filter(Parcel.ulpin == ulpin).first():
+        raise HTTPException(status_code=404, detail=f"Parcel with ULPIN '{ulpin}' not found")
+    rows = audit.chain(db, ulpin)
+    ok, broken_at = audit.verify(rows)
+    return {
+        "ulpin": ulpin, "verified": ok, "broken_at": broken_at, "genesis_hash": audit.GENESIS_HASH,
+        "head_hash": rows[-1].entry_hash if rows else audit.GENESIS_HASH,
+        "entries": [
+            {"seq": r.seq, "event": r.event, "from_status": r.from_status, "to_status": r.to_status,
+             "actor_role": r.actor_role, "note": r.note, "request_id": r.request_id,
+             "created_at": r.created_at, "prev_hash": r.prev_hash, "entry_hash": r.entry_hash}
+            for r in rows
+        ],
+    }
 
 @router.get("/{ulpin}/geometry")
 def get_parcel_geometry(ulpin: str, db: Session = Depends(get_db)):
@@ -242,7 +273,8 @@ class CreateCustomParcelRequest(BaseModel):
     area_sqm: float = Field(gt=0, le=100_000_000)
 
 @router.post("/custom")
-def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
+def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get_current_role),
+                         actor: dict = Depends(get_current_payload), db: Session = Depends(get_db)):
     if role == "citizen":
         raise HTTPException(
             status_code=403,
@@ -291,9 +323,13 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get
             status="PENDING_APPROVAL",
             type="BOUNDARY",
             history=[],
+            track="HIGH",
+            requester_uid=actor.get("sub"),
             created_at=datetime.utcnow().isoformat()
         )
         db.add(change_req)
+        db.flush()
+        advance_request(change_req, "PENDING_APPROVAL", role, "Submitted", db=db, submitted=True)
         db.commit()
         db.refresh(change_req)
 
@@ -319,7 +355,7 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get
         BoundaryChangeRequest.status == "PENDING_APPROVAL"
     ).all()
     for pr in pending_reqs:
-        advance_request(pr, "APPROVED", role, "Superseded by direct save")
+        advance_request(pr, "APPROVED", role, "Superseded by direct save", db=db)
         pr.approved_by = req.owner_name
         pr.approver_role = role
 
@@ -398,12 +434,13 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get
     }
 
 @router.get("/requests/pending")
-def list_pending_requests(role: str = Depends(require_roles("officer", "bank", "auditor", "state_admin", "village_officer")), db: Session = Depends(get_db)):
+def list_pending_requests(role: str = Depends(require_roles("officer", "bank", "auditor", "state_admin", "village_officer")),
+                          actor: dict = Depends(get_current_payload), db: Session = Depends(get_db)):
     """Lists all boundary change and deletion requests in the multi-stage governance pipeline."""
     reqs = db.query(BoundaryChangeRequest).filter(
         BoundaryChangeRequest.status.in_([
             "PENDING_AUDITOR_REVIEW", "PENDING_STATE_ADMIN", "PENDING_APPROVAL",
-            "PENDING_DELETION_VILLAGE", "PENDING_DELETION_AUDITOR", "PENDING_VILLAGE_REVIEW"
+            "PENDING_DELETION_VILLAGE", "PENDING_DELETION_AUDITOR", "PENDING_VILLAGE_REVIEW", FAST_STATUS
         ])
     ).order_by(BoundaryChangeRequest.id.desc()).all()
 
@@ -423,7 +460,9 @@ def list_pending_requests(role: str = Depends(require_roles("officer", "bank", "
             "payload": r.payload,
             "history": r.history or [],
             "created_at": r.created_at,
-            "geometry": r.geometry
+            "geometry": r.geometry,
+            "track": r.track or "HIGH",
+            "filed_by_you": bool(r.requester_uid and r.requester_uid == actor.get("sub")),
         })
     return result
 
@@ -431,7 +470,8 @@ class RequestDeletionPayload(BaseModel):
     reason: Optional[str] = "State Admin requested land parcel deletion"
 
 @router.post("/{ulpin}/request-deletion")
-def request_parcel_deletion(ulpin: str, payload: Optional[RequestDeletionPayload] = None, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
+def request_parcel_deletion(ulpin: str, payload: Optional[RequestDeletionPayload] = None, role: str = Depends(get_current_role),
+                            actor: dict = Depends(get_current_payload), db: Session = Depends(get_db)):
     """State Admin endpoint to initiate a parcel deletion request requiring Auditor + Land Officer approval."""
     if role not in ("state_admin", "super_admin"):
         raise HTTPException(
@@ -450,6 +490,8 @@ def request_parcel_deletion(ulpin: str, payload: Optional[RequestDeletionPayload
         )
 
     parcel = db.query(Parcel).filter(Parcel.ulpin == ulpin).first()
+    if parcel and parcel.status != "active":
+        raise HTTPException(status_code=409, detail=f"Parcel '{ulpin}' is already {parcel.status}.")
     state_val = parcel.state if parcel else "Unknown State"
     area = parcel.area_sqm if parcel else 0.0
     geom = parse_geometry_shape(parcel.geometry).__geo_interface__ if (parcel and parcel.geometry) else {}
@@ -465,21 +507,25 @@ def request_parcel_deletion(ulpin: str, payload: Optional[RequestDeletionPayload
         status="PENDING_DELETION_VILLAGE",
         type="DELETION",
         history=[],
+        track="HIGH",
+        requester_uid=actor.get("sub"),
         created_at=datetime.utcnow().isoformat()
     )
     db.add(change_req)
+    db.flush()
+    advance_request(change_req, "PENDING_DELETION_VILLAGE", role, "Archival requested", db=db, submitted=True)
     db.commit()
     db.refresh(change_req)
 
     return {
         "status": "PENDING_DELETION_VILLAGE",
-        "message": f"Land deletion request for ULPIN '{ulpin}' submitted! Stage 1: Awaiting Village Land Officer review & approval.",
+        "message": f"Archival request for ULPIN '{ulpin}' submitted! Stage 1: Awaiting Village Land Officer review & approval.",
         "request_id": change_req.id,
         "ulpin": ulpin
     }
 
 @router.post("/requests/{request_id}/village-approve-deletion")
-def village_approve_deletion(request_id: int, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
+def village_approve_deletion(request_id: int, role: str = Depends(get_current_role), actor: dict = Depends(get_current_payload), db: Session = Depends(get_db)):
     """Village Officer endpoint to approve land deletion (Stage 1)."""
     if role not in ("village_officer", "super_admin"):
         raise HTTPException(
@@ -493,7 +539,8 @@ def village_approve_deletion(request_id: int, role: str = Depends(get_current_ro
     if req.status != "PENDING_DELETION_VILLAGE":
         raise HTTPException(status_code=400, detail=f"Deletion request is not awaiting village officer approval (current: {req.status}).")
 
-    advance_request(req, "PENDING_DELETION_AUDITOR", role, "Village officer approved deletion")
+    forbid_self_approval(req, actor)
+    advance_request(req, "PENDING_DELETION_AUDITOR", role, "Village officer approved deletion", db=db)
     req.approved_by = "Village Land Officer (Deletion Stage 1 Approved)"
     req.approver_role = role
     db.commit()
@@ -504,7 +551,7 @@ def village_approve_deletion(request_id: int, role: str = Depends(get_current_ro
     }
 
 @router.post("/requests/{request_id}/auditor-approve-deletion")
-def auditor_approve_deletion(request_id: int, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
+def auditor_approve_deletion(request_id: int, role: str = Depends(get_current_role), actor: dict = Depends(get_current_payload), db: Session = Depends(get_db)):
     """Auditor endpoint to authorize final land deletion (Stage 2)."""
     if role not in ("auditor", "super_admin"):
         raise HTTPException(
@@ -518,23 +565,24 @@ def auditor_approve_deletion(request_id: int, role: str = Depends(get_current_ro
     if req.status != "PENDING_DELETION_AUDITOR":
         raise HTTPException(status_code=400, detail=f"Deletion request is not awaiting auditor authorization (current: {req.status}).")
 
+    forbid_self_approval(req, actor)
     parcel = db.query(Parcel).filter(Parcel.ulpin == req.ulpin).first()
-    if parcel:
+    if parcel and parcel.status == "active":
         invalidate_neighbor_flags(db, [parcel.geometry], parcel.state, exclude_id=parcel.id)
-        db.delete(parcel)
+        archive_parcel(db, parcel, "archived", req.reason or "Archived by approved request", role, request_id=req.id)
 
-    advance_request(req, "DELETED", role, "Auditor authorized deletion")
+    advance_request(req, "ARCHIVED", role, "Auditor authorized archival", db=db, event="approved")
     req.approved_by = "Compliance Auditor (Final Deletion Authorized)"
     req.approver_role = role
     db.commit()
 
     return {
-        "status": "DELETED",
-        "message": f"Land deletion for ULPIN '{req.ulpin}' fully authorized by Auditor & Village Officer! Parcel record permanently removed from master GIS database."
+        "status": "ARCHIVED",
+        "message": f"Archival of ULPIN '{req.ulpin}' authorized. The parcel is removed from active views. Its record and full history stay on file."
     }
 
 @router.post("/requests/{request_id}/auditor-pass")
-def auditor_pass_request(request_id: int, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
+def auditor_pass_request(request_id: int, role: str = Depends(get_current_role), actor: dict = Depends(get_current_payload), db: Session = Depends(get_db)):
     """Auditor endpoint to pass compliance audit and forward request to State Admin."""
     if role not in ("auditor", "state_admin", "super_admin"):
         raise HTTPException(
@@ -548,7 +596,8 @@ def auditor_pass_request(request_id: int, role: str = Depends(get_current_role),
 
     if req.type in NEW_TYPES and req.status != "PENDING_APPROVAL":
         raise HTTPException(status_code=400, detail=f"Request is not awaiting auditor review (current: {req.status}).")
-    advance_request(req, "PENDING_STATE_ADMIN", role, "Audit passed")
+    forbid_self_approval(req, actor)
+    advance_request(req, "PENDING_STATE_ADMIN", role, "Audit passed", db=db)
     req.approved_by = "Compliance Auditor (Audit Passed)"
     req.approver_role = role
     db.commit()
@@ -556,7 +605,7 @@ def auditor_pass_request(request_id: int, role: str = Depends(get_current_role),
     return {"status": "PENDING_STATE_ADMIN", "message": f"Boundary change request #{request_id} passed auditor review and forwarded to State Admin!"}
 
 @router.post("/requests/{request_id}/approve")
-def approve_boundary_request(request_id: int, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
+def approve_boundary_request(request_id: int, role: str = Depends(get_current_role), actor: dict = Depends(get_current_payload), db: Session = Depends(get_db)):
     """State Admin approval endpoint to commit a lower authority boundary change request."""
     if role not in ("state_admin", "super_admin"):
         raise HTTPException(
@@ -571,11 +620,12 @@ def approve_boundary_request(request_id: int, role: str = Depends(get_current_ro
     if not req:
         raise HTTPException(status_code=404, detail="Boundary change request not found")
 
+    forbid_self_approval(req, actor)
     if req.type in NEW_TYPES:
         if req.status != "PENDING_STATE_ADMIN":
             raise HTTPException(status_code=400, detail=f"Request is not awaiting state admin approval (current: {req.status}).")
-        apply_request(db, req)
-        advance_request(req, "APPROVED", role, f"{req.type.title()} applied")
+        apply_request(db, req, role)
+        advance_request(req, "APPROVED", role, f"{req.type.title()} applied", db=db)
         req.approved_by = "State Administration Officer"
         req.approver_role = role
         db.commit()
@@ -612,7 +662,7 @@ def approve_boundary_request(request_id: int, role: str = Depends(get_current_ro
         db.add(existing)
 
     _refresh_flags_after_change(db, existing, old_geom, old_state)
-    advance_request(req, "APPROVED", role, "Boundary change applied")
+    advance_request(req, "APPROVED", role, "Boundary change applied", db=db)
     req.approved_by = "State Administration Officer"
     req.approver_role = role
     db.commit()
@@ -620,7 +670,7 @@ def approve_boundary_request(request_id: int, role: str = Depends(get_current_ro
     return {"status": "APPROVED", "message": f"Boundary change request #{request_id} for ULPIN '{req.ulpin}' approved and committed!"}
 
 @router.post("/requests/{request_id}/reject")
-def reject_boundary_request(request_id: int, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
+def reject_boundary_request(request_id: int, role: str = Depends(get_current_role), actor: dict = Depends(get_current_payload), db: Session = Depends(get_db)):
     """Rejection / withdrawal for boundary-change and deletion requests."""
     req = db.query(BoundaryChangeRequest).filter(BoundaryChangeRequest.id == request_id).first()
     if not req:
@@ -628,7 +678,7 @@ def reject_boundary_request(request_id: int, role: str = Depends(get_current_rol
 
     village_can_reject = role in ("village_officer", "super_admin") and req.status in ("PENDING_DELETION_VILLAGE", "PENDING_VILLAGE_REVIEW")
     auditor_can_reject = role in ("auditor", "super_admin") and (
-        req.status in ("PENDING_DELETION_AUDITOR", "PENDING_AUDITOR_REVIEW", "PENDING_APPROVAL")
+        req.status in ("PENDING_DELETION_AUDITOR", "PENDING_AUDITOR_REVIEW", "PENDING_APPROVAL", FAST_STATUS)
     )
     admin_can_reject = role in ("state_admin", "super_admin")
 
@@ -638,7 +688,7 @@ def reject_boundary_request(request_id: int, role: str = Depends(get_current_rol
             detail="Permission denied: you cannot reject this request at the current pipeline stage."
         )
 
-    advance_request(req, "REJECTED", role, "Rejected")
+    advance_request(req, "REJECTED", role, "Rejected", db=db)
     req.approved_by = f"Rejected by {role}"
     req.approver_role = role
     db.commit()

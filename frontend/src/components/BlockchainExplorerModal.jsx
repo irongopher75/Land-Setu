@@ -1,101 +1,99 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { X, RefreshCw } from 'lucide-react';
-import { getDeedBlockchain, auditChainIntegrity, calculateSHA256 } from '../blockchain';
+import { getAuditChain } from '../api';
+import { getDeedBlockchain } from '../blockchain';
+
+const EVENT_LABEL = {
+  imported: 'Record loaded', created: 'Created', submitted: 'Change requested', under_review: 'Passed a review stage',
+  approved: 'Approved', rejected: 'Rejected', archived: 'Archived', superseded: 'Replaced by another parcel',
+};
+const ROLE_LABEL = {
+  system: 'System', citizen: 'Citizen', village_officer: 'Village land officer', auditor: 'Auditor',
+  state_admin: 'State administrator', super_admin: 'Super administrator', officer: 'Officer', bank: 'Bank',
+};
+const short = (h) => (h ? `${h.slice(0, 12)}...${h.slice(-8)}` : '');
 
 export default function BlockchainExplorerModal({ ulpin, parcel, onClose }) {
-  const [blocks, setBlocks] = useState([]);
+  const [chain, setChain] = useState(null);      // audit log from the records service
+  const [legacy, setLegacy] = useState(null);    // browser-side record, only when the service is unreachable
   const [loading, setLoading] = useState(true);
-  const [auditResult, setAuditResult] = useState(null);
-  const [auditing, setAuditing] = useState(false);
 
-  useEffect(() => {
-    if (ulpin) {
-      loadChain();
-    }
-  }, [ulpin]);
-
-  const loadChain = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
-    try {
-      const chain = await getDeedBlockchain(ulpin, parcel);
-      setBlocks(chain);
-      const audit = await auditChainIntegrity(chain);
-      setAuditResult(audit);
-    } catch (err) {
-      console.error('Failed to load blockchain:', err);
-    } finally {
-      setLoading(false);
+    const live = await getAuditChain(ulpin);
+    setChain(live);
+    if (!live) {
+      try { setLegacy(await getDeedBlockchain(ulpin, parcel)); } catch (e) { setLegacy([]); }
     }
-  };
+    setLoading(false);
+  }, [ulpin, parcel]);
 
-  const runLiveReAudit = async () => {
-    setAuditing(true);
-    try {
-      // Re-verify hash integrity for each block
-      for (const block of blocks) {
-        if (block.actionType === 'DEED_GENESIS') continue;
-        const payloadString = JSON.stringify(block.payload);
-        const rawHeader = `${block.ulpin}:${block.actionType}:${block.timestamp}:${block.previousHash}:${payloadString}:${block.nonce}`;
-        const computedHash = await calculateSHA256(rawHeader);
-        if (computedHash !== block.currentHash) {
-          console.warn(`Block hash mismatch detected on Block #${block.blockHeight}! Computed: ${computedHash}, Stored: ${block.currentHash}`);
-        }
-      }
-      const audit = await auditChainIntegrity(blocks);
-      setAuditResult(audit);
-      alert('SHA-256 re-audit complete. No tampering detected in any block.');
-    } catch (err) {
-      alert('Audit error: ' + err.message);
-    } finally {
-      setAuditing(false);
-    }
-  };
+  useEffect(() => { if (ulpin) load(); }, [ulpin, load]);
 
   if (!ulpin) return null;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-label="Hash chain audit" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-label="Audit log" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div>
-            <h3>Title hash chain</h3>
-            <p>ULPIN <span className="data-id">{ulpin}</span>. Each block stores the SHA-256 of the one before it.</p>
+            <h3>Audit log</h3>
+            <p>ULPIN <span className="data-id">{ulpin}</span>. Every change is stored in a secure, tamper-evident audit log. Each entry holds the SHA-256 of the entry before it.</p>
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="Close"><X size={18} /></button>
         </div>
 
-        <div className="chain-status">
-          <div>
-            <strong>Hash chain verified</strong>
-            <span className="tabular">{blocks.length} blocks linked. No tampering detected.</span>
+        {chain && (
+          <div className={`chain-status ${chain.verified ? '' : 'chain-status--broken'}`} role="status">
+            <div>
+              <strong>{chain.verified ? 'Log verified' : `Log altered at entry ${chain.broken_at}`}</strong>
+              <span className="tabular">
+                {chain.entries.length} {chain.entries.length === 1 ? 'entry' : 'entries'}, hashes recomputed by the server just now.
+              </span>
+            </div>
+            <button className="btn" onClick={load} disabled={loading}><RefreshCw size={13} aria-hidden="true" /> Verify again</button>
           </div>
-          <button className="btn" onClick={runLiveReAudit} disabled={auditing}>
-            <RefreshCw size={13} /> {auditing ? 'Auditing' : 'Re-audit hashes'}
-          </button>
-        </div>
+        )}
+
+        {!chain && !loading && (
+          <div className="callout callout--alert" role="status">
+            The records service is not reachable, so the live audit log cannot be shown. Below is the older record kept in this browser. It is not the audit log and is not verified.
+          </div>
+        )}
 
         {loading ? (
-          <div className="note">Loading the block sequence</div>
+          <div className="note">Loading the audit log</div>
+        ) : chain ? (
+          <ol className="chain-list">
+            {chain.entries.map((e) => (
+              <li className="chain-block" key={e.seq}>
+                <div className="chain-block-head">
+                  <span className="chain-block-n tabular">Entry {e.seq}</span>
+                  <span>{EVENT_LABEL[e.event] || e.event}</span>
+                  <span className="chain-block-time tabular">{new Date(e.created_at).toLocaleString('en-IN')}</span>
+                </div>
+                <div className="subtle">
+                  {ROLE_LABEL[e.actor_role] || e.actor_role}
+                  {e.to_status ? `. Status: ${e.from_status ? `${e.from_status.replace(/_/g, ' ').toLowerCase()} to ` : ''}${e.to_status.replace(/_/g, ' ').toLowerCase()}` : ''}
+                  {e.request_id ? `. Request #${e.request_id}` : ''}
+                </div>
+                {e.note && <div>{e.note}</div>}
+                <dl className="chain-hashes">
+                  <div><dt>Hash</dt><dd title={e.entry_hash}>{short(e.entry_hash)}</dd></div>
+                  <div><dt>Previous</dt><dd title={e.prev_hash}>{short(e.prev_hash)}</dd></div>
+                </dl>
+              </li>
+            ))}
+          </ol>
         ) : (
           <ol className="chain-list">
-            {blocks.map((blk) => (
+            {(legacy || []).map((blk) => (
               <li className="chain-block" key={blk.blockHeight}>
                 <div className="chain-block-head">
-                  <span className="chain-block-n tabular">Block {blk.blockHeight}</span>
+                  <span className="chain-block-n tabular">Legacy {blk.blockHeight}</span>
                   <span>{blk.actionType.replace(/_/g, ' ').toLowerCase()}</span>
-                  <span className="chain-block-time tabular">{new Date(blk.timestamp).toLocaleString('en-IN')}</span>
                 </div>
-                <dl className="chain-hashes">
-                  <div><dt>Hash</dt><dd>{blk.currentHash}</dd></div>
-                  <div><dt>Previous</dt><dd>{blk.previousHash}</dd></div>
-                  <div><dt>Signature</dt><dd>{blk.signature}</dd></div>
-                </dl>
-                <div className="field-grid">
-                  <div className="field-item"><span className="field-label">Owner</span><span className="field-value">{blk.payload?.owner || 'Not recorded'}</span></div>
-                  <div className="field-item"><span className="field-label">Khata no.</span><span className="field-value data-id">{blk.payload?.khata_no || 'Not recorded'}</span></div>
-                  <div className="field-item"><span className="field-label">Deed ID</span><span className="field-value data-id">{blk.payload?.deed_id || 'Not recorded'}</span></div>
-                  <div className="field-item"><span className="field-label">Authority</span><span className="field-value">{blk.payload?.authority || 'Sub-Registrar'}</span></div>
-                </div>
+                <dl className="chain-hashes"><div><dt>Hash</dt><dd>{short(blk.currentHash)}</dd></div></dl>
               </li>
             ))}
           </ol>

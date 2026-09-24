@@ -97,3 +97,5 @@
 
 .wf-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-3); }
 .wf-actions--panel { margin: var(--space-1) 0; }
+
+.wf-stages--two { grid-template-columns: repeat(2, 1fr); }

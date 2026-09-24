@@ -38,7 +38,9 @@ export default function HowItWorksPage() {
       </section>
       <section>
         <h2>How a correction is made</h2>
-        <p>Anyone can request a correction with a supporting document. The request passes three stages. No one can approve their own request, and every decision is written to a tamper-evident log.</p>
+        <p>Anyone can request a correction with a supporting document. No one can approve a request they filed, and every decision is written to a tamper-evident audit log.</p>
+        <p><strong>Fast track.</strong> A spelling-level fix to a name or a khata reference is decided by one reviewer, an auditor or the state administrator.</p>
+        <p><strong>Full review.</strong> Anything that changes an owner, a boundary, a split, a merge, land use or a parcel's status passes three stages:</p>
         <ol className="checks-list">
           <li><span className="checks-name">Village land officer</span><span>Checks the documents against the field record.</span></li>
           <li><span className="checks-name">Auditor</span><span>Reviews the officer's decision independently.</span></li>

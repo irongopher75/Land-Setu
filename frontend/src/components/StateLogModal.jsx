@@ -82,7 +82,7 @@ export default function StateLogModal({ initialState = 'TamilNadu', onClose, rol
       // 2. Build Activity Log Stream from Blockchain & System events
       let firestoreBlocks = [];
       try {
-        firestoreBlocks = await getBlockchainBlocks();
+        firestoreBlocks = [];
       } catch (e) {}
 
       const generatedLogs = [];

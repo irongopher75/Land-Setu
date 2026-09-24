@@ -294,14 +294,31 @@ export const getParcelFlags = async (ulpin) => {
   }
 };
 
+// The tamper-evident audit log kept by the records service. null when the service is unreachable.
+export const getAuditChain = async (ulpin) => {
+  if (isLocalhostBackendForbidden()) return null;
+  try {
+    const res = await client.get(`/parcels/${encodeURIComponent(ulpin)}/audit-chain`);
+    return Array.isArray(res.data?.entries) ? res.data : null;
+  } catch (err) {
+    return null;
+  }
+};
+
+// Single-approver track for spelling-level corrections.
+export const fastApproveRequest = (requestId) => restPost(`/parcels/requests/${requestId}/fast-approve`, 'Fast-track approval');
+
 export const getParcelBlockchain = async (ulpin, parcelDetail = {}) => {
   return await getDeedBlockchain(ulpin, parcelDetail);
 };
 
 export const getParcelPassport = async (ulpin) => {
   const parcel = await getParcelDetail(ulpin).catch(() => ({}));
-  const chain = await getDeedBlockchain(ulpin, parcel).catch(() => []);
-  const latestBlock = chain.length > 0 ? chain[chain.length - 1] : null;
+  const audit = await getAuditChain(ulpin);
+  const chain = audit ? [] : await getDeedBlockchain(ulpin, parcel).catch(() => []);
+  const latestBlock = audit
+    ? { currentHash: `0x${audit.head_hash}`, blockHeight: audit.entries.length }
+    : (chain.length > 0 ? chain[chain.length - 1] : null);
 
   try {
     const res = await client.get(`/parcels/${ulpin}/passport`);
@@ -352,7 +369,7 @@ const restCall = async (method, url, action, data) => {
 };
 const restPost = (url, action, data) => restCall('post', url, action, data);
 
-const OPEN_REQUEST_STATUSES = ['PENDING_VILLAGE_REVIEW', 'PENDING_AUDITOR_REVIEW', 'PENDING_STATE_ADMIN', 'PENDING_APPROVAL', 'PENDING', 'PENDING_DELETION_VILLAGE', 'PENDING_DELETION_AUDITOR'];
+const OPEN_REQUEST_STATUSES = ['PENDING_VILLAGE_REVIEW', 'PENDING_AUDITOR_REVIEW', 'PENDING_STATE_ADMIN', 'PENDING_APPROVAL', 'PENDING', 'PENDING_DELETION_VILLAGE', 'PENDING_DELETION_AUDITOR', 'PENDING_FAST_REVIEW'];
 const DELETED_ULPINS_KEY = 'landsetu_deleted_ulpins';
 
 const requestTypeFromStatus = (status, fallbackType) => {

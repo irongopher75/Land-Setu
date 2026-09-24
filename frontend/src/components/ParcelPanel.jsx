@@ -41,7 +41,8 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, o
   const [showQR, setShowQR] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showBlockchain, setShowBlockchain] = useState(false);
-  const [tab, setTab] = useState('record'); // 'record' | 'history'
+  const [tab, setTab] = useState('record');
+  const inactive = !!parcel && !!parcel.status && parcel.status !== 'active'; // 'record' | 'history'
 
   useEffect(() => {
     if (!ulpin) return;
@@ -63,7 +64,7 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, o
   };
 
   const handleRequestDeletion = async () => {
-    if (!window.confirm(`Request deletion of ULPIN ${ulpin}?\n\nThe request goes to the village land officer, then to the auditor. The parcel is removed only after both approve.`)) return;
+    if (!window.confirm(`Request archival of ULPIN ${ulpin}?\n\nThe request goes to the village land officer, then to the auditor. After both approve, the parcel leaves the active map. Its record and history stay on file.`)) return;
     setDeleting(true);
     try {
       const res = await requestParcelDeletion(ulpin, 'Initiated by State Admin Officer');
@@ -100,21 +101,28 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, o
             <div className="drawer-loading">Loading the record for {ulpin}</div>
           ) : (
             <>
+              {inactive && (
+                <div className="callout callout--alert" role="status">
+                  <strong>{parcel.status === 'superseded' ? 'Replaced by another parcel' : 'Archived'}</strong>
+                  <div>{parcel.archived_reason || 'This parcel is no longer active.'}{parcel.superseded_by ? ` See ${parcel.superseded_by}.` : ''}</div>
+                  <div className="subtle">The record and its history stay on file. It cannot be changed.</div>
+                </div>
+              )}
               <div className="btn-row">
                 <button className="btn" onClick={handlePassportClick}><QrCode size={15} /> QR passport</button>
-                {role !== 'citizen' ? (
+                {role !== 'citizen' && !inactive ? (
                   <button className="btn" onClick={() => onReshapeBoundary && onReshapeBoundary(parcel)}>Reshape boundary</button>
                 ) : (
                   <button className="btn" disabled title="Citizens have read-only access."><Lock size={14} /> Read only</button>
                 )}
-                {role === 'state_admin' && (
+                {role === 'state_admin' && !inactive && (
                   <button className="btn btn--seal" onClick={handleRequestDeletion} disabled={deleting} title="Needs approval from the village land officer and the auditor.">
-                    <Trash2 size={15} /> {deleting ? 'Submitting' : 'Request deletion'}
+                    <Trash2 size={15} /> {deleting ? 'Submitting' : 'Request archival'}
                   </button>
                 )}
               </div>
 
-              {RESTRUCTURE_ROLES.includes(role) && parcel?.geometry && (
+              {RESTRUCTURE_ROLES.includes(role) && parcel?.geometry && !inactive && (
                 <div className="btn-row">
                   <button className="btn" onClick={() => onStartRestructure('split', parcel)}>Split parcel</button>
                   <button className="btn" onClick={() => onStartRestructure('merge', parcel)}>Merge with neighbour</button>
@@ -138,7 +146,7 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, o
                       <span>Title hash chain</span>
                       <span className="badge verified">Tamper evident</span>
                     </div>
-                    <div className="note">Each change to this parcel is chained with SHA-256 and kept in a secure audit log.</div>
+                    <div className="note">Each change to this parcel is recorded in a secure, tamper-evident audit log.</div>
                     <button className="btn btn--block" onClick={() => setShowBlockchain(true)}><Cpu size={15} /> Audit hash chain</button>
                   </div>
 

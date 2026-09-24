@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import WorkflowRequestCard from './WorkflowRequestCard';
 import { useAuthInfo } from '../authContext';
-import { getPendingRequests, auditorPassRequest, approveBoundaryRequest, rejectBoundaryRequest, villageApproveDeletion, auditorApproveDeletion, villagePassRequest, REST_ONLY_REQUEST_TYPES } from '../api';
+import { getPendingRequests, auditorPassRequest, approveBoundaryRequest, rejectBoundaryRequest, villageApproveDeletion, auditorApproveDeletion, villagePassRequest, fastApproveRequest, REST_ONLY_REQUEST_TYPES } from '../api';
 
 export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }) {
   const [requests, setRequests] = useState([]);
@@ -23,6 +23,17 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
       console.error('Failed to fetch pending requests:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFastApprove = async (id, ulpin) => {
+    try {
+      await fastApproveRequest(id);
+      setActionMsg(`Correction #${id} for ULPIN '${ulpin}' approved and applied.`);
+      await fetchRequests();
+      if (onRequestProcessed) onRequestProcessed(ulpin);
+    } catch (err) {
+      alert(err.response?.data?.detail || err.message);
     }
   };
 
@@ -183,6 +194,7 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
                   role={role}
                   onVillagePass={() => handleVillagePass(req.id, req.ulpin)}
                   onAuditorPass={() => handleAuditorPass(req.id, req.ulpin, req)}
+                  onFastApprove={() => handleFastApprove(req.id, req.ulpin)}
                   onApprove={() => handleApprove(req.id, req.ulpin, req)}
                   onReject={() => handleReject(req.id, req.ulpin, req)}
                 />

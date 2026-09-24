@@ -1,5 +1,7 @@
 """Request pipeline helpers shared by routes: audit trail and per-type apply logic."""
 import copy
+import difflib
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -11,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.db import IS_SQLITE
 from app.models import Parcel, BoundaryChangeRequest
 from app.rules import RuleEngine, parse_geometry_shape, invalidate_neighbor_flags
+from app import audit
 
 NEW_TYPES = ("SPLIT", "MERGE", "CORRECTION")
 
@@ -24,8 +27,71 @@ CORRECTABLE_FIELDS = {
 SPLIT_COVERAGE_TOLERANCE = 0.02  # parts may differ from the source by at most 2% of its area
 
 
-def advance_request(req: BoundaryChangeRequest, status: str, role: str, note: str = "") -> None:
-    """Set status and append to the audit trail. Caller commits."""
+# ---------------------------------------------------------------------------------------------
+# Approval tracks
+#
+#   HIGH  village officer proposes, auditor reviews, state admin gives final approval.
+#         Anything that touches geometry, ownership or a parcel's legal status.
+#   FAST  one approver, an auditor or a state admin. Metadata-only corrections.
+#
+# The request `type` decides the track. Ownership changes are corrections to owner or buyer fields,
+# so those fields are always HIGH. There is no separate transfer type.
+# ---------------------------------------------------------------------------------------------
+TRACK_HIGH, TRACK_FAST = "HIGH", "FAST"
+FAST_STATUS = "PENDING_FAST_REVIEW"
+FAST_APPROVER_ROLES = ("auditor", "state_admin", "super_admin")
+
+HIGH_RIGOR_TYPES = ("BOUNDARY", "SPLIT", "MERGE", "DELETION")
+# Correction fields that may be fast-tracked, and only for a spelling-level edit.
+FAST_CORRECTION_FIELDS = {"ror": {"owner_name", "khata_no"}}
+SPELLING_SIMILARITY = 0.85
+
+
+def _normalise(text: str) -> str:
+    joined = re.sub(r"[-_/]", "", str(text or "").lower())  # KH-1187 and KH1187 are the same reference
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]+", " ", joined)).strip()
+
+
+def is_spelling_level_edit(current: Any, requested: Any) -> bool:
+    """True when `requested` is the same name or reference as `current` with a spelling or format fix.
+
+    Same initials in order, same digits, and at least 85% similar after ignoring case and punctuation.
+    A different person or a different account number fails one of these and is escalated.
+    """
+    a, b = _normalise(current), _normalise(requested)
+    if not a or not b:
+        return False
+    if [w[0] for w in a.split()] != [w[0] for w in b.split()]:
+        return False
+    if re.sub(r"\D", "", a) != re.sub(r"\D", "", b):
+        return False
+    return difflib.SequenceMatcher(None, a, b).ratio() >= SPELLING_SIMILARITY
+
+
+def route_request(req_type: str, payload: Optional[Dict[str, Any]] = None) -> str:
+    """Decide which approval track a request follows."""
+    if req_type in HIGH_RIGOR_TYPES:
+        return TRACK_HIGH
+    if req_type == "CORRECTION":
+        p = payload or {}
+        if p.get("field") in FAST_CORRECTION_FIELDS.get(p.get("layer"), set()) and \
+                is_spelling_level_edit(p.get("current"), p.get("requested")):
+            return TRACK_FAST
+        return TRACK_HIGH
+    return TRACK_HIGH  # unknown types get the stricter track
+
+
+def forbid_self_approval(req: BoundaryChangeRequest, actor: Dict[str, Any]) -> None:
+    """Nobody, including a super admin, may act on a request they filed."""
+    if req.requester_uid and req.requester_uid == actor.get("sub"):
+        raise HTTPException(status_code=403, detail="You filed this request, so another person must act on it.")
+
+
+def advance_request(req: BoundaryChangeRequest, status: str, role: str, note: str = "",
+                    db: Optional[Session] = None, submitted: bool = False, event: Optional[str] = None) -> None:
+    """Set status, append to the request history and, when `db` is given, to the audit chain.
+    Caller commits. `req` must already have an id when `db` is given."""
+    previous = req.status
     req.history = list(req.history or []) + [{
         "at": datetime.utcnow().isoformat(),
         "status": status,
@@ -33,6 +99,20 @@ def advance_request(req: BoundaryChangeRequest, status: str, role: str, note: st
         "note": note,
     }]
     req.status = status
+    if db is not None:
+        audit.append(db, req.ulpin, event or audit.event_for(status, submitted), role, request_id=req.id,
+                     from_status=None if submitted else previous, to_status=status, note=note, payload=req.payload)
+
+
+def archive_parcel(db: Session, parcel: Parcel, status: str, reason: str, role: str,
+                   superseded_by: Optional[str] = None, request_id: Optional[int] = None) -> None:
+    """Retire a parcel without removing it. `status` is 'archived' or 'superseded'."""
+    parcel.status = status
+    parcel.archived_at = datetime.utcnow().isoformat()
+    parcel.archived_reason = reason
+    parcel.superseded_by = superseded_by
+    audit.append(db, parcel.ulpin, "archived" if status == "archived" else "superseded", role,
+                 request_id=request_id, from_status="active", to_status=status, note=reason)
 
 
 def geom_column_value(geom_shape):
@@ -110,12 +190,14 @@ def _fresh_ulpin_check(db: Session, ulpin: str):
         raise HTTPException(status_code=409, detail=f"ULPIN '{ulpin}' already exists.")
 
 
-def apply_request(db: Session, req: BoundaryChangeRequest) -> None:
+def apply_request(db: Session, req: BoundaryChangeRequest, role: str = "system") -> None:
     """Commit an approved SPLIT / MERGE / CORRECTION to the parcels table. Caller commits."""
     payload = req.payload or {}
     source = db.query(Parcel).filter(Parcel.ulpin == req.ulpin).first()
     if not source:
         raise HTTPException(status_code=404, detail=f"Parcel '{req.ulpin}' no longer exists.")
+    if source.status != "active":
+        raise HTTPException(status_code=409, detail=f"Parcel '{req.ulpin}' is {source.status} and cannot be changed.")
     today = datetime.utcnow().strftime("%Y-%m-%d")
 
     if req.type == "SPLIT":
@@ -132,9 +214,11 @@ def apply_request(db: Session, req: BoundaryChangeRequest) -> None:
             db.add(child)
             children.append(child)
         invalidate_neighbor_flags(db, [old_geom], state, exclude_id=source.id)
-        db.delete(source)
+        archive_parcel(db, source, "superseded", f"Split into {', '.join(c.ulpin for c in children)}", role,
+                       superseded_by=",".join(c.ulpin for c in children), request_id=req.id)
         db.flush()
         for c in children:
+            audit.append(db, c.ulpin, "created", role, request_id=req.id, to_status="active", note=f"Created by splitting {source.ulpin}")
             invalidate_neighbor_flags(db, [c.geometry], state, exclude_id=c.id)
             RuleEngine.refresh_flags(db, c)
 
@@ -149,7 +233,7 @@ def apply_request(db: Session, req: BoundaryChangeRequest) -> None:
         source.area_sqm = float(source.area_sqm or 0) + float(other.area_sqm or 0)
         source.raw_record = {**(source.raw_record or {}), "lineage": {"merged_from": [other.ulpin], "request_id": req.id, "on": today}}
         invalidate_neighbor_flags(db, old_geoms, state, exclude_id=source.id)
-        db.delete(other)
+        archive_parcel(db, other, "superseded", f"Merged into {source.ulpin}", role, superseded_by=source.ulpin, request_id=req.id)
         db.flush()
         invalidate_neighbor_flags(db, [source.geometry], state, exclude_id=source.id)
         RuleEngine.refresh_flags(db, source)
@@ -204,7 +288,7 @@ def build_history(parcel: Parcel, requests: List[BoundaryChangeRequest]) -> List
     for r in requests:
         label = {"BOUNDARY": "Boundary change", "DELETION": "Deletion", "SPLIT": "Split",
                  "MERGE": "Merge", "CORRECTION": "Correction"}.get(r.type or "BOUNDARY", "Request")
-        if str(r.status or "").startswith("PENDING_DELETION") or (r.status == "DELETED"):
+        if str(r.status or "").startswith("PENDING_DELETION") or (r.status in ("DELETED", "ARCHIVED")):
             label = "Deletion"
         add(r.created_at, "request", f"{label} requested (#{r.id})", r.reason or "", r.requester_role)
         for h in (r.history or []):

@@ -198,6 +198,7 @@ class RuleEngine:
                 .filter(
                     Parcel.id != parcel.id,
                     Parcel.state == parcel.state,
+                    Parcel.status == "active",
                     func.ST_Intersects(Parcel.geometry, g),
                     not_(func.ST_Touches(Parcel.geometry, g)),
                     area > MIN_OVERLAP_SQM,
@@ -210,7 +211,7 @@ class RuleEngine:
         # SQLite dev fallback: Shapely, bbox prefilter, spherical area.
         p_box = box(*parcel_shape.bounds)
         best = None
-        for other in db.query(Parcel).filter(Parcel.id != parcel.id, Parcel.state == parcel.state).all():
+        for other in db.query(Parcel).filter(Parcel.id != parcel.id, Parcel.state == parcel.state, Parcel.status == "active").all():
             other_shape = parse_geometry_shape(other.geometry)
             if other_shape is None or not p_box.intersects(box(*other_shape.bounds)):
                 continue
