@@ -34,3 +34,10 @@ SKILLS.md
 **/.DS_Store
 venv/
 .venv/
+
+# Test files are kept out of the repository
+backend/tests/
+.pytest_cache/
+**/test_*.py
+**/*_test.py
+conftest.py

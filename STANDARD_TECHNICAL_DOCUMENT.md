@@ -12,7 +12,7 @@ Every capability is tagged with its real status, so a reader can tell what exist
 
 | Tag | Meaning |
 |---|---|
-| **[Implemented]** | Exists in the repository and is exercised by the running system or its tests. |
+| **[Implemented]** | Exists in the repository and is exercised by the running system. |
 | **[Partial]** | Exists, but is incomplete or works only in some environments. The gap is stated. |
 | **[Planned]** | Not built. Described so the design intent is clear. |
 
@@ -71,7 +71,7 @@ flowchart LR
 | Component | Location | Status | Notes |
 |---|---|---|---|
 | REST API | `backend/app/main.py`, `backend/app/routes/{auth,parcels,workflow,adapter}.py` | **[Implemented]** | FastAPI 0.115, one router per concern. CORS allow-list from `CORS_ORIGINS`. |
-| Persistence | `backend/app/db.py`, `backend/app/models.py` | **[Implemented]** | SQLAlchemy 2. PostgreSQL with PostGIS in production. SQLite fallback exists only when `ALLOW_SQLITE_FALLBACK=true` (tests, local use). |
+| Persistence | `backend/app/db.py`, `backend/app/models.py` | **[Implemented]** | SQLAlchemy 2. PostgreSQL with PostGIS in production. SQLite fallback exists only when `ALLOW_SQLITE_FALLBACK=true` (local use). |
 | Schema adapter | `backend/app/adapter.py`, `backend/configs/*.yaml` | **[Implemented]** | Declarative field mapping and unit conversion. See sections 2 and 4. |
 | Rule engine | `backend/app/rules.py` | **[Implemented]** | Five rules, cached result on the parcel row, neighbour invalidation. See section 3. |
 | Workflow pipeline | `backend/app/workflow.py`, `backend/app/routes/workflow.py`, `backend/app/routes/parcels.py` | **[Implemented]** | Multi-stage approval for boundary, deletion, split, merge and correction requests. |
@@ -102,8 +102,8 @@ If any API call fails, the SPA falls back to bundled sample data. A response tha
 
 ### 1.6 Testing and delivery
 
-- 30 backend tests (`backend/tests/`) cover authentication, roles, the rule engine, the flag cache, the workflow pipeline, and public access. They run on SQLite. **The PostGIS code path is not covered by an automated test.**
-- GitHub Actions (`.github/workflows/firebase-hosting-merge.yml`) runs the backend tests and the frontend build on every push to `main`, then deploys the frontend to Firebase Hosting if both pass.
+- The repository holds no test files by decision. Behaviour was checked with a local test suite that is kept out of version control, and that suite ran on SQLite. **The PostGIS code path has no automated test.**
+- GitHub Actions (`.github/workflows/firebase-hosting-merge.yml`) compiles and imports the API and builds the frontend on every push to `main`, then deploys the frontend to Firebase Hosting if both pass.
 
 ---
 
@@ -268,7 +268,7 @@ Input validation on new geometry (`POST /parcels/custom`): must be a valid, non-
 
 **PostGIS functions in use.** The overlap check is one indexed query: `ST_Intersects(parcel.geometry, candidate)` (uses the GIST index) combined with `NOT ST_Touches(...)`. "Interiors intersect" is deliberately defined this way. `ST_Overlaps` alone is not used because it returns false when one polygon fully contains another. The overlap area is `ST_Area(ST_Intersection(...)::geography)`, which gives square metres on the ellipsoid, not planar degrees. Protected zones use `ST_Intersects`. Both functions were part of the earlier PostGIS migration, and the GIST index is created by Alembic revision `0002` and by `spatial_index=True` in the model.
 
-**[Partial] SQLite path.** When PostGIS is not available (tests, local runs), the same checks run in Shapely with a bounding-box prefilter. It applies the same definition (`intersects and not touches`). It is a fallback, not the production path, and it is O(n) per parcel in Python.
+**[Partial] SQLite path.** When PostGIS is not available (local runs), the same checks run in Shapely with a bounding-box prefilter. It applies the same definition (`intersects and not touches`). It is a fallback, not the production path, and it is O(n) per parcel in Python.
 
 **[Implemented] Flag cache.** Flags are computed once and stored in `parcels.flags`. Editing a parcel invalidates its own flags and the flags of every neighbour whose bounding geometry intersects the old or new boundary (`invalidate_neighbor_flags`). Deletion and split or merge do the same. A read of a stale row (`flags IS NULL`) recomputes and stores. This avoids recomputing overlap on every read.
 
@@ -508,7 +508,7 @@ Primary navigation: Home, Search, Parcel map, How it works, Coverage, For office
 
 | Layer | Service | Region | Notes |
 |---|---|---|---|
-| Web application | Firebase Hosting (static) | Global CDN | Built and deployed by GitHub Actions after tests pass |
+| Web application | Firebase Hosting (static) | Global CDN | Built and deployed by GitHub Actions after the API check and frontend build pass |
 | Identity | Firebase Auth | Google-managed | Foreign-hosted service |
 | Browser-side store | Firestore | `asia-southeast2` (Jakarta) | Fallback store only. Not authoritative. |
 | API | Render web service, Docker | Singapore | `render.yaml` Blueprint. Free plan sleeps when idle. |
@@ -544,7 +544,7 @@ A `docker-compose.yml` runs a local stack (PostGIS database, API, frontend, and 
 | Secrets | Platform environment variables | Managed secret store with rotation |
 | Availability | Sleeps when idle | Always on, defined recovery time and recovery point |
 | Audit | Database history, browser-side hash chain | Append-only server-side audit log with external anchoring |
-| Assurance | Unit tests | Independent security audit, accessibility audit, load test |
+| Assurance | Manual checks | Independent security audit, accessibility audit, load test |
 
 ### 7.4 Data residency
 
@@ -565,7 +565,7 @@ A `docker-compose.yml` runs a local stack (PostGIS database, API, frontend, and 
 | 7 | No bulk import endpoint | Section 4 | Upload, validate, commit |
 | 8 | No vector tiles, no partitioning, no replicas | Section 7 | As listed in 7.2 |
 | 9 | Free-tier hosting, outside India | Section 7 | India-region managed hosting |
-| 10 | PostGIS path has no automated test | Section 1 | CI job with a PostGIS service container |
+| 10 | No automated tests in the repository, and the PostGIS path is untested | Section 1 | Decide on a test policy, then a CI job with a PostGIS service container |
 | 11 | No token revocation or rate limit on the hosted API | Section 5 | Server-side session list, gateway rate limits |
 | 12 | Translations are drafts, text pages English only | Section 6 | Native-speaker review, full page translation |
 | 13 | No notifications on request status changes, no service-request tracker for citizens beyond ULPIN lookup | Features | Email or SMS notification on stage change |
@@ -606,7 +606,6 @@ backend/
   mock_data/             synthetic CSV and GeoJSON for Tamil Nadu and Chandigarh
   alembic/versions/      3 migration revisions
   scripts/set_role.py    assign a role claim to an account
-  tests/                 30 tests
 frontend/
   src/App.jsx, router.js, i18n.jsx, api.js
   src/pages/             text pages, lender preview, developer API, officer console
@@ -615,5 +614,5 @@ frontend/
 render.yaml              Render Blueprint (API and PostgreSQL)
 firebase.json            Firebase Hosting and Firestore configuration
 firestore.rules          role-gated rules, not yet deployed
-.github/workflows/       tests, build and hosting deploy
+.github/workflows/       API check, build and hosting deploy
 ```
