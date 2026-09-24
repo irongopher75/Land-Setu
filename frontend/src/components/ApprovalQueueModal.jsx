@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import WorkflowRequestCard from './WorkflowRequestCard';
 import { useAuthInfo } from '../authContext';
-import { getPendingRequests, auditorPassRequest, approveBoundaryRequest, rejectBoundaryRequest, villageApproveDeletion, auditorApproveDeletion, villagePassRequest, fastApproveRequest, REST_ONLY_REQUEST_TYPES } from '../api';
+import { getPendingRequests, auditorPassRequest, approveBoundaryRequest, rejectBoundaryRequest, villageApproveDeletion, auditorApproveDeletion, villagePassRequest, fastApproveRequest, villageApproveArchival, auditorApproveArchival, withdrawRequest, raiseConcern, acknowledgeConcern, resolveConcern } from '../api';
 
 export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }) {
   const [requests, setRequests] = useState([]);
@@ -25,6 +25,33 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
       setLoading(false);
     }
   };
+
+  // One runner for the actions the API decides: run it, show the result, reload the queue.
+  const run = async (fn, okMessage, ulpin) => {
+    try {
+      await fn();
+      setActionMsg(okMessage);
+      await fetchRequests();
+      if (onRequestProcessed) onRequestProcessed(ulpin);
+    } catch (err) {
+      alert(err.response?.data?.detail || err.message);
+      await fetchRequests();
+    }
+  };
+
+  const cardHandlers = (req) => ({
+    villagePass: () => run(() => villagePassRequest(req.id), `Request #${req.id} verified and forwarded to the auditor.`, req.ulpin),
+    villageDelete: () => run(() => villageApproveArchival(req.id), `Archival #${req.id} approved and forwarded to the auditor.`, req.ulpin),
+    auditorPass: () => run(() => auditorPassRequest(req.id, req), `Request #${req.id} passed audit and went to the state admin.`, req.ulpin),
+    auditorDelete: () => run(() => auditorApproveArchival(req.id), `Parcel ${req.ulpin} archived. Its record and history stay on file.`, req.ulpin),
+    approve: () => run(() => approveBoundaryRequest(req.id, req), `Request #${req.id} approved and applied.`, req.ulpin),
+    fastApprove: () => run(() => fastApproveRequest(req.id), `Correction #${req.id} approved and applied.`, req.ulpin),
+    reject: () => run(() => rejectBoundaryRequest(req.id, req), `Request #${req.id} rejected.`, req.ulpin),
+    withdraw: () => run(() => withdrawRequest(req.id), `Request #${req.id} withdrawn.`, req.ulpin),
+    raise: (reason) => run(() => raiseConcern(req.id, reason), 'Concern recorded. It is now with the reviewer who holds the request.', req.ulpin),
+    acknowledge: (flagId) => run(() => acknowledgeConcern(flagId), 'Concern acknowledged. It still blocks approval until resolved.', req.ulpin),
+    resolve: (flagId, note) => run(() => resolveConcern(flagId, note), 'Concern resolved.', req.ulpin),
+  });
 
   const handleFastApprove = async (id, ulpin) => {
     try {
@@ -73,7 +100,7 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
   const handleAuditorApproveDeletion = async (id, ulpin) => {
     try {
       await auditorApproveDeletion(id);
-      setActionMsg(`Land deletion for ULPIN '${ulpin}' fully authorized! Parcel permanently removed from database.`);
+      setActionMsg(`Land deletion for ULPIN '${ulpin}' fully authorized! Parcel archived.`);
       await fetchRequests();
       if (onRequestProcessed) onRequestProcessed();
     } catch (err) {
@@ -187,17 +214,8 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
             <div className="note">No open requests. Every boundary change, split, merge, correction and deletion has been processed.</div>
           ) : (
             requests.map((req) => (
-              REST_ONLY_REQUEST_TYPES.includes(req.type) ? (
-                <WorkflowRequestCard
-                  key={req.id}
-                  req={req}
-                  role={role}
-                  onVillagePass={() => handleVillagePass(req.id, req.ulpin)}
-                  onAuditorPass={() => handleAuditorPass(req.id, req.ulpin, req)}
-                  onFastApprove={() => handleFastApprove(req.id, req.ulpin)}
-                  onApprove={() => handleApprove(req.id, req.ulpin, req)}
-                  onReject={() => handleReject(req.id, req.ulpin, req)}
-                />
+              req.permissions ? (
+                <WorkflowRequestCard key={req.id} req={req} on={cardHandlers(req)} />
               ) : renderLegacy(req)
             ))
           )}

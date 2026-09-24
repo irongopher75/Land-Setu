@@ -14,9 +14,11 @@ from app.db import get_db
 from app.models import Parcel, BoundaryChangeRequest
 from app.rules import RuleEngine, parse_geometry_shape
 from app.routes.auth import get_current_role, get_current_payload, require_roles
+from app import permissions
+from app.models import RequestFlag
 from app.workflow import (
     advance_request, validate_split, validate_merge, validate_correction,
-    build_history, NEW_TYPES, route_request, forbid_self_approval, apply_request,
+    build_history, NEW_TYPES, route_request, apply_request,
     TRACK_FAST, FAST_STATUS, FAST_APPROVER_ROLES,
 )
 
@@ -35,6 +37,10 @@ def _get_parcel(db: Session, ulpin: str, active_only: bool = False) -> Parcel:
     if active_only and parcel.status != "active":
         raise HTTPException(status_code=409, detail=f"Parcel '{ulpin}' is {parcel.status} and cannot be changed. Its record stays available for reading.")
     return parcel
+
+
+def _unresolved(db: Session, req: BoundaryChangeRequest) -> int:
+    return db.query(RequestFlag).filter(RequestFlag.request_id == req.id, RequestFlag.status.in_(permissions.UNRESOLVED)).count()
 
 
 def _reject_duplicate(db: Session, ulpin: str, req_type: str):
@@ -58,7 +64,7 @@ def _open_request(db: Session, parcel: Parcel, req_type: str, role: str, request
     )
     db.add(req)
     db.flush()  # assigns the id the audit entry refers to
-    advance_request(req, first_status, role, "Submitted", db=db, submitted=True)
+    advance_request(req, first_status, role, "Submitted", db=db, submitted=True, actor_uid=requester_uid)
     db.commit()
     db.refresh(req)
     return {"request_id": req.id, "status": req.status, "type": req_type, "track": track, "ulpin": parcel.ulpin}
@@ -82,6 +88,8 @@ class CorrectionRequest(BaseModel):
     requested_value: str = Field(max_length=200)
     evidence: Optional[str] = Field(None, max_length=1000)
     requested_by: str = Field(max_length=120)
+    # Set when the correction reports a problem with a decision already made. The old request is not reopened.
+    references_request_id: Optional[int] = None
 
 
 @router.post("/{ulpin}/split-request")
@@ -118,6 +126,11 @@ def create_correction_request(ulpin: str, body: CorrectionRequest,
     _reject_duplicate(db, ulpin, "CORRECTION")
     payload = validate_correction(parcel, body.layer, body.field, body.requested_value)
     payload["evidence"] = body.evidence
+    if body.references_request_id is not None:
+        ref = db.query(BoundaryChangeRequest).filter(BoundaryChangeRequest.id == body.references_request_id).first()
+        if not ref or ref.ulpin != ulpin:
+            raise HTTPException(status_code=422, detail="The request you refer to does not belong to this parcel.")
+        payload["references_request_id"] = ref.id
     reason = f"Correct {body.layer}.{body.field}: '{payload['current']}' to '{payload['requested']}'"
     track = route_request("CORRECTION", payload)
     if track == TRACK_FAST:
@@ -138,8 +151,8 @@ def village_pass_request(request_id: int, role: str = Depends(require_roles("vil
         raise HTTPException(status_code=404, detail="Request not found")
     if req.status != "PENDING_VILLAGE_REVIEW":
         raise HTTPException(status_code=400, detail=f"Request is not awaiting village review (current: {req.status}).")
-    forbid_self_approval(req, actor)
-    advance_request(req, "PENDING_APPROVAL", role, "Village officer verified", db=db)
+    permissions.require(req, actor.get("sub"), role, "approve", _unresolved(db, req))
+    advance_request(req, "PENDING_APPROVAL", role, "Village officer verified", db=db, actor_uid=actor.get("sub"))
     db.commit()
     return {"status": req.status, "message": f"Request #{request_id} verified and forwarded to the auditor."}
 
@@ -153,9 +166,9 @@ def fast_approve_request(request_id: int, role: str = Depends(require_roles(*FAS
         raise HTTPException(status_code=404, detail="Request not found")
     if req.status != FAST_STATUS or req.track != TRACK_FAST:
         raise HTTPException(status_code=400, detail=f"Request is not on the fast track awaiting review (current: {req.status}).")
-    forbid_self_approval(req, actor)
+    permissions.require(req, actor.get("sub"), role, "approve", _unresolved(db, req))
     apply_request(db, req, role)
-    advance_request(req, "APPROVED", role, "Approved on the fast track", db=db)
+    advance_request(req, "APPROVED", role, "Approved on the fast track", db=db, actor_uid=actor.get("sub"))
     req.approved_by = "Single-approver review"
     req.approver_role = role
     db.commit()

@@ -1,6 +1,8 @@
 """Append-only, hash-chained audit log (table parcel_audit_log)."""
 import hashlib
+import hmac
 import json
+import os
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -15,6 +17,7 @@ CONTENT_FIELDS = ("ulpin", "seq", "request_id", "event", "from_status", "to_stat
                   "actor_role", "note", "payload_digest", "created_at")
 
 # Request status -> audit event. Anything not listed is logged as under_review.
+# concern_raised and concern_resolved are written directly by the concern endpoints.
 _EVENT_FOR_STATUS = {"APPROVED": "approved", "REJECTED": "rejected", "ARCHIVED": "archived", "DELETED": "archived"}
 
 
@@ -30,8 +33,18 @@ def digest(payload: Any) -> Optional[str]:
     return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()).hexdigest()
 
 
+def actor_ref(uid: Optional[str]) -> Optional[str]:
+    """Keyed hash of an account id. The same account always gives the same value; the id is not recoverable."""
+    if not uid:
+        return None
+    return hmac.new(os.getenv("JWT_SECRET", "").encode(), str(uid).encode(), hashlib.sha256).hexdigest()[:24]
+
+
 def _content(row: Dict[str, Any]) -> str:
-    return json.dumps({k: row.get(k) for k in CONTENT_FIELDS}, sort_keys=True, separators=(",", ":"))
+    content = {k: row.get(k) for k in CONTENT_FIELDS}
+    if row.get("actor_ref") is not None:   # rows written before actor_ref existed hash without it
+        content["actor_ref"] = row["actor_ref"]
+    return json.dumps(content, sort_keys=True, separators=(",", ":"))
 
 
 def compute_hash(prev_hash: str, row: Dict[str, Any]) -> str:
@@ -40,7 +53,7 @@ def compute_hash(prev_hash: str, row: Dict[str, Any]) -> str:
 
 def append(db: Session, ulpin: str, event: str, actor_role: str, *, request_id: Optional[int] = None,
            from_status: Optional[str] = None, to_status: Optional[str] = None, note: str = "",
-           payload: Any = None) -> ParcelAuditLog:
+           payload: Any = None, actor_uid: Optional[str] = None) -> ParcelAuditLog:
     """Add one entry to the chain of `ulpin`. The caller commits."""
     db.flush()  # sessions here do not autoflush; make earlier entries in this transaction visible
     q = db.query(ParcelAuditLog).filter(ParcelAuditLog.ulpin == ulpin).order_by(ParcelAuditLog.seq.desc())
@@ -49,6 +62,7 @@ def append(db: Session, ulpin: str, event: str, actor_role: str, *, request_id: 
         "ulpin": ulpin, "seq": (last.seq + 1) if last else 1, "request_id": request_id, "event": event,
         "from_status": from_status, "to_status": to_status, "actor_role": actor_role, "note": note or None,
         "payload_digest": digest(payload), "created_at": datetime.now(timezone.utc).isoformat(),
+        "actor_ref": actor_ref(actor_uid),
     }
     prev = last.entry_hash if last else GENESIS_HASH
     entry = ParcelAuditLog(**row, prev_hash=prev, entry_hash=compute_hash(prev, row))
@@ -63,6 +77,7 @@ def verify(rows: Iterable[Any]) -> Tuple[bool, Optional[int]]:
     expected_seq = 1
     for r in rows:
         data = {k: getattr(r, k) for k in CONTENT_FIELDS}
+        data["actor_ref"] = getattr(r, "actor_ref", None)
         if r.seq != expected_seq or r.prev_hash != prev or r.entry_hash != compute_hash(prev, data):
             return False, r.seq
         prev = r.entry_hash

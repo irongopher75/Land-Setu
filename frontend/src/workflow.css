@@ -99,3 +99,10 @@
 .wf-actions--panel { margin: var(--space-1) 0; }
 
 .wf-stages--two { grid-template-columns: repeat(2, 1fr); }
+
+.wf-stages--one { grid-template-columns: repeat(2, 1fr); }
+.concerns { border-top: var(--line) solid var(--rule-strong); padding-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--text-sm); }
+.concerns--open { border: var(--line-heavy) solid var(--accent-seal); background: var(--accent-seal-tint); padding: var(--space-3); }
+.concerns--open > strong { color: var(--accent-seal); }
+.concern { background: var(--surface); border: var(--line) solid var(--rule-strong); padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
+.concern--resolved { background: transparent; border-style: dashed; }

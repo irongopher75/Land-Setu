@@ -12,9 +12,12 @@ from app.schemas import ParcelListItem, CanonicalParcelResponse, FlagItem
 from app.rules import RuleEngine, parse_geometry_shape, invalidate_neighbor_flags
 from app.routes.auth import get_current_role, get_current_payload, get_optional_role, require_roles, SECRET_KEY, ALGORITHM
 from app.states import INDIAN_STATES, detect_state_from_coords
-from app.workflow import (advance_request, apply_request, archive_parcel, forbid_self_approval, NEW_TYPES,
+from app.workflow import (advance_request, apply_request, archive_parcel, NEW_TYPES,
                           FAST_STATUS)
 from app import audit
+from app import permissions
+from app.flags import flag_views, flag_rows_for
+from app.models import RequestFlag
 
 router = APIRouter(prefix="/parcels", tags=["Parcels"])
 
@@ -329,7 +332,7 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get
         )
         db.add(change_req)
         db.flush()
-        advance_request(change_req, "PENDING_APPROVAL", role, "Submitted", db=db, submitted=True)
+        advance_request(change_req, "PENDING_APPROVAL", role, "Submitted", db=db, submitted=True, actor_uid=actor.get("sub"))
         db.commit()
         db.refresh(change_req)
 
@@ -355,7 +358,7 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get
         BoundaryChangeRequest.status == "PENDING_APPROVAL"
     ).all()
     for pr in pending_reqs:
-        advance_request(pr, "APPROVED", role, "Superseded by direct save", db=db)
+        advance_request(pr, "APPROVED", role, "Superseded by direct save", db=db, actor_uid=actor.get("sub"))
         pr.approved_by = req.owner_name
         pr.approver_role = role
 
@@ -463,8 +466,14 @@ def list_pending_requests(role: str = Depends(require_roles("officer", "bank", "
             "geometry": r.geometry,
             "track": r.track or "HIGH",
             "filed_by_you": bool(r.requester_uid and r.requester_uid == actor.get("sub")),
+            "flags": flag_views(db, r.id, actor.get("sub")),
+            "permissions": permissions.decide(r, actor.get("sub"), role, sum(1 for f in flag_rows_for(db, r.id) if f.status in permissions.UNRESOLVED)).as_dict(),
         })
     return result
+
+
+def _unresolved_flags(db: Session, req: BoundaryChangeRequest) -> int:
+    return db.query(RequestFlag).filter(RequestFlag.request_id == req.id, RequestFlag.status.in_(permissions.UNRESOLVED)).count()
 
 class RequestDeletionPayload(BaseModel):
     reason: Optional[str] = "State Admin requested land parcel deletion"
@@ -513,7 +522,7 @@ def request_parcel_deletion(ulpin: str, payload: Optional[RequestDeletionPayload
     )
     db.add(change_req)
     db.flush()
-    advance_request(change_req, "PENDING_DELETION_VILLAGE", role, "Archival requested", db=db, submitted=True)
+    advance_request(change_req, "PENDING_DELETION_VILLAGE", role, "Archival requested", db=db, submitted=True, actor_uid=actor.get("sub"))
     db.commit()
     db.refresh(change_req)
 
@@ -539,8 +548,8 @@ def village_approve_deletion(request_id: int, role: str = Depends(get_current_ro
     if req.status != "PENDING_DELETION_VILLAGE":
         raise HTTPException(status_code=400, detail=f"Deletion request is not awaiting village officer approval (current: {req.status}).")
 
-    forbid_self_approval(req, actor)
-    advance_request(req, "PENDING_DELETION_AUDITOR", role, "Village officer approved deletion", db=db)
+    permissions.require(req, actor.get("sub"), role, "approve", _unresolved_flags(db, req))
+    advance_request(req, "PENDING_DELETION_AUDITOR", role, "Village officer approved archival", db=db, actor_uid=actor.get("sub"))
     req.approved_by = "Village Land Officer (Deletion Stage 1 Approved)"
     req.approver_role = role
     db.commit()
@@ -565,13 +574,13 @@ def auditor_approve_deletion(request_id: int, role: str = Depends(get_current_ro
     if req.status != "PENDING_DELETION_AUDITOR":
         raise HTTPException(status_code=400, detail=f"Deletion request is not awaiting auditor authorization (current: {req.status}).")
 
-    forbid_self_approval(req, actor)
+    permissions.require(req, actor.get("sub"), role, "approve", _unresolved_flags(db, req))
     parcel = db.query(Parcel).filter(Parcel.ulpin == req.ulpin).first()
     if parcel and parcel.status == "active":
         invalidate_neighbor_flags(db, [parcel.geometry], parcel.state, exclude_id=parcel.id)
         archive_parcel(db, parcel, "archived", req.reason or "Archived by approved request", role, request_id=req.id)
 
-    advance_request(req, "ARCHIVED", role, "Auditor authorized archival", db=db, event="approved")
+    advance_request(req, "ARCHIVED", role, "Auditor authorized archival", db=db, event="approved", actor_uid=actor.get("sub"))
     req.approved_by = "Compliance Auditor (Final Deletion Authorized)"
     req.approver_role = role
     db.commit()
@@ -596,8 +605,8 @@ def auditor_pass_request(request_id: int, role: str = Depends(get_current_role),
 
     if req.type in NEW_TYPES and req.status != "PENDING_APPROVAL":
         raise HTTPException(status_code=400, detail=f"Request is not awaiting auditor review (current: {req.status}).")
-    forbid_self_approval(req, actor)
-    advance_request(req, "PENDING_STATE_ADMIN", role, "Audit passed", db=db)
+    permissions.require(req, actor.get("sub"), role, "approve", _unresolved_flags(db, req))
+    advance_request(req, "PENDING_STATE_ADMIN", role, "Audit passed", db=db, actor_uid=actor.get("sub"))
     req.approved_by = "Compliance Auditor (Audit Passed)"
     req.approver_role = role
     db.commit()
@@ -620,12 +629,12 @@ def approve_boundary_request(request_id: int, role: str = Depends(get_current_ro
     if not req:
         raise HTTPException(status_code=404, detail="Boundary change request not found")
 
-    forbid_self_approval(req, actor)
+    permissions.require(req, actor.get("sub"), role, "approve", _unresolved_flags(db, req))
     if req.type in NEW_TYPES:
         if req.status != "PENDING_STATE_ADMIN":
             raise HTTPException(status_code=400, detail=f"Request is not awaiting state admin approval (current: {req.status}).")
         apply_request(db, req, role)
-        advance_request(req, "APPROVED", role, f"{req.type.title()} applied", db=db)
+        advance_request(req, "APPROVED", role, f"{req.type.title()} applied", db=db, actor_uid=actor.get("sub"))
         req.approved_by = "State Administration Officer"
         req.approver_role = role
         db.commit()
@@ -662,7 +671,7 @@ def approve_boundary_request(request_id: int, role: str = Depends(get_current_ro
         db.add(existing)
 
     _refresh_flags_after_change(db, existing, old_geom, old_state)
-    advance_request(req, "APPROVED", role, "Boundary change applied", db=db)
+    advance_request(req, "APPROVED", role, "Boundary change applied", db=db, actor_uid=actor.get("sub"))
     req.approved_by = "State Administration Officer"
     req.approver_role = role
     db.commit()
@@ -676,19 +685,9 @@ def reject_boundary_request(request_id: int, role: str = Depends(get_current_rol
     if not req:
         raise HTTPException(status_code=404, detail="Boundary change request not found")
 
-    village_can_reject = role in ("village_officer", "super_admin") and req.status in ("PENDING_DELETION_VILLAGE", "PENDING_VILLAGE_REVIEW")
-    auditor_can_reject = role in ("auditor", "super_admin") and (
-        req.status in ("PENDING_DELETION_AUDITOR", "PENDING_AUDITOR_REVIEW", "PENDING_APPROVAL", FAST_STATUS)
-    )
-    admin_can_reject = role in ("state_admin", "super_admin")
+    permissions.require(req, actor.get("sub"), role, "reject", _unresolved_flags(db, req))
 
-    if not (village_can_reject or auditor_can_reject or admin_can_reject):
-        raise HTTPException(
-            status_code=403,
-            detail="Permission denied: you cannot reject this request at the current pipeline stage."
-        )
-
-    advance_request(req, "REJECTED", role, "Rejected", db=db)
+    advance_request(req, "REJECTED", role, "Rejected", db=db, actor_uid=actor.get("sub"))
     req.approved_by = f"Rejected by {role}"
     req.approver_role = role
     db.commit()

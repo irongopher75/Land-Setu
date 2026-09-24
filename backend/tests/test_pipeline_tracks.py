@@ -107,7 +107,9 @@ def test_super_admin_cannot_approve_own_request_at_any_stage(client):
     assert client.post(f"/parcels/requests/{rid}/auditor-pass", headers=hdr("super_admin", "sa-1")).status_code == 403
     assert client.post(f"/parcels/requests/{rid}/auditor-pass", headers=hdr("super_admin", "sa-2")).status_code == 200
     assert client.post(f"/parcels/requests/{rid}/approve", headers=hdr("super_admin", "sa-1")).status_code == 403
-    assert client.post(f"/parcels/requests/{rid}/approve", headers=hdr("super_admin", "sa-2")).status_code == 200
+    # sa-2 already approved at the auditor stage: the same account cannot approve twice on one request
+    assert client.post(f"/parcels/requests/{rid}/approve", headers=hdr("super_admin", "sa-2")).status_code == 403
+    assert client.post(f"/parcels/requests/{rid}/approve", headers=hdr("super_admin", "sa-3")).status_code == 200
 
 
 def test_filer_cannot_fast_approve_own_correction(client):
@@ -183,7 +185,7 @@ def test_verify_detects_a_changed_entry(client):
 
     class Tampered:
         def __init__(self, r, **over):
-            for k in list(audit.CONTENT_FIELDS) + ["prev_hash", "entry_hash"]:
+            for k in list(audit.CONTENT_FIELDS) + ["prev_hash", "entry_hash", "actor_ref"]:
                 setattr(self, k, over.get(k, getattr(r, k)))
 
     forged = [Tampered(r) for r in rows]

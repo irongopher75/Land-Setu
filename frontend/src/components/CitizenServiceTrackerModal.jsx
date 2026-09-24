@@ -31,8 +31,16 @@ export default function CitizenServiceTrackerModal({ initialUlpin, onClose }) {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [trail, setTrail] = useState([]);
+  const [refId, setRefId] = useState('');
 
   const chosen = FIELDS.find((f) => f.key === fieldKey);
+
+  // Requests already decided on this parcel. A new report can point at one; the old request is not reopened.
+  const decided = Object.values(trail.reduce((acc, e) => {
+    const m = /#(\d+):\s*(approved|archived|rejected)/i.exec(e.title || '');
+    if (m) acc[m[1]] = { id: m[1], label: `${e.title.split('#')[0].trim()} ${m[2].toLowerCase()}` };
+    return acc;
+  }, {}));
 
   useEffect(() => {
     if (!ulpin) { setCurrent(null); setTrail([]); return undefined; }
@@ -55,6 +63,7 @@ export default function CitizenServiceTrackerModal({ initialUlpin, onClose }) {
     try {
       const res = await requestCorrection(ulpin.trim(), {
         layer: chosen.layer, field: chosen.field, requestedValue: requested, evidence, requestedBy: name,
+        referencesRequestId: refId ? Number(refId) : undefined,
       });
       setResult(res);
       setRequested('');
@@ -66,11 +75,11 @@ export default function CitizenServiceTrackerModal({ initialUlpin, onClose }) {
   };
 
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Request a record correction">
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Report an issue with this parcel">
       <div className="modal-card correction-card">
         <div className="modal-head">
           <div>
-            <h3>Request a record correction</h3>
+            <h3>Report an issue with this parcel</h3>
             <p>A spelling-level fix to a name or reference goes to one reviewer. Anything else goes to the village land officer, then the auditor, then the state administrator.</p>
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="Close"><X size={18} /></button>
@@ -92,6 +101,14 @@ export default function CitizenServiceTrackerModal({ initialUlpin, onClose }) {
           <label>Correct value
             <input value={requested} onChange={(e) => setRequested(e.target.value)} maxLength={200} required />
           </label>
+          {decided.length > 0 && (
+            <label>Is this about an earlier decision? (optional)
+              <select value={refId} onChange={(e) => setRefId(e.target.value)}>
+                <option value="">No, a new issue</option>
+                {decided.map((d) => <option key={d.id} value={d.id}>Request #{d.id}: {d.label}</option>)}
+              </select>
+            </label>
+          )}
           <label>Your name
             <input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} required />
           </label>

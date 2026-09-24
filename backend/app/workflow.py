@@ -88,20 +88,33 @@ def forbid_self_approval(req: BoundaryChangeRequest, actor: Dict[str, Any]) -> N
 
 
 def advance_request(req: BoundaryChangeRequest, status: str, role: str, note: str = "",
-                    db: Optional[Session] = None, submitted: bool = False, event: Optional[str] = None) -> None:
-    """Set status, append to the request history and, when `db` is given, to the audit chain.
-    Caller commits. `req` must already have an id when `db` is given."""
+                    db: Optional[Session] = None, submitted: bool = False, event: Optional[str] = None,
+                    actor_uid: Optional[str] = None) -> None:
+    """Set status and append to the request history and, when `db` is given, to the audit chain.
+    Each history entry records who acted (`uid`) and what kind of act it was (`kind`), which the
+    separation-of-duties rules read. Caller commits. `req` must already have an id when `db` is given."""
     previous = req.status
+    kind = "submit" if submitted else ("reject" if status == "REJECTED" else "approve")
     req.history = list(req.history or []) + [{
         "at": datetime.utcnow().isoformat(),
         "status": status,
         "role": role,
+        "uid": actor_uid,
+        "kind": kind,
         "note": note,
     }]
     req.status = status
     if db is not None:
         audit.append(db, req.ulpin, event or audit.event_for(status, submitted), role, request_id=req.id,
-                     from_status=None if submitted else previous, to_status=status, note=note, payload=req.payload)
+                     from_status=None if submitted else previous, to_status=status, note=note, payload=req.payload,
+                     actor_uid=actor_uid)
+
+
+def note_history(req: BoundaryChangeRequest, kind: str, role: str, uid: Optional[str], note: str) -> None:
+    """Record a non-status event (a concern) in the request history."""
+    req.history = list(req.history or []) + [{
+        "at": datetime.utcnow().isoformat(), "status": req.status, "role": role, "uid": uid, "kind": kind, "note": note,
+    }]
 
 
 def archive_parcel(db: Session, parcel: Parcel, status: str, reason: str, role: str,

@@ -9,6 +9,7 @@ NEW_COLUMNS = {
         ("archived_reason", "VARCHAR"),
         ("superseded_by", "VARCHAR"),
     ],
+    "parcel_audit_log": [("actor_ref", "VARCHAR")],
     "boundary_change_requests": [
         ("track", "VARCHAR NOT NULL DEFAULT 'HIGH'"),
         ("requester_uid", "VARCHAR"),

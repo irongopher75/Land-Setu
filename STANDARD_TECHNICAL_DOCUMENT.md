@@ -76,7 +76,7 @@ flowchart LR
 | Rule engine | `backend/app/rules.py` | **[Implemented]** | Five rules, cached result on the parcel row, neighbour invalidation. See section 3. |
 | Workflow pipeline | `backend/app/workflow.py`, `backend/app/routes/workflow.py`, `backend/app/routes/parcels.py` | **[Implemented]** | Multi-stage approval for boundary, deletion, split, merge and correction requests. |
 | State detection | `backend/app/states.py` | **[Partial]** | Point-in-polygon against hand-simplified state outlines plus bounding boxes. Not official boundaries. See section 3. |
-| Migrations | `backend/alembic/versions/` (4 revisions) | **[Partial]** | The running service builds tables with `create_all` at startup. Alembic revisions exist for upgrading older databases. |
+| Migrations | `backend/alembic/versions/` (5 revisions) | **[Partial]** | The running service builds tables with `create_all` at startup. Alembic revisions exist for upgrading older databases. |
 | Web application | `frontend/src/` | **[Implemented]** | React 18, Vite, Leaflet, Turf.js, Axios. Pages are listed in 1.5. |
 | Identity | `frontend/src/firebase.js`, `backend/app/routes/auth.py` | **[Implemented]** | Firebase Auth issues identity. The API exchanges the ID token for its own session. |
 | Audit log | `backend/app/audit.py`, `parcel_audit_log` | **[Implemented]** | Hash-chained, append-only, verified on read. See sections 2 and 5. |
@@ -103,7 +103,7 @@ If any API call fails, the SPA falls back to bundled sample data. A response tha
 
 ### 1.6 Testing and delivery
 
-- 54 backend tests (`backend/tests/`) cover authentication, roles, the rule engine, the flag cache, the workflow pipeline, and public access. They run on SQLite. **The PostGIS code path is not covered by an automated test.**
+- 66 backend tests (`backend/tests/`) cover authentication, roles, the rule engine, the flag cache, the workflow pipeline, and public access. They run on SQLite. **The PostGIS code path is not covered by an automated test.**
 - GitHub Actions (`.github/workflows/firebase-hosting-merge.yml`) runs the backend tests and the frontend build on every push to `main`, then deploys the frontend to Firebase Hosting if both pass.
 
 ---
@@ -332,6 +332,13 @@ Access: **Public** needs no session (a visitor is treated as a citizen). **Signe
 | POST | `/parcels/requests/{id}/approve` | Final approval | Role-checked |
 | POST | `/parcels/requests/{id}/reject` | Reject at the caller's stage | Role-checked |
 | GET | `/parcels/analytics/summary` | Counts per state | state_admin |
+| POST | `/parcels/requests/{id}/flags` | Raise a concern with the current reviewer | Filer or a prior approver |
+| GET | `/parcels/requests/{id}/flags` | Concerns on a request | Signed in, not citizen |
+| POST | `/parcels/flags/{id}/acknowledge` | Mark a concern seen (still blocks approval) | Current reviewer |
+| POST | `/parcels/flags/{id}/resolve` | Resolve a concern with a note | Current reviewer, not the raiser |
+| POST | `/parcels/requests/{id}/withdraw` | Withdraw before any reviewer acts | Filer |
+| POST | `/parcels/requests/{id}/fast-approve` | Single-approver correction | auditor, state_admin |
+| GET | `/parcels/{ulpin}/audit-chain` | Audit log with server-side verification | Public |
 | GET | `/admin/users` | List accounts with their roles | super_admin |
 | POST | `/admin/users` | Create an account with a role and a one-time password | super_admin |
 | PUT | `/admin/users/{uid}/role` | Assign a role | super_admin |
@@ -406,8 +413,9 @@ The server is the authority. The interface reads the same claim so it can show o
 | Role checks per route | **[Implemented]** | Tested for citizen, officer, auditor and state admin paths. |
 | Public reads at citizen level | **[Implemented]** | Citizens see only a defined set of fields per layer. The raw source record is withheld. |
 | Input validation | **[Implemented]** | Pydantic models, ULPIN pattern, polygon validity, vertex cap, escaped search wildcards. |
-| Approval separation of duties | **[Implemented]** | Two tracks. High rigor (boundary, split, merge, deletion, and any correction that changes ownership, share, land use or a different person or reference) needs the village officer, auditor and state administrator. Fast track (spelling-level fixes to owner name or khata reference) needs one auditor or state administrator. The account that filed a request can never act on it, at any stage, whatever its role. |
-| Audit log | **[Implemented]** | Hash-chained, append-only `parcel_audit_log`, guarded by a database trigger and verified on read. A person with database administrator rights could still rewrite the whole chain. External anchoring of the head hash is **[Planned]**. |
+| Approval separation of duties | **[Implemented]** | Rules live in one place (`backend/app/permissions.py`) and the API returns the same decision to the interface with each queued request. (1) Only the current stage's reviewer may approve or reject; a state administrator can no longer reject at earlier stages. (2) Nobody acts on a request they filed. (3) One account may approve a request at most once, so no single account, including a super administrator, can take a high-rigor request through every stage. (4) An account that has approved or forwarded a request can never reject it afterwards, even if it returns to their stage; they can only raise a concern. (5) A filer may withdraw only before any reviewer acts. (6) A closed request accepts nothing further; a later problem is reported as a new request that references the old one. Two tracks. High rigor (boundary, split, merge, deletion, and any correction that changes ownership, share, land use or a different person or reference) needs the village officer, auditor and state administrator. Fast track (spelling-level fixes to owner name or khata reference) needs one auditor or state administrator. The account that filed a request can never act on it, at any stage, whatever its role. |
+| Concerns | **[Implemented]** | `request_flags`: someone who filed or already approved an open request raises a concern with the reviewer who now holds it. While a concern is open or acknowledged the holder cannot approve; they resolve it with a note or reject the request. The person who raised a concern cannot resolve it. `concern_raised` and `concern_resolved` are audit-log events; the reason and note are stored there as digests because the log is public. |
+| Audit log | **[Implemented]** | Hash-chained, append-only `parcel_audit_log`, each entry tied to the acting account by a keyed hash (`actor_ref`) that is not published, guarded by a database trigger and verified on read. A person with database administrator rights could still rewrite the whole chain. External anchoring of the head hash is **[Planned]**. |
 | Legacy browser-side chain | **[Partial]** | The earlier chain computed in the browser and stored in Firestore is shown only when the API is unreachable, labelled as not verified. |
 | Firestore rules | **[Implemented]** | Deployed. Writes need an officer role claim and follow per-status transition rules. Only officers read requests. Bank accounts cannot write. Officers can write only if their account carries a role claim. |
 | Rate limiting | **[Implemented]** | In the API: 20 requests a minute per client on `/auth` and `/admin`, 60 on other writes, 300 on reads, then HTTP 429 with `Retry-After`. Counted in memory on one instance. Several instances need a shared store. |
@@ -580,6 +588,7 @@ A `docker-compose.yml` runs a local stack (PostGIS database, API, frontend, and 
 | 12 | Translations are drafts, text pages English only | Section 6 | Native-speaker review, full page translation |
 | 13 | No notifications on request status changes, no service-request tracker for citizens beyond ULPIN lookup | Features | Email or SMS notification on stage change |
 | 14 | No AI or satellite change detection beyond a labelled demo panel | Features | Real model integration in a later phase |
+| 16 | Only people in a request's review chain can raise a concern. Next step, deferred for scope: the auditor role gains standing to flag any request, not only ones in their own review chain, as independent oversight. | Section 5 | Auditor-wide flagging |
 | 15 | Role changes need the Firebase service account key set on the API host. A LandSetu session already issued keeps its old role for up to 30 minutes. | Section 5 | Server-side session list |
 
 **Phases.**
@@ -614,9 +623,9 @@ backend/
   app/routes/            auth, parcels, workflow, adapter
   configs/*.yaml         one mapping file per state
   mock_data/             synthetic CSV and GeoJSON for Tamil Nadu and Chandigarh
-  alembic/versions/      4 migration revisions
+  alembic/versions/      5 migration revisions
   scripts/set_role.py    assign a role claim to an account
-  tests/                 54 tests
+  tests/                 66 tests
 frontend/
   src/App.jsx, router.js, i18n.jsx, api.js
   src/pages/             text pages, lender preview, developer API, officer console

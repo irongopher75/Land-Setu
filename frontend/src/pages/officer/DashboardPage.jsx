@@ -33,6 +33,7 @@ export default function DashboardPage({ role, isLoggedIn }) {
   const list = reqs || [];
   const byStage = count(list, (r) => STAGE_LABEL[r.status] || 'Other');
   const byType = count(list, typeOf);
+  const concerns = list.filter((r) => r.permissions?.can_resolve && (r.flags || []).some((f) => f.status !== 'resolved')).length;
   const mine = list.filter((r) => (MINE[role] || []).includes(STAGE_LABEL[r.status]));
   const recent = [...list].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).slice(0, 6);
 
@@ -40,6 +41,7 @@ export default function DashboardPage({ role, isLoggedIn }) {
     <OfficerFrame title="Officer dashboard" path="/officer" role={role} isLoggedIn={isLoggedIn}>
       <dl className="stat-strip">
         <div><dt>Open requests</dt><dd>{reqs ? list.length : '-'}</dd></div>
+        <div><dt>Concerns for you</dt><dd className={concerns ? 'is-alert' : ''}>{reqs ? concerns : '-'}</dd></div>
         <div><dt>Waiting on you</dt><dd className={mine.length ? 'is-alert' : ''}>{reqs ? mine.length : '-'}</dd></div>
         <div><dt>At village review</dt><dd>{byStage['Village officer review'] || 0}</dd></div>
         <div><dt>At audit</dt><dd>{byStage['Auditor review'] || 0}</dd></div>

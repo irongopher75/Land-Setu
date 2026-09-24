@@ -112,3 +112,29 @@ class ParcelAuditLog(Base):
     created_at = Column(String, nullable=False)
     prev_hash = Column(String, nullable=False)
     entry_hash = Column(String, nullable=False)
+    # Keyed hash of the acting account id. Lets the log tie entries to one account without publishing it.
+    actor_ref = Column(String, nullable=True)
+
+
+class RequestFlag(Base):
+    """A concern raised against an open request by someone who filed or already forwarded it.
+
+    status: open -> acknowledged -> resolved. While any flag is unresolved the current reviewer cannot approve.
+    """
+    __tablename__ = "request_flags"
+
+    id = Column(Integer, primary_key=True, index=True)
+    request_id = Column(Integer, nullable=False, index=True)
+    ulpin = Column(String, nullable=False, index=True)
+    raised_by_uid = Column(String, nullable=False)
+    raised_by_role = Column(String, nullable=False)
+    raised_at = Column(String, nullable=False)
+    stage_at_raise = Column(String, nullable=False)   # request status when the concern was raised
+    reason = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="open", index=True)  # open | acknowledged | resolved
+    acknowledged_by_uid = Column(String, nullable=True)
+    acknowledged_at = Column(String, nullable=True)
+    resolved_by_uid = Column(String, nullable=True)
+    resolved_by_role = Column(String, nullable=True)
+    resolved_at = Column(String, nullable=True)
+    resolution_note = Column(String, nullable=True)

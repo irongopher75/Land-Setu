@@ -129,7 +129,7 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, o
                 </div>
               )}
               <div className="btn-row">
-                <button className="btn" onClick={onRequestCorrection}>Request a record correction</button>
+                <button className="btn" onClick={onRequestCorrection}>Report an issue with this parcel</button>
               </div>
 
               <div className="panel-tabs" role="tablist">

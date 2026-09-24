@@ -55,8 +55,8 @@ def test_split_pipeline(client):
     assert r.status_code == 200, r.text
     rid = r.json()["request_id"]
     assert as_role(client, "citizen").post("/parcels/WF-SPLIT/split-request", json={"parts": []}).status_code == 403
-    # cannot skip auditor
-    assert as_role(client, "state_admin").post(f"/parcels/requests/{rid}/approve").status_code == 400
+    # cannot skip auditor: it is not the state admin's stage yet
+    assert as_role(client, "state_admin").post(f"/parcels/requests/{rid}/approve").status_code == 403
     res = run_pipeline(client, rid)
     assert res.status_code == 200, res.text
     db = SessionLocal()

@@ -351,7 +351,8 @@ export const getParcelPassport = async (ulpin) => {
 // Split, merge and correction requests exist only in the backend database. The Firestore
 // and localStorage fallbacks cannot apply them, so they never go through those paths.
 export const REST_ONLY_REQUEST_TYPES = ['SPLIT', 'MERGE', 'CORRECTION'];
-const isRestOnlyRequest = (req) => !!req && REST_ONLY_REQUEST_TYPES.includes(req.type);
+// Requests that came from the records service carry `permissions`; those are always decided there.
+const isRestOnlyRequest = (req) => !!req && (REST_ONLY_REQUEST_TYPES.includes(req.type) || !!req.permissions);
 
 const restError = (err, action) => {
   if (err.response) return new Error(err.response.data?.detail || `${action} failed (${err.response.status}).`);
@@ -1256,9 +1257,10 @@ export const requestMerge = (ulpin, mergeWith, reason, requestedBy) =>
     requested_by: requestedBy || 'Village Land Officer',
   });
 
-export const requestCorrection = (ulpin, { layer, field, requestedValue, evidence, requestedBy }) =>
+export const requestCorrection = (ulpin, { layer, field, requestedValue, evidence, requestedBy, referencesRequestId }) =>
   restPost(`/parcels/${encodeURIComponent(ulpin)}/correction-request`, 'Correction request', {
     layer, field, requested_value: requestedValue, evidence, requested_by: requestedBy,
+    references_request_id: referencesRequestId || undefined,
   });
 
 export const getAnalyticsSummary = () => restCall('get', '/parcels/analytics/summary', 'Analytics');
@@ -1332,3 +1334,11 @@ export const createAccount = (email, displayName, role) => adminCall('post', '/a
 export const setAccountRole = (uid, role) => adminCall('put', `/admin/users/${encodeURIComponent(uid)}/role`, { role });
 export const setAccountDisabled = (uid, disabled) => adminCall('put', `/admin/users/${encodeURIComponent(uid)}/disabled`, { disabled });
 export const listRoleAudit = () => adminCall('get', '/admin/audit');
+
+// Archival and concern actions. All are decided by the records service.
+export const villageApproveArchival = (id) => restPost(`/parcels/requests/${id}/village-approve-deletion`, 'Village approval');
+export const auditorApproveArchival = (id) => restPost(`/parcels/requests/${id}/auditor-approve-deletion`, 'Archival authorization');
+export const withdrawRequest = (id) => restPost(`/parcels/requests/${id}/withdraw`, 'Withdrawal');
+export const raiseConcern = (id, reason) => restPost(`/parcels/requests/${id}/flags`, 'Raising a concern', { reason });
+export const acknowledgeConcern = (flagId) => restPost(`/parcels/flags/${flagId}/acknowledge`, 'Acknowledging a concern');
+export const resolveConcern = (flagId, note) => restPost(`/parcels/flags/${flagId}/resolve`, 'Resolving a concern', { note });
