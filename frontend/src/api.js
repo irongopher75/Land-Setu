@@ -113,16 +113,32 @@ const KNOWN_ROLES = ['citizen', 'village_officer', 'auditor', 'state_admin'];
 // Role for display. The server session is the source of truth. If the records service is not
 // reachable, fall back to the role claim on the signed-in account. The server still enforces
 // every action, so this only decides what the interface shows.
+// The last check is kept so the account menu can show where the role came from.
+let roleDiagnostic = { source: 'none', server: null, claim: null };
+export const getRoleDiagnostic = () => roleDiagnostic;
+
 export const resolveRole = async (user) => {
+  const diag = { source: 'default (no role found)', server: null, claim: null };
+  let role = 'citizen';
   try {
     const session = await firebaseLogin(await user.getIdToken(true));
-    if (session && KNOWN_ROLES.includes(session.role)) return session.role;
-  } catch (err) { /* service unreachable, try the account claim */ }
-  try {
-    const claims = (await user.getIdTokenResult(true)).claims;
-    if (KNOWN_ROLES.includes(claims.role)) return claims.role;
-  } catch (err) { /* no claim */ }
-  return 'citizen';
+    diag.server = session?.role ?? null;
+    if (session && KNOWN_ROLES.includes(session.role)) { role = session.role; diag.source = 'records service session'; }
+  } catch (err) {
+    diag.server = `unavailable (${err.response?.status || err.message})`;
+  }
+  if (diag.source.startsWith('default')) {
+    try {
+      const claims = (await user.getIdTokenResult(true)).claims;
+      diag.claim = claims.role ?? 'not set';
+      if (KNOWN_ROLES.includes(claims.role)) { role = claims.role; diag.source = 'account role claim'; }
+    } catch (err) {
+      diag.claim = `unreadable (${err.message})`;
+    }
+  }
+  roleDiagnostic = diag;
+  console.info('LandSetu role check', { email: user?.email, role, ...diag });
+  return role;
 };
 
 export const logout = async () => {

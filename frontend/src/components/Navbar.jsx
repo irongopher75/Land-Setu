@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getAllStates } from '../api';
+import { getAllStates, getRoleDiagnostic } from '../api';
 import ParcelSearch from './ParcelSearch';
 import { LANGUAGES, useT } from '../i18n';
 
@@ -69,6 +69,7 @@ export default function Navbar({ activeView, selectedState, setSelectedState, cu
                   <div className="profile-name">{currentUser?.displayName || 'Signed in'}</div>
                   {currentUser?.email && <div className="subtle">{currentUser.email}</div>}
                   <div className="subtle">{ROLE_LABEL[currentRole] || 'Citizen'}</div>
+                  <div className="subtle">Role source: {getRoleDiagnostic().source}</div>
                   <button className="btn btn--block" onClick={onLogout}>{t('nav.signout')}</button>
                 </div>
               </details>

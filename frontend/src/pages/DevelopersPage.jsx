@@ -54,7 +54,7 @@ export default function DevelopersPage() {
         <ul className="plain-list">
           <li>Issued API keys with per-key rate limits.</li>
           <li>A versioned path such as /v1 and a published change log.</li>
-          <li>An OpenAPI document and a sandbox with the synthetic data.</li>
+          <li>A hosted sandbox with the synthetic data. The API already publishes an OpenAPI description at /openapi.json.</li>
         </ul>
       </section>
     </PageShell>
