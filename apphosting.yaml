@@ -17,3 +17,15 @@ env:
     value: "true"
   - variable: ENVIRONMENT
     value: "production"
+  - variable: VITE_FIREBASE_API_KEY
+    value: "AIzaSyBhUBl2zZT_MvYqB__kx1PpgF2Zgtg_jPA"
+  - variable: VITE_FIREBASE_AUTH_DOMAIN
+    value: "landsetu-e4e5e.firebaseapp.com"
+  - variable: VITE_FIREBASE_PROJECT_ID
+    value: "landsetu-e4e5e"
+  - variable: VITE_FIREBASE_STORAGE_BUCKET
+    value: "landsetu-e4e5e.firebasestorage.app"
+  - variable: VITE_FIREBASE_MESSAGING_SENDER_ID
+    value: "444994327661"
+  - variable: VITE_FIREBASE_APP_ID
+    value: "1:444994327661:web:ecaca48f0700f91fd01b64"

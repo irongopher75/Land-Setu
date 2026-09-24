@@ -3,15 +3,15 @@ services:
     image: postgis/postgis:15-3.3
     container_name: landsetu-db
     environment:
-      POSTGRES_USER: landsetu
-      POSTGRES_PASSWORD: landsetu_pass
-      POSTGRES_DB: landsetu_db
+      POSTGRES_USER: ${POSTGRES_USER:-landsetu}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-landsetu_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-landsetu_db}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U landsetu -d landsetu_db"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-landsetu} -d $${POSTGRES_DB:-landsetu_db}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -23,11 +23,11 @@ services:
     container_name: landsetu-backend
     environment:
       - NODE_ID=backend-single-node
-      - DATABASE_URL=postgresql://landsetu:landsetu_pass@db:5432/landsetu_db
+      - DATABASE_URL=${DATABASE_URL:-postgresql://landsetu:landsetu_pass@db:5432/landsetu_db}
       - ALLOW_SQLITE_FALLBACK=false
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in environment or .env}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost,http://localhost:5173,https://landsetu-e4e5e.web.app}
-      - DEMO_LOGIN_ENABLED=${DEMO_LOGIN_ENABLED:-true}
+      - DEMO_LOGIN_ENABLED=${DEMO_LOGIN_ENABLED:-false}
     depends_on:
       db:
         condition: service_healthy
@@ -36,6 +36,13 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN}
+        VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID}
+        VITE_FIREBASE_STORAGE_BUCKET: ${VITE_FIREBASE_STORAGE_BUCKET}
+        VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID}
+        VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID}
     container_name: landsetu-frontend
     depends_on:
       - backend
