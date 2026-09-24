@@ -25,3 +25,10 @@ ui-debug.log
 # Local agent/skill config (not pushed to repo)
 .claude/
 .agents/
+
+# Local agent and skill config, editor files
+AGENTS.md
+CLAUDE.md
+SKILLS.md
+.DS_Store
+**/.DS_Store
