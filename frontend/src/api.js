@@ -127,14 +127,14 @@ export const resolveRole = async (user) => {
   } catch (err) {
     diag.server = `unavailable (${err.response?.status || err.message})`;
   }
-  if (diag.source.startsWith('default')) {
-    try {
-      const claims = (await user.getIdTokenResult(true)).claims;
-      diag.claim = claims.role ?? 'not set';
-      if (KNOWN_ROLES.includes(claims.role)) { role = claims.role; diag.source = 'account role claim'; }
-    } catch (err) {
-      diag.claim = `unreadable (${err.message})`;
-    }
+  // Read the claim every time, even when the server answered. The server falls back to citizen
+  // when the claim is missing, so the claim is what tells a real citizen from an unset account.
+  try {
+    const claims = (await user.getIdTokenResult()).claims;
+    diag.claim = claims.role ?? 'not set';
+    if (diag.source.startsWith('default') && KNOWN_ROLES.includes(claims.role)) { role = claims.role; diag.source = 'account role claim'; }
+  } catch (err) {
+    diag.claim = `unreadable (${err.message})`;
   }
   roleDiagnostic = diag;
   console.info('LandSetu role check', { email: user?.email, role, ...diag });

@@ -70,6 +70,7 @@ export default function Navbar({ activeView, selectedState, setSelectedState, cu
                   {currentUser?.email && <div className="subtle">{currentUser.email}</div>}
                   <div className="subtle">{ROLE_LABEL[currentRole] || 'Citizen'}</div>
                   <div className="subtle">Role source: {getRoleDiagnostic().source}</div>
+                  <div className="subtle">Role claim: {getRoleDiagnostic().claim ?? 'not checked'}</div>
                   <button className="btn btn--block" onClick={onLogout}>{t('nav.signout')}</button>
                 </div>
               </details>
