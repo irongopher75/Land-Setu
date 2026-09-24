@@ -103,7 +103,7 @@ If any API call fails, the SPA falls back to bundled sample data. A response tha
 
 ### 1.6 Testing and delivery
 
-- 48 backend tests (`backend/tests/`) cover authentication, roles, the rule engine, the flag cache, the workflow pipeline, and public access. They run on SQLite. **The PostGIS code path is not covered by an automated test.**
+- 54 backend tests (`backend/tests/`) cover authentication, roles, the rule engine, the flag cache, the workflow pipeline, and public access. They run on SQLite. **The PostGIS code path is not covered by an automated test.**
 - GitHub Actions (`.github/workflows/firebase-hosting-merge.yml`) runs the backend tests and the frontend build on every push to `main`, then deploys the frontend to Firebase Hosting if both pass.
 
 ---
@@ -409,16 +409,19 @@ The server is the authority. The interface reads the same claim so it can show o
 | Approval separation of duties | **[Implemented]** | Two tracks. High rigor (boundary, split, merge, deletion, and any correction that changes ownership, share, land use or a different person or reference) needs the village officer, auditor and state administrator. Fast track (spelling-level fixes to owner name or khata reference) needs one auditor or state administrator. The account that filed a request can never act on it, at any stage, whatever its role. |
 | Audit log | **[Implemented]** | Hash-chained, append-only `parcel_audit_log`, guarded by a database trigger and verified on read. A person with database administrator rights could still rewrite the whole chain. External anchoring of the head hash is **[Planned]**. |
 | Legacy browser-side chain | **[Partial]** | The earlier chain computed in the browser and stored in Firestore is shown only when the API is unreachable, labelled as not verified. |
-| Firestore rules | **[Partial]** | The rules in the repository restrict writes by role claim and status transition and compile in a dry run. **They are not yet deployed.** The rules currently live in the project allow any signed-in user to write to several collections. |
-| Rate limiting | **[Partial]** | Configured in the nginx load balancer of the docker-compose stack. The Render deployment has no rate limit. |
+| Firestore rules | **[Implemented]** | Deployed. Writes need an officer role claim and follow per-status transition rules. Only officers read requests. Bank accounts cannot write. Officers can write only if their account carries a role claim. |
+| Rate limiting | **[Implemented]** | In the API: 20 requests a minute per client on `/auth` and `/admin`, 60 on other writes, 300 on reads, then HTTP 429 with `Retry-After`. Counted in memory on one instance. Several instances need a shared store. |
+| API response headers and size cap | **[Implemented]** | `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, a locked CSP on JSON responses, `no-store` on `/auth` and `/admin`, HSTS in production, and a 1 MB request body cap. |
+| Site headers and CSP | **[Implemented]** | Firebase Hosting sends a Content Security Policy with an allow-list (own origin, the API, Firebase and Google sign-in, map tiles, fonts), HSTS, `X-Frame-Options: DENY`, a referrer policy and `Cross-Origin-Opener-Policy: same-origin-allow-popups` (needed for the Google sign-in window). Scripts are same-origin only. Not verified in a browser: Google sign-in through the policy. |
+| Output escaping in map popups | **[Implemented]** | Owner names and other record values are HTML-escaped before entering map tooltips and popups. Before this, a crafted name could inject markup. |
 | Token revocation | **[Planned]** | Access tokens live 30 minutes and cannot be revoked earlier. There is no server-side session list. |
 | Asymmetric signing | **[Planned]** | Sessions use a shared secret. Moving to asymmetric keys allows other systems to verify tokens without being able to mint them. |
-| Security headers, dependency scanning | **[Planned]** | Not yet configured. |
+| Dependency scanning | **[Planned]** | Not yet configured. |
 | Independent security review | **[Planned]** | Not yet done. |
 
 ### 5.3 Known gaps and remediation
 
-1. **Firestore rules not deployed.** Remediation: deploy the reviewed rules once officer accounts carry role claims. Until then, treat the Firestore fallback as untrusted convenience storage, not as a record.
+1. **Firestore fallback is not a record.** The role-gated rules are deployed, but the browser-side store is still a second copy of some data. Treat it as convenience storage.
 2. **Credential exposure during development.** A service-account key was shared outside a secret store. Any key that has left the secret store must be treated as compromised. Remediation: delete the key, issue a new one, store it only in the hosting platform's secret settings, and never in the repository or in chat.
 3. **Two stores.** The offline fallback writes parcels and requests to Firestore and localStorage while the API writes to PostgreSQL. Data created offline is not reconciled. Remediation: make PostgreSQL the only authoritative store and turn the browser stores into a queued write buffer that syncs.
 4. **Single-node free hosting.** No redundancy, sleeping service, no backups. See section 7.
@@ -538,7 +541,7 @@ A `docker-compose.yml` runs a local stack (PostGIS database, API, frontend, and 
 | Read load | One API instance | Regional read replicas and horizontal API instances behind a load balancer. The API is stateless (sessions are signed tokens), so replicas need no shared session store. | **[Planned]** |
 | Schema changes | `create_all` at startup, Alembic revisions for existing databases | Run Alembic migrations as a release step. | **[Partial]** |
 | Data ingestion | Fixed seed list | Batch import with validation, idempotent upsert on `ulpin`, and a per-row error report. | **[Planned]** |
-| Observability | `/health` only | Structured logs, request metrics, alerting, database monitoring. | **[Planned]** |
+| Observability | `/health` (liveness) and `/health/ready` (database) | Structured logs, request metrics, alerting, database monitoring. An external uptime monitor on `/health/ready` is described in `docs/OPERATIONS.md`. | **[Partial]** |
 
 ### 7.3 Hackathon deployment against a real pilot
 
@@ -563,7 +566,7 @@ A `docker-compose.yml` runs a local stack (PostGIS database, API, frontend, and 
 
 | # | Limitation | Where | Planned remedy |
 |---|---|---|---|
-| 1 | Firestore write rules written but not deployed | Section 5 | Deploy after officer role claims are set |
+| 1 | Backups are manual and the free database expires after 30 days | Section 7 | Paid Postgres with daily backups, restore tested (`docs/OPERATIONS.md`) |
 | 2 | Two stores (PostgreSQL and browser-side Firestore/localStorage) | Section 1 | PostgreSQL authoritative, browser store as a sync queue |
 | 3 | Audit log head hash is not anchored outside the database | Section 5 | Periodic external anchoring |
 | 4 | State detection uses simplified outlines | Section 3 | Official state and district boundaries stored locally |
@@ -573,7 +576,7 @@ A `docker-compose.yml` runs a local stack (PostGIS database, API, frontend, and 
 | 8 | No vector tiles, no partitioning, no replicas | Section 7 | As listed in 7.2 |
 | 9 | Free-tier hosting, outside India | Section 7 | India-region managed hosting |
 | 10 | PostGIS path has no automated test | Section 1 | CI job with a PostGIS service container |
-| 11 | No token revocation or rate limit on the hosted API | Section 5 | Server-side session list, gateway rate limits |
+| 11 | No token revocation. Rate limits are per instance. | Section 5 | Server-side session list, shared rate-limit store |
 | 12 | Translations are drafts, text pages English only | Section 6 | Native-speaker review, full page translation |
 | 13 | No notifications on request status changes, no service-request tracker for citizens beyond ULPIN lookup | Features | Email or SMS notification on stage change |
 | 14 | No AI or satellite change detection beyond a labelled demo panel | Features | Real model integration in a later phase |
@@ -613,7 +616,7 @@ backend/
   mock_data/             synthetic CSV and GeoJSON for Tamil Nadu and Chandigarh
   alembic/versions/      4 migration revisions
   scripts/set_role.py    assign a role claim to an account
-  tests/                 48 tests
+  tests/                 54 tests
 frontend/
   src/App.jsx, router.js, i18n.jsx, api.js
   src/pages/             text pages, lender preview, developer API, officer console

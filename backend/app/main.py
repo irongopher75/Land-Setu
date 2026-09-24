@@ -7,6 +7,7 @@ from app.db import engine, Base, IS_SQLITE
 from app.routes import auth, adapter, parcels, workflow, admin
 from app.seed import seed_database
 from app.schema_upgrade import upgrade_schema
+from app.security import SecurityMiddleware
 from app.audit import install_append_only_guard, backfill_imported
 from app.db import SessionLocal
 
@@ -27,6 +28,9 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
 )
+
+# Added last so it runs first: rate limit and size cap before any handler, headers on every response.
+app.add_middleware(SecurityMiddleware)
 
 # Register APIRouters
 app.include_router(auth.router)
@@ -58,6 +62,17 @@ def root_status():
         "system": "LandSetu Sovereign GIS Platform",
         "docs": "/docs"
     }
+
+@app.get("/health/ready")
+def readiness_check():
+    """Answers only when the database does. Use this for uptime monitoring."""
+    from fastapi import HTTPException
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception:
+        raise HTTPException(status_code=503, detail="Database not reachable")
+    return {"status": "ready"}
 
 @app.get("/health")
 def health_check():

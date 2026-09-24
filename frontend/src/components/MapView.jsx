@@ -24,6 +24,9 @@ const userLocationIcon = L.divIcon({
   iconAnchor: [12, 12]
 });
 
+// Popup and tooltip HTML goes through innerHTML. Anything from a record must be escaped first.
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
 // Area calculation helper (sqm)
 function calculatePolygonAreaSqm(latLngs) {
   if (!latLngs || latLngs.length < 3) return 0;
@@ -360,7 +363,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
           dashArray: '6, 6'
         },
         onEachFeature: (feat, layer) => {
-          layer.bindTooltip(`Protected zone: ${feat.properties.name}`, { sticky: true });
+          layer.bindTooltip(`Protected zone: ${esc(feat.properties.name)}`, { sticky: true });
         }
       });
       protectedLayerRef.current.addLayer(geoLayer);
@@ -388,28 +391,28 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
               ${hasOverlap ? `
                 <div class="map-tip-alert">
                   <strong>Overlapping parcels</strong>
-                  <div>Conflicts with: <strong>${(props.overlapping_with || []).join(', ')}</strong></div>
+                  <div>Conflicts with: <strong>${esc((props.overlapping_with || []).join(', '))}</strong></div>
                 </div>
               ` : ''}
-              <strong class="data-id">${props.ulpin}</strong><br/>
-              ${props.owner_name ? `Owner: <strong>${props.owner_name}</strong><br/>` : ''}
-              Zoning: <strong>${theme.label}</strong><br/>
+              <strong class="data-id">${esc(props.ulpin)}</strong><br/>
+              ${props.owner_name ? `Owner: <strong>${esc(props.owner_name)}</strong><br/>` : ''}
+              Zoning: <strong>${esc(theme.label)}</strong><br/>
               Status: <strong class="${hasOverlap || props.has_flags ? 'is-alert' : 'is-verified'}">
-                ${hasOverlap ? 'Overlap conflict' : isApproved ? 'Approved boundary' : props.has_flags ? `Flagged (${props.flag_count} rules)` : 'Clean'}
+                ${hasOverlap ? 'Overlap conflict' : isApproved ? 'Approved boundary' : props.has_flags ? `Flagged (${esc(props.flag_count)} rules)` : 'Clean'}
               </strong>
             </div>
           `;
 
           const popupContent = `
             <div class="map-tip">
-              <strong class="data-id">${props.ulpin}</strong>
+              <strong class="data-id">${esc(props.ulpin)}</strong>
               <div>
-                ${props.owner_name ? `Owner: <strong>${props.owner_name}</strong><br/>` : ''}
-                Zoning: <strong>${theme.label}</strong>
+                ${props.owner_name ? `Owner: <strong>${esc(props.owner_name)}</strong><br/>` : ''}
+                Zoning: <strong>${esc(theme.label)}</strong>
               </div>
               ${role === 'state_admin' ? `
-                <button class="btn btn--seal-solid btn--block" onclick="if(window.LandSetuDeleteParcel) window.LandSetuDeleteParcel('${props.ulpin}')">
-                  Request land deletion
+                <button class="btn btn--seal-solid btn--block" data-archive-ulpin="${esc(props.ulpin)}">
+                  Request archival
                 </button>
               ` : ''}
             </div>
@@ -443,6 +446,16 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
       parcelsLayerRef.current.addLayer(geoLayer);
     }
   }, [parcelsGeoJSON, selectedUlpin, role, isDrawingMode, restructure]);
+
+  // Popup buttons carry data attributes; one delegated listener handles them (inline handlers are blocked by the CSP).
+  useEffect(() => {
+    const onClick = (e) => {
+      const btn = e.target.closest && e.target.closest('[data-archive-ulpin]');
+      if (btn && window.LandSetuDeleteParcel) window.LandSetuDeleteParcel(btn.getAttribute('data-archive-ulpin'));
+    };
+    document.addEventListener('click', onClick);
+    return () => document.removeEventListener('click', onClick);
+  }, []);
 
   // Global Governance Deletion Handler for Leaflet Popups
   useEffect(() => {
