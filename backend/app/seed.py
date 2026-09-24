@@ -8,6 +8,9 @@ from app.db import engine, SessionLocal, Base, IS_SQLITE
 from app.models import Parcel, ProtectedZone
 from app.adapter import adapter_engine
 
+# Resolve data files from the backend folder, not the process working directory.
+BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 def seed_database():
     Base.metadata.create_all(bind=engine)
     db: Session = SessionLocal()
@@ -22,13 +25,13 @@ def seed_database():
         mock_files = [
             {
                 "state": "TamilNadu",
-                "csv": "mock_data/tamilnadu_parcels.csv",
-                "geojson": "mock_data/tamilnadu_geometries.geojson"
+                "csv": os.path.join(BACKEND_DIR, "mock_data", "tamilnadu_parcels.csv"),
+                "geojson": os.path.join(BACKEND_DIR, "mock_data", "tamilnadu_geometries.geojson")
             },
             {
                 "state": "Chandigarh",
-                "csv": "mock_data/chandigarh_parcels.csv",
-                "geojson": "mock_data/chandigarh_geometries.geojson"
+                "csv": os.path.join(BACKEND_DIR, "mock_data", "chandigarh_parcels.csv"),
+                "geojson": os.path.join(BACKEND_DIR, "mock_data", "chandigarh_geometries.geojson")
             }
         ]
 
