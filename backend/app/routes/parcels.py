@@ -10,7 +10,7 @@ from app.db import get_db
 from app.models import Parcel, ProtectedZone, BoundaryChangeRequest
 from app.schemas import ParcelListItem, CanonicalParcelResponse, FlagItem
 from app.rules import RuleEngine, parse_geometry_shape, invalidate_neighbor_flags
-from app.routes.auth import get_current_role, require_roles, SECRET_KEY, ALGORITHM
+from app.routes.auth import get_current_role, get_optional_role, require_roles, SECRET_KEY, ALGORITHM
 from app.states import INDIAN_STATES, detect_state_from_coords
 from app.workflow import advance_request, apply_request, NEW_TYPES
 
@@ -163,7 +163,7 @@ def get_all_parcels_geojson(state: Optional[str] = Query(None), offset: int = Qu
     }
 
 @router.get("/{ulpin}")
-def get_parcel_detail(ulpin: str, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
+def get_parcel_detail(ulpin: str, role: str = Depends(get_optional_role), db: Session = Depends(get_db)):
     parcel = db.query(Parcel).filter(Parcel.ulpin == ulpin).first()
     if not parcel:
         raise HTTPException(status_code=404, detail=f"Parcel with ULPIN '{ulpin}' not found")
@@ -200,7 +200,7 @@ def get_parcel_geometry(ulpin: str, db: Session = Depends(get_db)):
     }
 
 @router.get("/{ulpin}/flags", response_model=List[FlagItem])
-def get_parcel_flags(ulpin: str, role: str = Depends(get_current_role), db: Session = Depends(get_db)):
+def get_parcel_flags(ulpin: str, role: str = Depends(get_optional_role), db: Session = Depends(get_db)):
     parcel = db.query(Parcel).filter(Parcel.ulpin == ulpin).first()
     if not parcel:
         raise HTTPException(status_code=404, detail=f"Parcel with ULPIN '{ulpin}' not found")

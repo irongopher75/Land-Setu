@@ -24,3 +24,13 @@ def test_search_is_public():
         c.cookies.clear()
         r = c.get("/parcels/search", params={"q": "TN-CHN"})
         assert r.status_code == 200 and isinstance(r.json(), list)
+
+
+def test_parcel_detail_is_public_with_citizen_fields():
+    with TestClient(app) as c:
+        c.cookies.clear()
+        r = c.get("/parcels/TN-CHN-0042-1187")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["raw_record"] is None  # citizen view hides the raw source record
+        assert c.get("/parcels/TN-CHN-0042-1187", headers={"Authorization": "Bearer not-a-token"}).status_code == 401

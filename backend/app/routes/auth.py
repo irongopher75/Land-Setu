@@ -81,6 +81,13 @@ def get_current_role(authorization: str | None = Header(None), landsetu_session:
     except (jwt.PyJWTError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid or expired session")
 
+def get_optional_role(authorization: str | None = Header(None), landsetu_session: str | None = Cookie(None)) -> str:
+    """Role for public reads. A visitor with no session is treated as a citizen.
+    A session that is present but invalid or expired still fails with 401, so a client can refresh it."""
+    if not landsetu_session and not (authorization and authorization.lower().startswith("bearer ")):
+        return "citizen"
+    return get_current_role(authorization, landsetu_session)
+
 def require_roles(*allowed_roles: str):
     def dependency(role: str = Depends(get_current_role)) -> str:
         if role not in allowed_roles:
