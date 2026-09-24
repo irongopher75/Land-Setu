@@ -76,7 +76,7 @@ flowchart LR
 | Rule engine | `backend/app/rules.py` | **[Implemented]** | Five rules, cached result on the parcel row, neighbour invalidation. See section 3. |
 | Workflow pipeline | `backend/app/workflow.py`, `backend/app/routes/workflow.py`, `backend/app/routes/parcels.py` | **[Implemented]** | Multi-stage approval for boundary, deletion, split, merge and correction requests. |
 | State detection | `backend/app/states.py` | **[Partial]** | Point-in-polygon against hand-simplified state outlines plus bounding boxes. Not official boundaries. See section 3. |
-| Migrations | `backend/alembic/versions/` (5 revisions) | **[Partial]** | The running service builds tables with `create_all` at startup. Alembic revisions exist for upgrading older databases. |
+| Migrations | `backend/alembic/versions/` (6 revisions) | **[Partial]** | The running service builds tables with `create_all` at startup. Alembic revisions exist for upgrading older databases. |
 | Web application | `frontend/src/` | **[Implemented]** | React 18, Vite, Leaflet, Turf.js, Axios. Pages are listed in 1.5. |
 | Identity | `frontend/src/firebase.js`, `backend/app/routes/auth.py` | **[Implemented]** | Firebase Auth issues identity. The API exchanges the ID token for its own session. |
 | Audit log | `backend/app/audit.py`, `parcel_audit_log` | **[Implemented]** | Hash-chained, append-only, verified on read. See sections 2 and 5. |
@@ -103,7 +103,7 @@ If any API call fails, the SPA falls back to bundled sample data. A response tha
 
 ### 1.6 Testing and delivery
 
-- 70 backend tests (`backend/tests/`) cover authentication, roles, the rule engine, the flag cache, the workflow pipeline, and public access. They run on SQLite. **The PostGIS code path is not covered by an automated test.**
+- 94 backend tests (`backend/tests/`) cover authentication, roles, the rule engine, the flag cache, the workflow pipeline, and public access. They run on SQLite. **The PostGIS code path is not covered by an automated test.**
 - GitHub Actions (`.github/workflows/firebase-hosting-merge.yml`) runs the backend tests and the frontend build on every push to `main`, then deploys the frontend to Firebase Hosting if both pass.
 
 ---
@@ -440,6 +440,31 @@ The server is the authority. The interface reads the same claim so it can show o
 
 ---
 
+## 5A. Statistical signals (analytical intelligence layer)
+
+Classical statistics and scikit-learn. No language models. Code in `backend/app/intelligence/`. Officers only, because name-repetition results profile a person across parcels.
+
+**Kinds of signal.** A rule flag (section 3) is a definite breach of a stated rule and is shown in seal red. A statistical signal is a pattern worth checking and is shown in a navy dotted frame labelled "Pattern, not a ruling". Every signal lists the exact records that produced it, its thresholds, a severity and a confidence.
+
+**Data added for it.** `registration_transactions` (every registered deed: execution date and the date the Sub-Registrar recorded it), `encumbrance_events` (raised and cleared times), and `parcels.created_at` and `parcels.district`. Seed parcels get one transfer each from their own source rows. Seed parcels loaded from source registers carry a fixed legacy-import time.
+
+**Planted synthetic test fixtures.** The demonstration database includes invented parcels built to show each detector firing: a parcel sold three times in 74 days, one name on five parcels in three districts (with spelling variants), a boundary change filed six days after a mortgage, a deed presented six years after execution, a deed dated after it was recorded, and one commercial plot inside a 25-plot residential neighbourhood. Every such row carries a `synthetic_fixture` label and the interface says so on the parcel. **They demonstrate the detectors. They are not findings about any real person or activity.** None of the 17 original seed parcels triggers a pattern.
+
+| Detector | Signal | Status |
+|---|---|---|
+| Rapid re-transfer | 3 or more sales or gifts inside any 90-day window (configurable) | **[Implemented]** |
+| Name repetition | One name, or a spelling-level variant (the fast-track similarity rule), on 4 or more parcels or in 3 or more districts (configurable). Confidence is lower when spellings differ, because variants may be different people. | **[Implemented]** |
+| Lien timing | A boundary, split, merge, archival or ownership correction filed within 30 days of an encumbrance being raised | **[Implemented]** |
+| Backdating | A deed dated after it was recorded; presented more than 120 days after execution (Registration Act, 1908, s. 23 allows four months); or dated before a parcel that LandSetu itself created | **[Implemented]** |
+| Zoning mismatch | DBSCAN on parcel centroids projected to metres, per state (eps 120 m, minimum 4 neighbours, configurable). In a neighbourhood of at least 6 parcels, a parcel is flagged when at least 75% of the others share one land use and it does not. Location alone forms neighbourhoods; land use is compared afterwards, so a different use cannot split the neighbourhood that should expose it. | **[Implemented]** |
+| Dispute-risk classifier | See 5B | **[Planned]** in this revision |
+
+**Caching.** Results are stored per parcel in `parcel_intelligence` and read from there. Any request event marks the parcel's whole state stale (zoning is a per-state computation), and an owner-name change also marks every parcel with a similar name stale. A stale row is recomputed, with its state, on the next read.
+
+**Limits.** Seed parcels are about 270 m apart, wider than the 120 m radius, so they form no neighbourhood and are not judged for zoning. The radius is fixed per deployment, not tuned per area. Rapid re-transfer counts deeds by execution date. Name matching cannot tell two different people who share a name, which is why it is a signal and not a finding.
+
+---
+
 ## 6. UI/UX Guidelines and Color Schema
 
 The design tokens live in `frontend/src/index.css` (`:root`). Components reference these names and hold no raw colour values. Map layers and QR codes need real colour strings, so they read the same tokens through `frontend/src/palette.js`.
@@ -623,9 +648,9 @@ backend/
   app/routes/            auth, parcels, workflow, adapter
   configs/*.yaml         one mapping file per state
   mock_data/             synthetic CSV and GeoJSON for Tamil Nadu and Chandigarh
-  alembic/versions/      5 migration revisions
+  alembic/versions/      6 migration revisions
   scripts/set_role.py    assign a role claim to an account
-  tests/                 70 tests
+  tests/                 94 tests
 frontend/
   src/App.jsx, router.js, i18n.jsx, api.js
   src/pages/             text pages, lender preview, developer API, officer console

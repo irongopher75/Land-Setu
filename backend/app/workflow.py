@@ -105,6 +105,9 @@ def advance_request(req: BoundaryChangeRequest, status: str, role: str, note: st
     }]
     req.status = status
     if db is not None:
+        from app.intelligence.service import mark_stale
+        p = req.payload or {}
+        mark_stale(db, req.state, [p.get("current"), p.get("requested")] if p.get("field") == "owner_name" else [])
         audit.append(db, req.ulpin, event or audit.event_for(status, submitted), role, request_id=req.id,
                      from_status=None if submitted else previous, to_status=status, note=note, payload=req.payload,
                      actor_uid=actor_uid)
@@ -223,6 +226,7 @@ def apply_request(db: Session, req: BoundaryChangeRequest, role: str = "system")
                 geometry=geom_column_value(shape(part["geometry"])),
                 layers=copy.deepcopy(source.layers or {}),
                 raw_record={"lineage": {"split_from": source.ulpin, "request_id": req.id, "on": today}},
+                district=source.district, created_at=datetime.utcnow().isoformat() + "+00:00",
             )
             db.add(child)
             children.append(child)

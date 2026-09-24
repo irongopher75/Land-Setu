@@ -4,11 +4,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from sqlalchemy import text
 from app.db import engine, Base, IS_SQLITE
-from app.routes import auth, adapter, parcels, workflow, admin, flags
+from app.routes import auth, adapter, parcels, workflow, admin, flags, intelligence
 from app.seed import seed_database
 from app.schema_upgrade import upgrade_schema
 from app.security import SecurityMiddleware
 from app.audit import install_append_only_guard, backfill_imported
+from app.intelligence.seed_history import backfill_seed_history, plant_fixtures
 from app.db import SessionLocal
 
 app = FastAPI(
@@ -37,6 +38,7 @@ app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(adapter.router)
 app.include_router(flags.router)
+app.include_router(intelligence.router)  # before parcels: /parcels/analytics/... and /{ulpin}/intelligence
 app.include_router(workflow.router)  # before parcels: /parcels/search must win over /parcels/{ulpin}
 app.include_router(parcels.router)
 
@@ -52,6 +54,8 @@ def startup_db_event():
         seed_database()
         install_append_only_guard(engine)
         with SessionLocal() as db:
+            backfill_seed_history(db)
+            plant_fixtures(db)
             backfill_imported(db)
     except Exception as e:
         print(f"Startup DB Initialization Notice: {e}")

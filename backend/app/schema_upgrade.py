@@ -8,6 +8,8 @@ NEW_COLUMNS = {
         ("archived_at", "VARCHAR"),
         ("archived_reason", "VARCHAR"),
         ("superseded_by", "VARCHAR"),
+        ("created_at", "VARCHAR"),
+        ("district", "VARCHAR"),
     ],
     "parcel_audit_log": [("actor_ref", "VARCHAR")],
     "boundary_change_requests": [

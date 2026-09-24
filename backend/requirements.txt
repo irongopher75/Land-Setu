@@ -12,3 +12,6 @@ firebase-admin==6.5.0
 alembic==1.13.3
 pytest==8.3.3
 httpx==0.27.2
+scikit-learn==1.6.0
+numpy>=1.26,<2.3
+joblib>=1.4

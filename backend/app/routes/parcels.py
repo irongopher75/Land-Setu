@@ -590,7 +590,8 @@ def approve_boundary_request(request_id: int, role: str = Depends(get_current_ro
             "tax": {"annual_value": 45000, "source": "revenue_dept", "confidence": "verified"},
             "encumbrance": {"active": False, "source": "sub_registrar", "confidence": "verified"}
         }
-        existing = Parcel(ulpin=req.ulpin, state=req.state, area_sqm=req.area_sqm, geometry=geom_val, layers=layers)
+        existing = Parcel(ulpin=req.ulpin, state=req.state, area_sqm=req.area_sqm, geometry=geom_val, layers=layers,
+                          created_at=datetime.utcnow().isoformat() + "+00:00")
         db.add(existing)
         db.flush()
         audit.append(db, req.ulpin, "created", role, request_id=req.id, to_status="active",

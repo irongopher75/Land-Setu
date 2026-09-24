@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, JSON, UniqueConstraint
+from sqlalchemy import Boolean, Column, Integer, String, Float, JSON, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from app.db import Base, IS_SQLITE
 
@@ -36,6 +36,9 @@ class Parcel(Base):
     archived_at = Column(String, nullable=True)
     archived_reason = Column(String, nullable=True)
     superseded_by = Column(String, nullable=True)  # ULPIN(s) that replace this parcel, comma separated
+    # When this record was entered into LandSetu, as opposed to dates inside the source records.
+    created_at = Column(String, nullable=True)
+    district = Column(String, nullable=True, index=True)
 
 class ProtectedZone(Base):
     __tablename__ = "protected_zones"
@@ -138,3 +141,53 @@ class RequestFlag(Base):
     resolved_by_role = Column(String, nullable=True)
     resolved_at = Column(String, nullable=True)
     resolution_note = Column(String, nullable=True)
+
+
+class RegistrationTransaction(Base):
+    """One registered deed on a parcel (Sub-Registrar). layers.registration keeps only the latest; this keeps all.
+
+    deed_date is when the deed was executed. recorded_at is when the Sub-Registrar entered it. The Registration
+    Act, 1908 (section 23) expects a deed to be presented within four months of execution.
+    """
+    __tablename__ = "registration_transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ulpin = Column(String, index=True, nullable=False)
+    transaction_id = Column(String, nullable=False)
+    kind = Column(String, nullable=False, default="sale")  # sale | gift | inheritance | partition
+    seller_name = Column(String, nullable=True)
+    buyer_name = Column(String, nullable=True)
+    deed_date = Column(String, nullable=False)       # YYYY-MM-DD
+    recorded_at = Column(String, nullable=False)     # ISO timestamp
+    source = Column(String, nullable=False, default="sub_registrar")
+    synthetic_fixture = Column(String, nullable=True)  # name of the planted test case, or NULL for seed history
+
+
+class EncumbranceEvent(Base):
+    """A mortgage, lien or attachment raised on a parcel, and when it was cleared (NULL while active)."""
+    __tablename__ = "encumbrance_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ulpin = Column(String, index=True, nullable=False)
+    kind = Column(String, nullable=False)            # mortgage | lien | court_attachment
+    holder = Column(String, nullable=True)           # bank or court
+    raised_at = Column(String, nullable=False)       # ISO timestamp
+    cleared_at = Column(String, nullable=True)
+    source = Column(String, nullable=False, default="sub_registrar")
+    synthetic_fixture = Column(String, nullable=True)
+
+
+class ParcelIntelligence(Base):
+    """Cached statistical signals for one parcel. stale=True means recompute on next read (same pattern as flags)."""
+    __tablename__ = "parcel_intelligence"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ulpin = Column(String, unique=True, index=True, nullable=False)
+    state = Column(String, index=True, nullable=False)
+    fraud_flags = Column(FlagsType, nullable=True)
+    risk_score = Column(Float, nullable=True)
+    risk_score_factors = Column(FlagsType, nullable=True)
+    zoning_anomaly = Column(Boolean, nullable=False, default=False)
+    zoning_explanation = Column(String, nullable=True)
+    computed_at = Column(String, nullable=True)
+    stale = Column(Boolean, nullable=False, default=True, index=True)

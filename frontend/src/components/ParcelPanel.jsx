@@ -3,6 +3,7 @@ import { X, QrCode, Lock, Trash2, Cpu } from 'lucide-react';
 import ConfidenceBadge from './ConfidenceBadge';
 import FlagDiff from './FlagDiff';
 import ParcelTimeline from './ParcelTimeline';
+import IntelligencePanel from './IntelligencePanel';
 import { getParcelDetail, getParcelPassport, requestParcelDeletion } from '../api';
 
 const ParcelPassportQR = lazy(() => import('./ParcelPassportQR'));
@@ -156,6 +157,8 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, o
                       {flags.map((flag, idx) => <FlagDiff key={idx} flag={flag} layers={L} />)}
                     </div>
                   )}
+
+                  {role !== 'citizen' && !inactive && <IntelligencePanel ulpin={ulpin} />}
 
                   <Layer title="Record of Rights" layer={L.ror}>
                     <Field label="Owner name" value={L.ror?.owner_name || NA} />

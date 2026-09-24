@@ -1294,3 +1294,7 @@ export const withdrawRequest = (id) => restPost(`/parcels/requests/${id}/withdra
 export const raiseConcern = (id, reason) => restPost(`/parcels/requests/${id}/flags`, 'Raising a concern', { reason });
 export const acknowledgeConcern = (flagId) => restPost(`/parcels/flags/${flagId}/acknowledge`, 'Acknowledging a concern');
 export const resolveConcern = (flagId, note) => restPost(`/parcels/flags/${flagId}/resolve`, 'Resolving a concern', { note });
+
+// Statistical signals (officers only) and their state-wide summary (state admin).
+export const getParcelIntelligence = (ulpin) => restCall('get', `/parcels/${encodeURIComponent(ulpin)}/intelligence`, 'Statistical signals');
+export const getIntelligenceSummary = () => restCall('get', '/parcels/analytics/intelligence', 'Statistical summary');

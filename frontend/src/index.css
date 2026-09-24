@@ -323,3 +323,12 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; line-height
 .audience-tabs button.is-active small { color: var(--ink-on-navy); }
 .chain-status--broken { border-color: var(--accent-seal); background: var(--accent-seal-tint); }
 .chain-status--broken strong { color: var(--accent-seal); }
+
+/* Statistical signals: navy, dotted, labelled. Rule flags stay seal red. */
+.signals { border: var(--line-heavy) dotted var(--ink-navy); padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3); }
+.signals-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); }
+.signals-head h3 { font-size: var(--text-base); }
+.badge.signal { color: var(--ink-navy); background: var(--surface-sunk); border-style: dotted; }
+.signal { border-top: var(--line) dotted var(--rule-strong); padding-top: var(--space-2); display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--text-sm); }
+.signal-title { display: flex; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; }
+.signal .data-table { font-size: var(--text-xs); }
