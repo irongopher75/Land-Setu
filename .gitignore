@@ -32,3 +32,5 @@ CLAUDE.md
 SKILLS.md
 .DS_Store
 **/.DS_Store
+venv/
+.venv/
