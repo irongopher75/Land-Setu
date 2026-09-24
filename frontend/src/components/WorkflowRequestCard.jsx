@@ -75,7 +75,6 @@ const ROLE_LABEL = { village_officer: 'village officer', auditor: 'auditor', sta
 function stageSet(req) {
   if (req.status === 'PENDING_FAST_REVIEW') return 'fast';
   if (req.type === 'DELETION') return 'deletion';
-  if (req.type === 'BOUNDARY') return 'boundary';
   return 'full';
 }
 

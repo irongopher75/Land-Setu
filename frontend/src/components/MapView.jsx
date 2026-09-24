@@ -715,29 +715,13 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
         area_sqm: areaSqm
       });
 
-      if (result.status === 'PENDING_APPROVAL' || result.status === 'PENDING_AUDITOR_REVIEW') {
-        alert(result.message);
-        setIsDrawingMode(false);
-        setVertices([]);
-        setReshapeError('');
-        if (onClearEditingParcel) onClearEditingParcel();
-        fetchPendingCount();
-        return;
-      }
-
-      alert("Boundary change approved and committed to the master GIS database.");
-
-      if (onAutoDetectState && targetState !== selectedState) {
-        onAutoDetectState(targetState);
-      }
-
-      await loadMapData();
-      fetchPendingCount();
+      alert(result.message);
+      if (onAutoDetectState && targetState !== selectedState) onAutoDetectState(targetState);
       setIsDrawingMode(false);
       setVertices([]);
       setReshapeError('');
       if (onClearEditingParcel) onClearEditingParcel();
-      onSelectParcel(result.ulpin);
+      fetchPendingCount();
     } catch (err) {
       console.error('Failed to save custom boundary:', err);
       const msg = err.response?.data?.detail || err.message || 'Evaluation error';
@@ -831,7 +815,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
           <div className="btn-row">
             <button className="btn" onClick={() => setVertices((prev) => prev.slice(0, -1))} disabled={vertices.length === 0}>Undo point</button>
             <button className="btn btn--primary" onClick={saveCustomBoundary} disabled={saving || vertices.length < 3}>
-              {saving ? 'Checking rules' : 'Submit boundary change'}
+              {saving ? 'Filing' : 'File boundary request'}
             </button>
           </div>
         </div>

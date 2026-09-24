@@ -4,6 +4,7 @@ os.environ.setdefault("JWT_SECRET", "test_secret_key_minimum_32_chars_long_for_s
 os.environ.setdefault("ALLOW_SQLITE_FALLBACK", "true")
 
 import pytest
+from conftest import insert_parcel
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
@@ -33,10 +34,7 @@ def square(x, y, w=0.001, h=0.001):
 
 
 def make_parcel(c, ulpin, x, owner="Asha Rao"):
-    r = c.post("/parcels/custom", headers=hdr("state_admin"), json={
-        "ulpin": ulpin, "owner_name": owner, "state": "TamilNadu", "land_use": "residential",
-        "area_sqm": 1000, "geometry": square(x, 12.0)})
-    assert r.status_code == 200, r.text
+    insert_parcel(ulpin, square(x, 12.0), owner)
 
 
 def correction(c, ulpin, field, value, role="citizen", uid=None):

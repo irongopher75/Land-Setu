@@ -886,64 +886,16 @@ export const getRawSamples = async () => {
   }
 };
 
-export const createCustomParcel = async (parcelData) => {
-  const userRole = localStorage.getItem('landsetu_role') || 'citizen';
-  
-  if (userRole === 'village_officer') {
-    const newReq = {
-      id: 'REQ-' + Date.now(),
-      ulpin: parcelData.ulpin,
-      state: parcelData.state,
-      owner_name: parcelData.owner_name,
-      land_use: parcelData.land_use || 'residential',
-      geometry: parcelData.geometry,
-      area_sqm: parcelData.area_sqm,
-      requester_role: 'village_officer',
-      requested_by: parcelData.owner_name,
-      status: 'PENDING_AUDITOR_REVIEW',
-      created_at: new Date().toISOString()
-    };
-    await saveBoundaryRequestToFirestore(newReq);
-
-    const pendingReqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
-    pendingReqs.push(newReq);
-    localStorage.setItem('landsetu_pending_reqs', JSON.stringify(pendingReqs));
-
-    return {
-      status: 'PENDING_AUDITOR_REVIEW',
-      message: `Boundary change for parcel ${parcelData.ulpin} submitted! Stage 1: Awaiting Compliance Auditor Review.`,
-      request: newReq
-    };
-  } else {
-    const pObj = {
-      ulpin: parcelData.ulpin,
-      state: parcelData.state,
-      area_sqm: parcelData.area_sqm,
-      geometry: parcelData.geometry,
-      land_use: parcelData.land_use || 'residential',
-      layers: {
-        ror: { owner_name: parcelData.owner_name, owner_share: '1/1', khata_no: 'KH-CUSTOM', source: 'village_office', confidence: 'verified' },
-        registration: { last_transaction_id: 'REG-2026-CUSTOM', transaction_type: 'boundary_reshaped', date: new Date().toISOString().split('T')[0], source: 'sub_registrar', confidence: 'verified' },
-        zoning: { land_use: parcelData.land_use || 'residential', permitted_fsi: 1.5, eco_sensitive: false, source: 'master_plan_2026', confidence: 'verified' },
-        building_permit: { status: 'approved', permit_id: 'BP-2026-CUSTOM', approved_fsi: 1.5, source: 'municipal_corp', confidence: 'verified' },
-        tax: { annual_value: 45000, source: 'revenue_dept', confidence: 'verified', last_verified: new Date().toISOString().split('T')[0] },
-        encumbrance: { active: false, type: null, source: 'sub_registrar', confidence: 'verified' }
-      },
-      flags: []
-    };
-    await saveCustomParcelToFirestore(pObj);
-
-    const customParcels = JSON.parse(localStorage.getItem('landsetu_custom_parcels') || '{}');
-    customParcels[parcelData.ulpin] = pObj;
-    localStorage.setItem('landsetu_custom_parcels', JSON.stringify(customParcels));
-
-    return {
-      status: 'SUCCESS',
-      ulpin: parcelData.ulpin,
-      message: 'Boundary change approved & committed to master GIS database!'
-    };
-  }
-};
+// A boundary marking is always a request decided by the records service, for every role. There is no offline
+// path: an approval step that ran only in this browser would skip every review rule.
+export const createCustomParcel = (parcelData) =>
+  restPost('/parcels/custom', 'Filing a boundary request', {
+    ulpin: parcelData.ulpin,
+    state: parcelData.state,
+    owner_name: parcelData.owner_name,
+    geometry: parcelData.geometry,
+    area_sqm: parcelData.area_sqm,
+  });
 
 export const getAllStates = async () => {
   return LOCAL_STATES;

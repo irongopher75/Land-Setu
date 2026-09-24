@@ -312,129 +312,52 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get
         detected = detect_state_from_coords(centroid.y, centroid.x)
         target_state = detected["name"]
 
-    # Check if user role is village_officer (Lower Authority)
-    # Lower level authority cannot directly modify approved boundaries; they issue a request for change
-    if role == "village_officer":
-        change_req = BoundaryChangeRequest(
-            ulpin=req.ulpin,
-            state=target_state,
-            requester_role="village_officer",
-            requested_by=req.owner_name,
-            geometry=req.geometry,
-            area_sqm=req.area_sqm,
-            reason="Village Office boundary modification request",
-            status="PENDING_APPROVAL",
-            type="BOUNDARY",
-            history=[],
-            track="HIGH",
-            requester_uid=actor.get("sub"),
-            created_at=datetime.utcnow().isoformat()
-        )
-        db.add(change_req)
-        db.flush()
-        advance_request(change_req, "PENDING_APPROVAL", role, "Submitted", db=db, submitted=True, actor_uid=actor.get("sub"))
-        db.commit()
-        db.refresh(change_req)
-
-        return {
-            "status": "PENDING_APPROVAL",
-            "message": f"Boundary change request for ULPIN '{req.ulpin}' submitted successfully! Awaiting review and approval from State Administration / Auditor.",
-            "request_id": change_req.id,
-            "is_approval_pending": True,
-            "ulpin": req.ulpin,
-            "state": target_state
-        }
-
-    # Upper Authority (State Admin / Auditor / Officer) Direct Save & Auto Approval
-    if not IS_SQLITE:
-        from geoalchemy2.shape import from_shape
-        geom_val = from_shape(s_shape, srid=4326)
-    else:
-        geom_val = req.geometry
-
-    # Auto-approve any pending change request for this ULPIN
-    pending_reqs = db.query(BoundaryChangeRequest).filter(
-        BoundaryChangeRequest.ulpin == req.ulpin,
-        BoundaryChangeRequest.status == "PENDING_APPROVAL"
-    ).all()
-    for pr in pending_reqs:
-        advance_request(pr, "APPROVED", role, "Superseded by direct save", db=db, actor_uid=actor.get("sub"))
-        pr.approved_by = req.owner_name
-        pr.approver_role = role
-
+    # Every boundary marking is a request. Nobody, whatever their role, saves a boundary directly, and a new
+    # marking never approves someone else's pending request. A village officer's marking counts as the village
+    # stage; anyone else's starts at the village stage so a village officer still verifies it.
     existing = db.query(Parcel).filter(Parcel.ulpin == req.ulpin).first()
-    if existing:
-        old_geom, old_state = existing.geometry, existing.state
-        existing.geometry = geom_val
-        existing.area_sqm = req.area_sqm
-        existing.state = target_state
-        _refresh_flags_after_change(db, existing, old_geom, old_state)
-        db.commit()
-        db.refresh(existing)
-        parcel_model = existing
-    else:
-        layers = {
-            "ror": {
-                "owner_name": req.owner_name,
-                "khata_no": f"KH-MANUAL-{req.ulpin[-4:]}",
-                "source": "manual_gis_entry",
-                "last_verified": datetime.utcnow().strftime("%Y-%m-%d"),
-                "confidence": "verified"
-            },
-            "registration": {
-                "last_transaction_id": f"REG-MANUAL-{req.ulpin[-4:]}",
-                "date": datetime.utcnow().strftime("%Y-%m-%d"),
-                "buyer_name": req.owner_name,
-                "source": "sub_registrar",
-                "confidence": "verified"
-            },
-            "zoning": {
-                "land_use": "residential",
-                "permitted_fsi": 1.5,
-                "source": "master_plan_2021",
-                "confidence": "verified"
-            },
-            "building_permit": {
-                "status": "approved",
-                "permit_id": f"BP-MANUAL-{req.ulpin[-4:]}",
-                "approved_fsi": 1.5,
-                "source": "municipal_corp",
-                "confidence": "self_declared"
-            },
-            "tax": {
-                "annual_value": 45000,
-                "source": "revenue_dept",
-                "confidence": "verified",
-                "last_verified": datetime.utcnow().strftime("%Y-%m-%d")
-            },
-            "encumbrance": {
-                "active": False,
-                "source": "sub_registrar",
-                "confidence": "verified"
-            }
-        }
-        parcel_model = Parcel(
-            ulpin=req.ulpin,
-            state=target_state,
-            area_sqm=req.area_sqm,
-            geometry=geom_val,
-            layers=layers,
-            raw_record={"ulpin": req.ulpin, "owner": req.owner_name, "source": "Manual GIS Drawer"}
-        )
-        db.add(parcel_model)
-        _refresh_flags_after_change(db, parcel_model)
-        db.commit()
-        db.refresh(parcel_model)
+    if existing and existing.status != "active":
+        raise HTTPException(status_code=409, detail=f"Parcel '{req.ulpin}' is {existing.status} and cannot be changed.")
+    open_dup = db.query(BoundaryChangeRequest).filter(
+        BoundaryChangeRequest.ulpin == req.ulpin,
+        BoundaryChangeRequest.type == "BOUNDARY",
+        BoundaryChangeRequest.status.in_(list(permissions.STAGE_REVIEWERS)),
+    ).first()
+    if open_dup:
+        raise HTTPException(status_code=409, detail=f"A boundary request for '{req.ulpin}' is already under review (#{open_dup.id}).")
 
-    flags = RuleEngine.evaluate_parcel_rules(db, parcel_model)
+    first = "PENDING_APPROVAL" if role == "village_officer" else "PENDING_VILLAGE_REVIEW"
+    change_req = BoundaryChangeRequest(
+        ulpin=req.ulpin,
+        state=target_state,
+        requester_role=role,
+        requested_by=req.owner_name,
+        geometry=req.geometry,
+        area_sqm=req.area_sqm,
+        reason=("Boundary change for an existing parcel" if existing else "New parcel boundary"),
+        status=first,
+        type="BOUNDARY",
+        history=[],
+        track="HIGH",
+        requester_uid=actor.get("sub"),
+        created_at=datetime.utcnow().isoformat()
+    )
+    db.add(change_req)
+    db.flush()
+    advance_request(change_req, first, role, "Submitted", db=db, submitted=True, actor_uid=actor.get("sub"))
+    db.commit()
+    db.refresh(change_req)
+
+    next_role = "auditor" if first == "PENDING_APPROVAL" else "village land officer"
     return {
-        "status": "APPROVED",
-        "ulpin": parcel_model.ulpin,
-        "state": parcel_model.state,
-        "area_sqm": parcel_model.area_sqm,
-        "layers": parcel_model.layers,
-        "flags": flags
+        "status": first,
+        "message": f"Boundary request #{change_req.id} for ULPIN '{req.ulpin}' filed. It goes to the {next_role} next, then on to the state administrator. Nothing changes on the map until final approval.",
+        "request_id": change_req.id,
+        "is_approval_pending": True,
+        "ulpin": req.ulpin,
+        "state": target_state
     }
+
 
 @router.get("/requests/pending")
 def list_pending_requests(role: str = Depends(require_roles("officer", "bank", "auditor", "state_admin", "village_officer")),
@@ -660,8 +583,8 @@ def approve_boundary_request(request_id: int, role: str = Depends(get_current_ro
         existing.state = req.state
     else:
         layers = {
-            "ror": {"owner_name": req.requested_by, "khata_no": f"KH-MANUAL-{req.ulpin[-4:]}", "source": "village_office_approval", "confidence": "verified"},
-            "registration": {"last_transaction_id": f"REG-MANUAL-{req.ulpin[-4:]}", "date": datetime.utcnow().strftime("%Y-%m-%d"), "source": "sub_registrar", "confidence": "verified"},
+            "ror": {"owner_name": req.requested_by, "khata_no": f"KH-MANUAL-{req.ulpin[-4:]}", "source": "village_office_approval", "last_verified": datetime.utcnow().strftime("%Y-%m-%d"), "confidence": "verified"},
+            "registration": {"last_transaction_id": f"REG-MANUAL-{req.ulpin[-4:]}", "date": datetime.utcnow().strftime("%Y-%m-%d"), "buyer_name": req.requested_by, "source": "sub_registrar", "confidence": "verified"},
             "zoning": {"land_use": "residential", "permitted_fsi": 1.5, "source": "master_plan_2021", "confidence": "verified"},
             "building_permit": {"status": "approved", "approved_fsi": 1.5, "source": "municipal_corp", "confidence": "self_declared"},
             "tax": {"annual_value": 45000, "source": "revenue_dept", "confidence": "verified"},
@@ -669,6 +592,9 @@ def approve_boundary_request(request_id: int, role: str = Depends(get_current_ro
         }
         existing = Parcel(ulpin=req.ulpin, state=req.state, area_sqm=req.area_sqm, geometry=geom_val, layers=layers)
         db.add(existing)
+        db.flush()
+        audit.append(db, req.ulpin, "created", role, request_id=req.id, to_status="active",
+                     note="Created by an approved boundary request", actor_uid=actor.get("sub"))
 
     _refresh_flags_after_change(db, existing, old_geom, old_state)
     advance_request(req, "APPROVED", role, "Boundary change applied", db=db, actor_uid=actor.get("sub"))

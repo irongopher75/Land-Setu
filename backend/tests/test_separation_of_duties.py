@@ -4,6 +4,7 @@ os.environ.setdefault("JWT_SECRET", "test_secret_key_minimum_32_chars_long_for_s
 os.environ.setdefault("ALLOW_SQLITE_FALLBACK", "true")
 
 import pytest
+from conftest import insert_parcel
 from fastapi.testclient import TestClient
 
 from app.db import Base, engine, SessionLocal
@@ -30,11 +31,8 @@ def square(x, y):
     return {"type": "Polygon", "coordinates": [[[x, y], [x + .001, y], [x + .001, y + .001], [x, y + .001], [x, y]]]}
 
 
-def make_parcel(c, ulpin, x):
-    r = c.post("/parcels/custom", headers=hdr("state_admin", "root-admin"), json={
-        "ulpin": ulpin, "owner_name": "Asha Rao", "state": "TamilNadu", "land_use": "residential",
-        "area_sqm": 1000, "geometry": square(x, 11.0)})
-    assert r.status_code == 200, r.text
+def make_parcel(c, ulpin, x, owner="Asha Rao"):
+    insert_parcel(ulpin, square(x, 11.0), owner)
 
 
 def high_request(c, ulpin, filer="cit-1"):
@@ -244,3 +242,47 @@ def test_decide_table():
     legacy = Fake("PENDING_STATE_ADMIN", [{"status": "PENDING_APPROVAL", "role": "village_officer"},
                                           {"status": "PENDING_STATE_ADMIN", "role": "auditor"}], uid=None)
     assert permissions.decide(legacy, "any", "auditor").can_reject is False       # entries with no uid match by role
+
+
+# ---- land marking goes through the pipeline -------------------------------------------------
+
+def marking(c, ulpin, role, uid, x=77.40):
+    return c.post("/parcels/custom", headers=hdr(role, uid), json={
+        "ulpin": ulpin, "owner_name": "Asha Rao", "state": "TamilNadu", "area_sqm": 1000, "geometry": square(x, 11.0)})
+
+
+def test_marking_is_a_request_for_every_role_and_never_saves_directly(client):
+    for i, role in enumerate(("village_officer", "auditor", "state_admin", "super_admin")):
+        ulpin = f"LM-{i}"
+        r = marking(client, ulpin, role, f"{role}-m", x=77.40 + i * 0.01)
+        assert r.status_code == 200 and r.json()["is_approval_pending"] is True, r.text
+        assert r.json()["status"] == ("PENDING_APPROVAL" if role == "village_officer" else "PENDING_VILLAGE_REVIEW")
+        assert client.get(f"/parcels/{ulpin}").status_code == 404  # nothing on the map yet
+    assert marking(client, "LM-X", "citizen", "cit-m").status_code == 403
+
+
+def test_officer_who_marked_land_cannot_reject_it(client):
+    r = marking(client, "LM-10", "village_officer", "vo-mark", x=77.50)
+    rid = r.json()["request_id"]
+    assert post(client, f"/parcels/requests/{rid}/reject", "village_officer", "vo-mark").status_code == 403
+    q = client.get("/parcels/requests/pending", headers=hdr("village_officer", "vo-mark")).json()
+    mine = next(x for x in q if x["id"] == rid)
+    assert mine["permissions"]["can_reject"] is False and mine["permissions"]["can_flag"] is True
+    assert post(client, f"/parcels/requests/{rid}/reject", "auditor", "a-mark").status_code == 200
+
+
+def test_marking_does_not_approve_someone_elses_pending_request(client):
+    rid = marking(client, "LM-11", "village_officer", "vo-a", x=77.52).json()["request_id"]
+    again = marking(client, "LM-11", "state_admin", "sa-b", x=77.52)
+    assert again.status_code == 409
+    req = SessionLocal().query(BoundaryChangeRequest).filter(BoundaryChangeRequest.id == rid).first()
+    assert req.status == "PENDING_APPROVAL"
+
+
+def test_approved_marking_creates_the_parcel_with_an_audit_entry(client):
+    rid = marking(client, "LM-12", "village_officer", "vo-c", x=77.54).json()["request_id"]
+    assert post(client, f"/parcels/requests/{rid}/auditor-pass", "auditor", "a-c").status_code == 200
+    assert post(client, f"/parcels/requests/{rid}/approve", "state_admin", "sa-c").status_code == 200
+    assert client.get("/parcels/LM-12").json()["status"] == "active"
+    events = [e["event"] for e in client.get("/parcels/LM-12/audit-chain").json()["entries"]]
+    assert "created" in events and client.get("/parcels/LM-12/audit-chain").json()["verified"] is True

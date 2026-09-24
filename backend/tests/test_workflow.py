@@ -4,6 +4,7 @@ os.environ.setdefault("JWT_SECRET", "test_secret_key_minimum_32_chars_long_for_s
 os.environ.setdefault("ALLOW_SQLITE_FALLBACK", "true")
 
 import pytest
+from conftest import insert_parcel
 from fastapi.testclient import TestClient
 
 from app.db import Base, engine, SessionLocal
@@ -35,10 +36,7 @@ def square(x, y, w=0.001, h=0.001):
 
 
 def make_parcel(c, ulpin, geom, owner="Asha Rao"):
-    as_role(c, "state_admin")
-    r = c.post("/parcels/custom", json={"ulpin": ulpin, "owner_name": owner, "state": "TamilNadu",
-                                        "land_use": "residential", "area_sqm": 1000, "geometry": geom})
-    assert r.status_code == 200, r.text
+    insert_parcel(ulpin, geom, owner)
 
 
 def run_pipeline(c, request_id, village_first=False):

@@ -173,22 +173,9 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
           <div className="note">You filed this deletion. The village officer and the auditor must each approve it. You cannot approve it yourself.</div>
         )}
 
-        <div className="wf-actions">
-          {isDeletion && req.status === 'PENDING_DELETION_VILLAGE' && (role === 'village_officer' || isSuper) && (
-            <button className="btn btn--primary" onClick={() => handleVillageApproveDeletion(req.id, req.ulpin)}>Approve deletion</button>
-          )}
-          {isDeletion && req.status === 'PENDING_DELETION_AUDITOR' && (role === 'auditor' || isSuper) && (
-            <button className="btn btn--seal-solid" onClick={() => handleAuditorApproveDeletion(req.id, req.ulpin)}>Authorize deletion</button>
-          )}
-          {!isDeletion && (role === 'auditor' || isSuper) && isStage1 && (
-            <button className="btn btn--primary" onClick={() => handleAuditorPass(req.id, req.ulpin)}>Pass audit and forward to state admin</button>
-          )}
-          {!isDeletion && role === 'state_admin' && (
-            <button className="btn btn--primary" onClick={() => handleApprove(req.id, req.ulpin)}>Approve and commit boundary</button>
-          )}
-          {canWithdraw && (
-            <button className="btn btn--seal" onClick={() => handleReject(req.id, req.ulpin)}>{role === 'state_admin' && isDeletion ? 'Withdraw' : 'Reject'}</button>
-          )}
+        <div className="note">
+          Recorded in this browser while the records service was unreachable. It never entered the approval
+          pipeline, so no one can approve or reject it here. File it again from the map once the service is back.
         </div>
       </article>
     );
