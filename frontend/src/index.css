@@ -43,8 +43,8 @@
   --land-protected: #6B5A7A;    /* protected-zone hatch, paired with dashed outline */
 
   /* Type */
-  --font-display: 'Fraunces', 'Noto Sans Devanagari', 'Noto Sans Tamil', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
-  --font-body: 'Public Sans', 'Noto Sans Devanagari', 'Noto Sans Tamil', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Fraunces', 'Noto Sans Devanagari', 'Noto Sans Bengali', 'Noto Sans Tamil', 'Noto Sans Telugu', 'Noto Sans Gujarati', 'Noto Sans Kannada', 'Noto Sans Malayalam', 'Noto Sans Oriya', 'Noto Sans Gurmukhi', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  --font-body: 'Public Sans', 'Noto Sans Devanagari', 'Noto Sans Bengali', 'Noto Sans Tamil', 'Noto Sans Telugu', 'Noto Sans Gujarati', 'Noto Sans Kannada', 'Noto Sans Malayalam', 'Noto Sans Oriya', 'Noto Sans Gurmukhi', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace; /* ULPIN and khata numbers only */
 
   --text-xs: 0.75rem;

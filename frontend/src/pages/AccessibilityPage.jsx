@@ -12,7 +12,7 @@ export default function AccessibilityPage() {
         <li>Text contrast of at least 4.5 to 1 on the parchment background.</li>
         <li>Status shown with text and pattern as well as colour. A flag is a labelled badge and a dashed outline, never colour alone.</li>
         <li>Motion on the home page plays once and stops. It is skipped when your device asks for reduced motion.</li>
-        <li>The interface can be shown in English, Hindi and Tamil. Hindi and Tamil cover navigation and the home page only for now.</li>
+        <li>The interface can be shown in English and eleven Indian languages: Hindi, Bengali, Marathi, Telugu, Tamil, Gujarati, Kannada, Malayalam, Odia, Punjabi and Assamese. These cover navigation, the footer and the home page only for now, and the translations are drafts awaiting review.</li>
       </ul>
       <h2>Known gaps</h2>
       <ul className="plain-list">
