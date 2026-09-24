@@ -1,0 +1,43 @@
+# Render Blueprint for the LandSetu API.
+# Dashboard: New > Blueprint > pick this repository. Then set FIREBASE_SERVICE_ACCOUNT_JSON (optional, see README notes).
+# The free Postgres plan expires after 30 days and the free web service sleeps when idle.
+databases:
+  - name: landsetu-db
+    plan: free
+    region: singapore
+    databaseName: landsetu
+    user: landsetu
+
+services:
+  - type: web
+    name: landsetu-api
+    runtime: docker
+    region: singapore
+    plan: free
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: landsetu-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ENVIRONMENT
+        value: production
+      - key: ALLOW_SQLITE_FALLBACK
+        value: "false"
+      - key: DEMO_LOGIN_ENABLED
+        value: "false"
+      # The site and the API are on different domains, so the session cookie must be cross-site.
+      - key: COOKIE_SAMESITE
+        value: none
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: CORS_ORIGINS
+        value: https://landsetu-e4e5e.web.app,https://landsetu-e4e5e.firebaseapp.com
+      - key: GOOGLE_CLOUD_PROJECT
+        value: landsetu-e4e5e
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false

@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timedelta, timezone
 import jwt
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response
 from app.schemas import AuthLoginRequest, AuthLoginResponse, FirebaseLoginRequest
 
 ALGORITHM = "HS256"
@@ -64,7 +64,7 @@ def set_auth_cookies(response: Response, role: str, uid: str = "") -> tuple[str,
     )
     return access_token, refresh_token
 
-def get_current_role(authorization: str | None = None, landsetu_session: str | None = Cookie(None)) -> str:
+def get_current_role(authorization: str | None = Header(None), landsetu_session: str | None = Cookie(None)) -> str:
     token = landsetu_session
     if authorization and authorization.lower().startswith("bearer "):
         token = authorization[7:].strip()

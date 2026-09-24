@@ -9,11 +9,25 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import Parcel, ProtectedZone, BoundaryChangeRequest
 from app.schemas import ParcelListItem, CanonicalParcelResponse, FlagItem
-from app.rules import RuleEngine, parse_geometry_shape, invalidate_rule_cache
+from app.rules import RuleEngine, parse_geometry_shape, invalidate_neighbor_flags
 from app.routes.auth import get_current_role, require_roles, SECRET_KEY, ALGORITHM
 from app.states import INDIAN_STATES, detect_state_from_coords
+from app.workflow import advance_request, apply_request, NEW_TYPES
 
 router = APIRouter(prefix="/parcels", tags=["Parcels"])
+
+def _refresh_flags_after_change(db: Session, parcel: Parcel, old_geom=None, old_state: Optional[str] = None) -> None:
+    """
+    Keep Parcel.flags correct after a create/edit. Overlap depends on neighbors,
+    so neighbors of both the old and new boundary are marked stale (flags=NULL,
+    refilled lazily on next read). Does not commit.
+    """
+    db.flush()  # autoflush is off: neighbor queries must see the new geometry
+    geoms = [parcel.geometry] + ([old_geom] if old_geom is not None else [])
+    invalidate_neighbor_flags(db, geoms, parcel.state, exclude_id=parcel.id)
+    if old_state and old_geom is not None and old_state != parcel.state:
+        invalidate_neighbor_flags(db, [old_geom], old_state, exclude_id=parcel.id)
+    RuleEngine.refresh_flags(db, parcel)
 
 @router.get("/states/all")
 def get_all_states():
@@ -63,6 +77,7 @@ def list_parcels(state: Optional[str] = Query(None), offset: int = Query(0, ge=0
         query = query.filter(Parcel.state == state)
 
     parcels = query.order_by(Parcel.id).offset(offset).limit(limit).all()
+    batch_flags = RuleEngine.evaluate_parcels_batch(db, parcels)
     result = []
 
     for p in parcels:
@@ -72,7 +87,7 @@ def list_parcels(state: Optional[str] = Query(None), offset: int = Query(0, ge=0
             centroid = geom_shape.centroid
             centroid_coords = [round(centroid.x, 6), round(centroid.y, 6)]
 
-        flags = RuleEngine.evaluate_parcel_rules(db, p)
+        flags = batch_flags.get(p.id, [])
 
         result.append(ParcelListItem(
             id=p.id,
@@ -121,12 +136,13 @@ def get_all_parcels_geojson(state: Optional[str] = Query(None), offset: int = Qu
         query = query.filter(Parcel.state == state)
 
     parcels = query.order_by(Parcel.id).offset(offset).limit(limit).all()
+    batch_flags = RuleEngine.evaluate_parcels_batch(db, parcels)
     features = []
 
     for p in parcels:
         geom_shape = parse_geometry_shape(p.geometry)
         if geom_shape:
-            flags = RuleEngine.evaluate_parcel_rules(db, p)
+            flags = batch_flags.get(p.id, [])
 
             features.append({
                 "type": "Feature",
@@ -273,6 +289,8 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get
             area_sqm=req.area_sqm,
             reason="Village Office boundary modification request",
             status="PENDING_APPROVAL",
+            type="BOUNDARY",
+            history=[],
             created_at=datetime.utcnow().isoformat()
         )
         db.add(change_req)
@@ -301,15 +319,17 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get
         BoundaryChangeRequest.status == "PENDING_APPROVAL"
     ).all()
     for pr in pending_reqs:
-        pr.status = "APPROVED"
+        advance_request(pr, "APPROVED", role, "Superseded by direct save")
         pr.approved_by = req.owner_name
         pr.approver_role = role
 
     existing = db.query(Parcel).filter(Parcel.ulpin == req.ulpin).first()
     if existing:
+        old_geom, old_state = existing.geometry, existing.state
         existing.geometry = geom_val
         existing.area_sqm = req.area_sqm
         existing.state = target_state
+        _refresh_flags_after_change(db, existing, old_geom, old_state)
         db.commit()
         db.refresh(existing)
         parcel_model = existing
@@ -363,6 +383,7 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get
             raw_record={"ulpin": req.ulpin, "owner": req.owner_name, "source": "Manual GIS Drawer"}
         )
         db.add(parcel_model)
+        _refresh_flags_after_change(db, parcel_model)
         db.commit()
         db.refresh(parcel_model)
 
@@ -382,7 +403,7 @@ def list_pending_requests(role: str = Depends(require_roles("officer", "bank", "
     reqs = db.query(BoundaryChangeRequest).filter(
         BoundaryChangeRequest.status.in_([
             "PENDING_AUDITOR_REVIEW", "PENDING_STATE_ADMIN", "PENDING_APPROVAL",
-            "PENDING_DELETION_VILLAGE", "PENDING_DELETION_AUDITOR"
+            "PENDING_DELETION_VILLAGE", "PENDING_DELETION_AUDITOR", "PENDING_VILLAGE_REVIEW"
         ])
     ).order_by(BoundaryChangeRequest.id.desc()).all()
 
@@ -398,7 +419,9 @@ def list_pending_requests(role: str = Depends(require_roles("officer", "bank", "
             "area_sqm": r.area_sqm,
             "reason": r.reason,
             "status": r.status,
-            "type": "DELETION" if is_deletion else "BOUNDARY",
+            "type": "DELETION" if is_deletion else (r.type or "BOUNDARY"),
+            "payload": r.payload,
+            "history": r.history or [],
             "created_at": r.created_at,
             "geometry": r.geometry
         })
@@ -440,6 +463,8 @@ def request_parcel_deletion(ulpin: str, payload: Optional[RequestDeletionPayload
         area_sqm=area,
         reason=payload.reason if payload else "State Admin requested land parcel deletion",
         status="PENDING_DELETION_VILLAGE",
+        type="DELETION",
+        history=[],
         created_at=datetime.utcnow().isoformat()
     )
     db.add(change_req)
@@ -468,7 +493,7 @@ def village_approve_deletion(request_id: int, role: str = Depends(get_current_ro
     if req.status != "PENDING_DELETION_VILLAGE":
         raise HTTPException(status_code=400, detail=f"Deletion request is not awaiting village officer approval (current: {req.status}).")
 
-    req.status = "PENDING_DELETION_AUDITOR"
+    advance_request(req, "PENDING_DELETION_AUDITOR", role, "Village officer approved deletion")
     req.approved_by = "Village Land Officer (Deletion Stage 1 Approved)"
     req.approver_role = role
     db.commit()
@@ -495,9 +520,10 @@ def auditor_approve_deletion(request_id: int, role: str = Depends(get_current_ro
 
     parcel = db.query(Parcel).filter(Parcel.ulpin == req.ulpin).first()
     if parcel:
+        invalidate_neighbor_flags(db, [parcel.geometry], parcel.state, exclude_id=parcel.id)
         db.delete(parcel)
 
-    req.status = "DELETED"
+    advance_request(req, "DELETED", role, "Auditor authorized deletion")
     req.approved_by = "Compliance Auditor (Final Deletion Authorized)"
     req.approver_role = role
     db.commit()
@@ -520,7 +546,9 @@ def auditor_pass_request(request_id: int, role: str = Depends(get_current_role),
     if not req:
         raise HTTPException(status_code=404, detail="Boundary change request not found")
 
-    req.status = "PENDING_STATE_ADMIN"
+    if req.type in NEW_TYPES and req.status != "PENDING_APPROVAL":
+        raise HTTPException(status_code=400, detail=f"Request is not awaiting auditor review (current: {req.status}).")
+    advance_request(req, "PENDING_STATE_ADMIN", role, "Audit passed")
     req.approved_by = "Compliance Auditor (Audit Passed)"
     req.approver_role = role
     db.commit()
@@ -543,6 +571,16 @@ def approve_boundary_request(request_id: int, role: str = Depends(get_current_ro
     if not req:
         raise HTTPException(status_code=404, detail="Boundary change request not found")
 
+    if req.type in NEW_TYPES:
+        if req.status != "PENDING_STATE_ADMIN":
+            raise HTTPException(status_code=400, detail=f"Request is not awaiting state admin approval (current: {req.status}).")
+        apply_request(db, req)
+        advance_request(req, "APPROVED", role, f"{req.type.title()} applied")
+        req.approved_by = "State Administration Officer"
+        req.approver_role = role
+        db.commit()
+        return {"status": "APPROVED", "message": f"{req.type.title()} request #{request_id} for ULPIN '{req.ulpin}' approved and applied."}
+
     try:
         s_shape = shape(req.geometry)
     except Exception:
@@ -555,7 +593,9 @@ def approve_boundary_request(request_id: int, role: str = Depends(get_current_ro
         geom_val = req.geometry
 
     existing = db.query(Parcel).filter(Parcel.ulpin == req.ulpin).first()
+    old_geom, old_state = None, None
     if existing:
+        old_geom, old_state = existing.geometry, existing.state
         existing.geometry = geom_val
         existing.area_sqm = req.area_sqm
         existing.state = req.state
@@ -571,7 +611,8 @@ def approve_boundary_request(request_id: int, role: str = Depends(get_current_ro
         existing = Parcel(ulpin=req.ulpin, state=req.state, area_sqm=req.area_sqm, geometry=geom_val, layers=layers)
         db.add(existing)
 
-    req.status = "APPROVED"
+    _refresh_flags_after_change(db, existing, old_geom, old_state)
+    advance_request(req, "APPROVED", role, "Boundary change applied")
     req.approved_by = "State Administration Officer"
     req.approver_role = role
     db.commit()
@@ -585,7 +626,7 @@ def reject_boundary_request(request_id: int, role: str = Depends(get_current_rol
     if not req:
         raise HTTPException(status_code=404, detail="Boundary change request not found")
 
-    village_can_reject = role == "village_officer" and req.status == "PENDING_DELETION_VILLAGE"
+    village_can_reject = role == "village_officer" and req.status in ("PENDING_DELETION_VILLAGE", "PENDING_VILLAGE_REVIEW")
     auditor_can_reject = role == "auditor" and (
         req.status in ("PENDING_DELETION_AUDITOR", "PENDING_AUDITOR_REVIEW", "PENDING_APPROVAL")
     )
@@ -597,7 +638,7 @@ def reject_boundary_request(request_id: int, role: str = Depends(get_current_rol
             detail="Permission denied: you cannot reject this request at the current pipeline stage."
         )
 
-    req.status = "REJECTED"
+    advance_request(req, "REJECTED", role, "Rejected")
     req.approved_by = f"Rejected by {role}"
     req.approver_role = role
     db.commit()

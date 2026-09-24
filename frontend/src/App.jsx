@@ -23,7 +23,7 @@ import AnalyticsPage from './pages/officer/AnalyticsPage';
 import ImportPage from './pages/officer/ImportPage';
 import EditorPage from './pages/officer/EditorPage';
 import UsersPage from './pages/officer/UsersPage';
-import { logout, resolveRole } from './api';
+import { logout, resolveRole, wakeBackend } from './api';
 import { auth, signOut as firebaseSignOut, onAuthStateChanged } from './firebase';
 
 const LoginPage = lazy(() => import('./components/LoginPage'));
@@ -96,6 +96,8 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => { wakeBackend(); }, []);
 
   // On every page change: back to the top and move focus to the page, so keyboard and screen reader users start there.
   useEffect(() => {

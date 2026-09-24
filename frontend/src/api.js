@@ -12,6 +12,7 @@ import {
   getFirestoreDeletedUlpins
 } from './firebaseFirestore';
 import { getDeedBlockchain } from './blockchain';
+import { auth } from './firebase';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' && window.location.protocol === 'https:' ? '/api' : 'http://localhost:8000');
 
@@ -72,9 +73,39 @@ export const mockLogin = async (role) => {
   return res.data;
 };
 
+// The site and the API are on different domains. Browsers such as Safari block cross-site cookies,
+// so the session token is also sent as a Bearer header. It is kept in memory only.
+let sessionToken = null;
+
 export const firebaseLogin = async (idToken) => {
   const res = await client.post('/auth/firebase-login', { id_token: idToken });
+  sessionToken = res.data?.token || null;
   return res.data;
+};
+
+client.interceptors.request.use((config) => {
+  if (sessionToken) config.headers.Authorization = `Bearer ${sessionToken}`;
+  return config;
+});
+
+// The access token lasts 30 minutes. On a 401, sign in to the API again once and retry.
+client.interceptors.response.use((res) => res, async (err) => {
+  const cfg = err.config;
+  const isAuthCall = String(cfg?.url || '').startsWith('/auth/');
+  if (err.response?.status === 401 && cfg && !cfg._retried && !isAuthCall && auth?.currentUser) {
+    cfg._retried = true;
+    try {
+      await firebaseLogin(await auth.currentUser.getIdToken(true));
+      return client.request(cfg);
+    } catch (e) { /* fall through to the original error */ }
+  }
+  return Promise.reject(err);
+});
+
+// The free host sleeps when idle. Ask it to wake as soon as the site opens.
+export const wakeBackend = () => {
+  if (isLocalhostBackendForbidden()) return;
+  client.get('/health', { timeout: 65000 }).catch(() => {});
 };
 
 const KNOWN_ROLES = ['citizen', 'village_officer', 'auditor', 'state_admin'];
