@@ -49,3 +49,19 @@
   .site-footer-grid { grid-template-columns: 1fr; gap: var(--space-4); }
   .brand-sub { display: none; }
 }
+
+/* Officer console */
+.officer-nav { border-top: var(--line) solid var(--ink-navy); border-bottom: var(--line) solid var(--rule-strong); }
+.officer-nav ul { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.officer-nav a { display: block; padding: var(--space-2) var(--space-3); font-size: var(--text-sm); font-weight: 600; text-decoration: none; color: var(--ink-navy); border-bottom: 3px solid transparent; }
+.officer-nav a:hover { background: var(--surface-sunk); }
+.officer-nav a.active { border-bottom-color: var(--ink-navy); }
+/* Existing modal components shown as page content */
+.embed .modal-overlay { position: static; background: none; padding: 0; display: block; z-index: auto; }
+.embed .modal-card { max-width: none; max-height: none; border: 0; padding: 0; overflow: visible; }
+.embed .modal-head { border-bottom: 0; padding-bottom: 0; }
+.embed .modal-head .icon-btn[aria-label="Close"] { display: none; }
+.embed .modal-head h3 { font-size: var(--text-lg); }
+.embed .adapter-demo-container { padding: 0; height: auto; overflow: visible; }
+.embed .adapter-demo-container > div:first-child { display: none; }
+.page:has(.embed--wide) { max-width: 1040px; }

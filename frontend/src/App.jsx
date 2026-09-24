@@ -14,6 +14,15 @@ import PrivacyPage from './pages/PrivacyPage';
 import AccessibilityPage from './pages/AccessibilityPage';
 import NotFoundPage from './pages/NotFoundPage';
 import SearchPage from './pages/SearchPage';
+import BankPage from './pages/BankPage';
+import DevelopersPage from './pages/DevelopersPage';
+import DashboardPage from './pages/officer/DashboardPage';
+import QueuePage from './pages/officer/QueuePage';
+import AuditPage from './pages/officer/AuditPage';
+import AnalyticsPage from './pages/officer/AnalyticsPage';
+import ImportPage from './pages/officer/ImportPage';
+import EditorPage from './pages/officer/EditorPage';
+import UsersPage from './pages/officer/UsersPage';
 import { logout, resolveRole } from './api';
 import { auth, signOut as firebaseSignOut, onAuthStateChanged } from './firebase';
 
@@ -32,6 +41,9 @@ export default function App() {
     '/': 'landing', '/map': 'map', '/login': 'login', '/search': 'search', '/about': 'about',
     '/how-it-works': 'how-it-works', '/coverage': 'coverage', '/services': 'services', '/faq': 'faq',
     '/grievance': 'grievance', '/terms': 'terms', '/privacy': 'privacy', '/accessibility': 'accessibility',
+    '/bank': 'bank', '/developers': 'developers',
+    '/officer': 'officer', '/officer/queue': 'officer-queue', '/officer/editor': 'officer-editor', '/officer/audit': 'officer-audit',
+    '/officer/import': 'officer-import', '/officer/analytics': 'officer-analytics', '/officer/users': 'officer-users',
   };
   const activeView = VIEWS[route.path] || 'not-found';
   const setActiveView = (view) => {
@@ -185,6 +197,15 @@ export default function App() {
         {activeView === 'terms' && <TermsPage />}
         {activeView === 'privacy' && <PrivacyPage />}
         {activeView === 'accessibility' && <AccessibilityPage />}
+        {activeView === 'bank' && <BankPage />}
+        {activeView === 'developers' && <DevelopersPage />}
+        {activeView === 'officer' && <DashboardPage role={currentRole} isLoggedIn={isLoggedIn} />}
+        {activeView === 'officer-queue' && <QueuePage role={currentRole} isLoggedIn={isLoggedIn} />}
+        {activeView === 'officer-editor' && <EditorPage role={currentRole} isLoggedIn={isLoggedIn} />}
+        {activeView === 'officer-audit' && <AuditPage role={currentRole} isLoggedIn={isLoggedIn} selectedState={selectedState} />}
+        {activeView === 'officer-import' && <ImportPage role={currentRole} isLoggedIn={isLoggedIn} />}
+        {activeView === 'officer-analytics' && <AnalyticsPage role={currentRole} isLoggedIn={isLoggedIn} />}
+        {activeView === 'officer-users' && <UsersPage role={currentRole} isLoggedIn={isLoggedIn} />}
         {activeView === 'not-found' && <NotFoundPage />}
 
         {activeView === 'map' && (

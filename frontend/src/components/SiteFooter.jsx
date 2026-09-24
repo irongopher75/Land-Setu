@@ -24,6 +24,8 @@ export default function SiteFooter() {
             <li><a href="#/how-it-works">{t('nav.how')}</a></li>
             <li><a href="#/coverage">{t('nav.coverage')}</a></li>
             <li><a href="#/services">{t('nav.services')}</a></li>
+            <li><a href="#/bank">Lender verification</a></li>
+            <li><a href="#/developers">Developer API</a></li>
             <li><a href="#/faq">{t('nav.help')}</a></li>
             <li><a href="#/about">{t('footer.about')}</a></li>
           </ul>

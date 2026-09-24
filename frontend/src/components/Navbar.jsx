@@ -86,8 +86,10 @@ export default function Navbar({ activeView, selectedState, setSelectedState, cu
               <a href={`#${l.path}`} aria-current={activeView === l.view ? 'page' : undefined} className={activeView === l.view ? 'active' : ''}>{t(l.key)}</a>
             </li>
           ))}
+          {isLoggedIn && currentRole !== 'citizen' && (
+            <li><a href="#/officer" className={activeView.startsWith('officer') ? 'active' : ''} aria-current={activeView.startsWith('officer') ? 'page' : undefined}>Officer console</a></li>
+          )}
           {currentRole === 'state_admin' && isLoggedIn && <li><button className="tab-btn" onClick={onOpenStateLogs}>State activity</button></li>}
-          {currentRole === 'state_admin' && isLoggedIn && <li><button className="tab-btn" onClick={onOpenAnalytics}>Analytics</button></li>}
         </ul>
       </nav>
     </header>
