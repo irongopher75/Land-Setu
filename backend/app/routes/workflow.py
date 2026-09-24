@@ -145,8 +145,8 @@ def _like(q: str) -> str:
 @router.get("/search")
 def search_parcels(q: str = Query(..., min_length=2, max_length=80), state: Optional[str] = Query(None),
                    limit: int = Query(20, ge=1, le=50),
-                   role: str = Depends(get_current_role), db: Session = Depends(get_db)):
-    """Find parcels by ULPIN, owner name or khata number."""
+                   db: Session = Depends(get_db)):
+    """Find parcels by ULPIN, owner name or khata number. Public: it returns only the public record fields."""
     like = _like(q.strip())
     owner = Parcel.layers["ror"]["owner_name"].as_string()
     khata = Parcel.layers["ror"]["khata_no"].as_string()

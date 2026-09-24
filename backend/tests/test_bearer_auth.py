@@ -17,3 +17,10 @@ def test_bearer_header_is_accepted_without_a_cookie():
         assert c.get("/parcels/analytics/summary").status_code == 401
         ok = c.get("/parcels/analytics/summary", headers={"Authorization": f"Bearer {tok}"})
         assert ok.status_code == 200
+
+
+def test_search_is_public():
+    with TestClient(app) as c:
+        c.cookies.clear()
+        r = c.get("/parcels/search", params={"q": "TN-CHN"})
+        assert r.status_code == 200 and isinstance(r.json(), list)

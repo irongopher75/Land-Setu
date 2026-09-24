@@ -514,6 +514,8 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
   };
 
   const fetchPendingCount = async () => {
+    // The approval queue is for officers. Asking as a citizen or signed-out visitor only returns 401 or 403.
+    if (role === 'citizen') { setPendingCount(0); return; }
     try {
       const pending = await getPendingRequests();
       setPendingCount(pending.length);
@@ -527,7 +529,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
     const onPipeline = () => fetchPendingCount();
     window.addEventListener('landsetu-pipeline-updated', onPipeline);
     return () => window.removeEventListener('landsetu-pipeline-updated', onPipeline);
-  }, []);
+  }, [role]);
 
   const loadMapData = async () => {
     try {
