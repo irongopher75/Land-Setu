@@ -45,6 +45,18 @@ def identify_state_by_coords(lat: float = Query(...), lng: float = Query(...)):
     return detect_state_from_coords(lat, lng)
 
 def filter_fields_by_role(parcel_dict: dict, role: str) -> dict:
+    if role == "bank":
+        # Lenders see clearance only: whether the parcel is encumbered and whether any rule is flagged.
+        # No owner, deed, tax or raw source data.
+        enc = (parcel_dict.get("layers") or {}).get("encumbrance") or {}
+        flags = parcel_dict.get("flags") or []
+        return {
+            "ulpin": parcel_dict["ulpin"], "state": parcel_dict["state"], "area_sqm": parcel_dict.get("area_sqm"),
+            "status": parcel_dict.get("status", "active"),
+            "layers": {"encumbrance": {k: enc.get(k) for k in ("active", "type", "confidence", "last_verified") if k in enc}},
+            "flags": [{"rule": f.get("rule"), "flag": f.get("flag")} for f in flags],
+            "raw_record": None,
+        }
     if role == "citizen":
         public_fields = {
             "ror": {"owner_name", "owner_share", "khata_no", "confidence", "last_verified", "patta_type"},
@@ -360,7 +372,7 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get
 
 
 @router.get("/requests/pending")
-def list_pending_requests(role: str = Depends(require_roles("officer", "bank", "auditor", "state_admin", "village_officer")),
+def list_pending_requests(role: str = Depends(require_roles("officer", "auditor", "state_admin", "village_officer")),
                           actor: dict = Depends(get_current_payload), db: Session = Depends(get_db)):
     """Lists all boundary change and deletion requests in the multi-stage governance pipeline."""
     reqs = db.query(BoundaryChangeRequest).filter(
@@ -384,7 +396,7 @@ def list_pending_requests(role: str = Depends(require_roles("officer", "bank", "
             "status": r.status,
             "type": "DELETION" if is_deletion else (r.type or "BOUNDARY"),
             "payload": r.payload,
-            "history": r.history or [],
+            "history": [{k: v for k, v in h.items() if k != "uid"} for h in (r.history or [])],  # account ids stay server-side
             "created_at": r.created_at,
             "geometry": r.geometry,
             "track": r.track or "HIGH",

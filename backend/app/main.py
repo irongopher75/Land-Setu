@@ -12,7 +12,11 @@ from app.audit import install_append_only_guard, backfill_imported
 from app.intelligence.seed_history import backfill_seed_history, plant_fixtures
 from app.db import SessionLocal
 
+_production = os.getenv("ENVIRONMENT", "").lower() == "production"
 app = FastAPI(
+    # Interactive docs are off in production; the OpenAPI description at /openapi.json stays for integrators.
+    docs_url=None if _production else "/docs",
+    redoc_url=None if _production else "/redoc",
     title="LandSetu — Unified GIS Land Governance API",
     description="Config-driven schema adapter, spatial rule engine, and parcel passport platform",
     version="1.0.0"
@@ -58,7 +62,7 @@ def startup_db_event():
             plant_fixtures(db)
             backfill_imported(db)
     except Exception as e:
-        print(f"Startup DB Initialization Notice: {e}")
+        print(f"Startup DB Initialization Notice: {type(e).__name__}")
 
 @app.get("/")
 def root_status():

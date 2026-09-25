@@ -30,6 +30,7 @@ def create_jwt_token(role: str, uid: str = "") -> str:
         "sub": uid or f"user-{role}",
         "role": role,
         "type": "access",
+        "ts": now.isoformat(),  # precise issue time, compared with role changes
         "iat": now,
         "nbf": now,
         "exp": now + timedelta(minutes=30),
@@ -37,34 +38,17 @@ def create_jwt_token(role: str, uid: str = "") -> str:
         "aud": "landsetu-web",
     }, SECRET_KEY, algorithm=ALGORITHM)
 
-def create_refresh_token(role: str, uid: str = "") -> str:
-    now = datetime.now(timezone.utc)
-    return jwt.encode({
-        "sub": uid or f"user-{role}",
-        "role": role,
-        "type": "refresh",
-        "iat": now,
-        "nbf": now,
-        "exp": now + timedelta(days=7),
-        "iss": "landsetu",
-        "aud": "landsetu-web",
-    }, SECRET_KEY, algorithm=ALGORITHM)
-
-def set_auth_cookies(response: Response, role: str, uid: str = "") -> tuple[str, str]:
+def set_auth_cookies(response: Response, role: str, uid: str = "") -> tuple[str, None]:
+    """Issue a 30-minute session. There is no refresh token: a refresh token carried the role for 7 days, so a
+    demoted officer kept their old role. The site signs in again with a fresh Firebase ID token instead, and
+    Firebase re-reads the account's current role claim each time."""
     access_token = create_jwt_token(role, uid)
-    refresh_token = create_refresh_token(role, uid)
-    
-    # 30-minute access token cookie
     response.set_cookie(
         COOKIE_NAME, access_token, httponly=True,
         secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE, max_age=30 * 60, path="/"
     )
-    # 7-day refresh token cookie
-    response.set_cookie(
-        REFRESH_COOKIE_NAME, refresh_token, httponly=True,
-        secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE, max_age=7 * 86400, path="/auth"
-    )
-    return access_token, refresh_token
+    response.delete_cookie(REFRESH_COOKIE_NAME, path="/auth")  # clear any cookie issued by older versions
+    return access_token, None
 
 def get_current_payload(authorization: str | None = Header(None), landsetu_session: str | None = Cookie(None)) -> dict:
     """Decoded session token: sub (account uid) and role."""
@@ -79,9 +63,24 @@ def get_current_payload(authorization: str | None = Header(None), landsetu_sessi
             raise ValueError("Invalid token type")
         if payload.get("role") not in VALID_ROLES:
             raise ValueError("Unknown role")
-        return payload
     except (jwt.PyJWTError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid or expired session")
+    if _changed_since(payload.get("sub"), payload.get("ts") or payload.get("iat")):
+        raise HTTPException(status_code=401, detail="Your role or account status changed. Sign in again.")
+    return payload
+
+
+def _changed_since(uid, issued_at) -> bool:
+    """True if an administrator changed this account's role, or disabled it, after the token was issued.
+    Closes the window in which a demoted or disabled account kept acting on an old session."""
+    if not uid or issued_at is None:
+        return False
+    from datetime import datetime, timezone
+    from app.db import SessionLocal
+    from app.models import RoleAudit
+    cutoff = issued_at if isinstance(issued_at, str) else datetime.fromtimestamp(int(issued_at), tz=timezone.utc).isoformat()
+    with SessionLocal() as db:
+        return db.query(RoleAudit.id).filter(RoleAudit.target_uid == uid, RoleAudit.at > cutoff).first() is not None
 
 def get_current_role(payload: dict = Depends(get_current_payload)) -> str:
     return payload["role"]
@@ -151,24 +150,10 @@ def firebase_login(req: FirebaseLoginRequest, response: Response):
     access_token, refresh_token = set_auth_cookies(response, role, uid)
     return AuthLoginResponse(role=role, token=access_token, refresh_token=refresh_token)
 
-@router.post("/refresh", response_model=AuthLoginResponse)
-def refresh_session(response: Response, landsetu_refresh: str | None = Cookie(None)):
-    """Exchange a valid 7-day refresh token for a new 30-minute access token."""
-    if not landsetu_refresh:
-        raise HTTPException(status_code=401, detail="Refresh token required")
-    try:
-        payload = jwt.decode(landsetu_refresh, SECRET_KEY, algorithms=[ALGORITHM], issuer="landsetu", audience="landsetu-web")
-        if payload.get("type") != "refresh":
-            raise ValueError("Token is not a refresh token")
-        role = payload.get("role", "citizen")
-        uid = payload.get("sub", "")
-        if role not in VALID_ROLES:
-            raise ValueError("Invalid role in refresh token")
-        
-        access_token, refresh_token = set_auth_cookies(response, role, uid)
-        return AuthLoginResponse(role=role, token=access_token, refresh_token=refresh_token)
-    except (jwt.PyJWTError, ValueError):
-        raise HTTPException(status_code=401, detail="Invalid or expired refresh session")
+@router.post("/refresh")
+def refresh_session():
+    """Retired. Sessions are renewed by signing in again with a fresh Firebase ID token."""
+    raise HTTPException(status_code=410, detail="Refresh tokens are no longer issued. Sign in again.")
 
 @router.post("/logout", status_code=204)
 def logout(response: Response):

@@ -28,6 +28,7 @@ def as_role(client, role):
     tok = client.post("/auth/mock-login", json={"role": role}).json()["token"]
     client.cookies.clear()
     client.cookies.set("landsetu_session", tok)
+    client.headers["Origin"] = "http://localhost:5173"  # cookie sessions must come from a known site (CSRF check)
     return client
 
 

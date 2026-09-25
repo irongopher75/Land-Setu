@@ -19,7 +19,7 @@ from app.models import RequestFlag
 from app.workflow import (
     advance_request, validate_split, validate_merge, validate_correction,
     build_history, NEW_TYPES, route_request, apply_request,
-    TRACK_FAST, FAST_STATUS, FAST_APPROVER_ROLES,
+    TRACK_FAST, FAST_STATUS, FAST_APPROVER_ROLES, enforce_open_request_cap,
 )
 
 router = APIRouter(prefix="/parcels", tags=["Workflow"])
@@ -56,6 +56,7 @@ def _reject_duplicate(db: Session, ulpin: str, req_type: str):
 def _open_request(db: Session, parcel: Parcel, req_type: str, role: str, requested_by: str,
                   reason: str, payload: Dict[str, Any], geometry: Dict[str, Any], first_status: str,
                   requester_uid: Optional[str] = None, track: str = "HIGH"):
+    enforce_open_request_cap(db, requester_uid, role)
     req = BoundaryChangeRequest(
         ulpin=parcel.ulpin, state=parcel.state, requester_role=role, requested_by=requested_by,
         geometry=geometry, area_sqm=float(parcel.area_sqm or 0), reason=reason,
@@ -180,7 +181,13 @@ def get_parcel_history(ulpin: str, role: str = Depends(get_current_role), db: Se
     parcel = _get_parcel(db, ulpin)
     reqs = db.query(BoundaryChangeRequest).filter(BoundaryChangeRequest.ulpin == ulpin) \
         .order_by(BoundaryChangeRequest.id).all()
-    return {"ulpin": ulpin, "events": build_history(parcel, reqs)}
+    events = build_history(parcel, reqs)
+    if role in ("citizen", "bank"):
+        # Request text can name people and values from someone else's filing. Keep the dated event only.
+        for e in events:
+            if e.get("kind") == "request":
+                e["detail"] = ""
+    return {"ulpin": ulpin, "events": events}
 
 
 def _like(q: str) -> str:

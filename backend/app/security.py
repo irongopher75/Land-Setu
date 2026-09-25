@@ -1,4 +1,4 @@
-"""HTTP hardening for the API: response headers, request size cap and per-client rate limits.
+"""HTTP hardening for the API: CSRF origin check, response headers, request size cap and per-client rate limits.
 
 The rate limiter keeps counts in memory, so each API instance limits on its own. That is enough for one
 instance. With several instances, move the counters to a shared store such as Redis.
@@ -34,6 +34,42 @@ def _bucket(method: str, path: str):
     return "read", _limit("RATE_LIMIT_READ", 300)
 
 
+def client_key(request) -> str:
+    """Who to count a request against. Render sits behind Cloudflare, which sets CF-Connecting-IP to the real
+    client and overwrites any value a client sends. X-Forwarded-For is never used: clients can write it freely,
+    and trusting it let one client spread requests over unlimited buckets."""
+    cf = request.headers.get("cf-connecting-ip")
+    if cf:
+        return cf.strip()
+    return request.scope.get("client", ("unknown",))[0] or "unknown"
+
+
+def _allowed_origins():
+    raw = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,https://landsetu-e4e5e.web.app,https://landsetu-e4e5e.firebaseapp.com")
+    return {o.strip().rstrip("/") for o in raw.split(",") if o.strip()}
+
+
+def csrf_blocked(request) -> bool:
+    """A state-changing request authenticated only by the session cookie must come from a known site.
+
+    The session cookie is SameSite=None (the site and the API are on different domains), so a browser would
+    attach it to a form posted from any website. Requests carrying a Bearer token are not at risk: a browser
+    never adds that header on its own.
+    """
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return False
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer "):
+        return False
+    if "landsetu_session" not in request.headers.get("cookie", ""):
+        return False
+    origin = request.headers.get("origin")
+    if not origin:
+        ref = request.headers.get("referer", "")
+        origin = "/".join(ref.split("/")[:3]) if ref else ""
+    return origin.rstrip("/") not in _allowed_origins()
+
+
 def reset_rate_limits() -> None:
     _hits.clear()
 
@@ -55,9 +91,11 @@ def _allow(client: str, bucket: str, limit: int):
 class SecurityMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         path = request.url.path
+        if csrf_blocked(request):
+            return JSONResponse({"detail": "Cross-site request refused."}, status_code=403)
         if os.getenv("RATE_LIMIT_DISABLED", "false").lower() != "true" and path not in ("/health", "/health/ready") \
                 and request.method != "OPTIONS":
-            client = request.client.host if request.client else "unknown"
+            client = client_key(request)
             bucket, limit = _bucket(request.method, path)
             ok, retry = _allow(client, bucket, limit)
             if not ok:

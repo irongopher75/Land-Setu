@@ -1,5 +1,6 @@
 import os
 from sqlalchemy import create_engine
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 DATABASE_URL = os.getenv(
@@ -20,13 +21,13 @@ else:
             pass
     except Exception as e:
         if ALLOW_SQLITE_FALLBACK:
-            print(f"Notice: PostgreSQL unavailable ({e}). Falling back to local SQLite database (sqlite:///./landsetu.db).")
+            print(f"Notice: PostgreSQL unavailable ({type(e).__name__}). Falling back to local SQLite database (sqlite:///./landsetu.db).")
             IS_SQLITE = True
             DATABASE_URL = "sqlite:///./landsetu.db"
             engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
         else:
             raise RuntimeError(
-                f"Database connection error for '{DATABASE_URL}': {e}. "
+                f"Database connection error for '{make_url(DATABASE_URL).render_as_string(hide_password=True)}': {type(e).__name__}. "
                 "Silent fallback to local SQLite is disabled to prevent multi-node split-brain state. "
                 "Ensure PostgreSQL is running or set ALLOW_SQLITE_FALLBACK=true for local single-node testing."
             )

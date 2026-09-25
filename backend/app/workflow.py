@@ -314,3 +314,20 @@ def build_history(parcel: Parcel, requests: List[BoundaryChangeRequest]) -> List
 
     ev.sort(key=lambda e: (e["date"] is None, str(e["date"] or "")))
     return ev
+
+
+MAX_OPEN_REQUESTS_PER_ACCOUNT = 5
+
+
+def enforce_open_request_cap(db: Session, requester_uid: Optional[str], role: str) -> None:
+    """One account may hold at most this many open requests at a time, so nobody can flood the review queue.
+    Officers file as part of their job and are exempt."""
+    if not requester_uid or role not in ("citizen", "bank"):
+        return
+    import os
+    from app.permissions import STAGE_REVIEWERS
+    cap = int(os.getenv("MAX_OPEN_REQUESTS_PER_ACCOUNT", MAX_OPEN_REQUESTS_PER_ACCOUNT))
+    n = db.query(BoundaryChangeRequest).filter(BoundaryChangeRequest.requester_uid == requester_uid,
+                                               BoundaryChangeRequest.status.in_(list(STAGE_REVIEWERS))).count()
+    if n >= cap:
+        raise HTTPException(status_code=429, detail=f"You already have {n} requests under review. Wait for a decision before filing more.")

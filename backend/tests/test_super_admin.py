@@ -106,9 +106,13 @@ def test_cannot_change_own_role_or_remove_last_super_admin(env):
     assert c.put("/admin/users/sa1/role", json={"role": "citizen"}, headers=hdr("super_admin", "sa1")).status_code == 409
     # a second super admin acts on the first: the first is then not the last one only if another remains
     fake.users["sa2"] = FakeUser("sa2", "second@example.test", "super_admin")
+    sa1_old_session = hdr("super_admin", "sa1")
     ok = c.put("/admin/users/sa1/role", json={"role": "citizen"}, headers=hdr("super_admin", "sa2"))
     assert ok.status_code == 200
-    last = c.put("/admin/users/sa2/role", json={"role": "citizen"}, headers=hdr("super_admin", "sa1"))
+    # sa1 was just demoted, so its old super_admin session is refused outright
+    assert c.put("/admin/users/sa2/role", json={"role": "citizen"}, headers=sa1_old_session).status_code == 401
+    # another super admin cannot remove sa2 either, because sa2 is now the last one
+    last = c.put("/admin/users/sa2/role", json={"role": "citizen"}, headers=hdr("super_admin", "sa-other"))
     assert last.status_code == 409
 
 

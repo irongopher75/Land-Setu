@@ -37,7 +37,7 @@ def actor_ref(uid: Optional[str]) -> Optional[str]:
     """Keyed hash of an account id. The same account always gives the same value; the id is not recoverable."""
     if not uid:
         return None
-    return hmac.new(os.getenv("JWT_SECRET", "").encode(), str(uid).encode(), hashlib.sha256).hexdigest()[:24]
+    return hmac.new(os.environ["JWT_SECRET"].encode(), str(uid).encode(), hashlib.sha256).hexdigest()[:24]
 
 
 def _content(row: Dict[str, Any]) -> str:
