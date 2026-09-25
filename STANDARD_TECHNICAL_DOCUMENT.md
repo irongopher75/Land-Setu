@@ -103,7 +103,7 @@ If any API call fails, the SPA falls back to bundled sample data. A response tha
 
 ### 1.6 Testing and delivery
 
-- 94 backend tests (`backend/tests/`) cover authentication, roles, the rule engine, the flag cache, the workflow pipeline, and public access. They run on SQLite. **The PostGIS code path is not covered by an automated test.**
+- 97 backend tests (`backend/tests/`) cover authentication, roles, the rule engine, the flag cache, the workflow pipeline, and public access. They run on SQLite. **The PostGIS code path is not covered by an automated test.**
 - GitHub Actions (`.github/workflows/firebase-hosting-merge.yml`) runs the backend tests and the frontend build on every push to `main`, then deploys the frontend to Firebase Hosting if both pass.
 
 ---
@@ -457,11 +457,25 @@ Classical statistics and scikit-learn. No language models. Code in `backend/app/
 | Lien timing | A boundary, split, merge, archival or ownership correction filed within 30 days of an encumbrance being raised | **[Implemented]** |
 | Backdating | A deed dated after it was recorded; presented more than 120 days after execution (Registration Act, 1908, s. 23 allows four months); or dated before a parcel that LandSetu itself created | **[Implemented]** |
 | Zoning mismatch | DBSCAN on parcel centroids projected to metres, per state (eps 120 m, minimum 4 neighbours, configurable). In a neighbourhood of at least 6 parcels, a parcel is flagged when at least 75% of the others share one land use and it does not. Location alone forms neighbourhoods; land use is compared afterwards, so a different use cannot split the neighbourhood that should expose it. | **[Implemented]** |
-| Dispute-risk classifier | See 5B | **[Planned]** in this revision |
+| Dispute-risk classifier | See 5B | **[Partial]**: trained and served, weak by design of its data |
 
 **Caching.** Results are stored per parcel in `parcel_intelligence` and read from there. Any request event marks the parcel's whole state stale (zoning is a per-state computation), and an owner-name change also marks every parcel with a similar name stale. A stale row is recomputed, with its state, on the next read.
 
 **Limits.** Seed parcels are about 270 m apart, wider than the 120 m radius, so they form no neighbourhood and are not judged for zoning. The radius is fixed per deployment, not tuned per area. Rapid re-transfer counts deeds by execution date. Name matching cannot tell two different people who share a name, which is why it is a signal and not a finding.
+
+### 5B. Dispute-risk classifier
+
+**What it is.** A real scikit-learn logistic regression (standardised features, balanced class weights), trained by `backend/scripts/train_risk_model.py` and saved as `backend/app/intelligence/risk_model.joblib`. Gradient boosting is trained alongside and kept only if it is clearly better; on this data it was worse.
+
+**What it is not.** It is **not** trained on real dispute outcomes; none exist for this prototype. The label is a held-out proxy: 1 if the Record of Rights owner differs from the deed buyer, or if any change request on the parcel was rejected. To stop the model reading its own label, the ownership-mismatch rule is removed from the features, and edit counts include only applied edits, never rejected ones. The training data is the synthetic seed plus the planted fixtures: **46 parcels, 3 positives.**
+
+**Validation, reported as it is.** Leave-one-out, out-of-fold probabilities: ROC AUC 0.62, average precision 0.28, against a base rate of 0.065. With three positives these numbers are close to noise. They do not validate the model.
+
+**What it learned, and why that matters.** Largest weights: parcel age, encumbrance history, active encumbrance (positive); rule flags, zoning mismatch and fraud-pattern count (negative). The negative weights are an artefact: two of the three positives have no patterns, so the model learned that patterns lower risk. A parcel sold three times in 74 days scores 2%. This is the expected result of honest proxy labels on tiny synthetic data, and it is the reason the score carries a caveat on every display.
+
+**Explanations.** Each score lists its drivers: the features where this parcel is above the typical value and the model links that to higher risk (exact per-feature log-odds contributions for logistic regression). "Having none of something" is never offered as a reason.
+
+**What would make it meaningful.** Real adjudicated outcomes (revenue court and civil court land disputes linked by ULPIN), hundreds of positives, time-based validation, and calibration. Until then the deterministic rules and the pattern detectors in 5A are the signals to rely on.
 
 ---
 
@@ -650,7 +664,7 @@ backend/
   mock_data/             synthetic CSV and GeoJSON for Tamil Nadu and Chandigarh
   alembic/versions/      6 migration revisions
   scripts/set_role.py    assign a role claim to an account
-  tests/                 94 tests
+  tests/                 97 tests
 frontend/
   src/App.jsx, router.js, i18n.jsx, api.js
   src/pages/             text pages, lender preview, developer API, officer console
