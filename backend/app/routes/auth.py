@@ -107,13 +107,15 @@ def mock_login(req: AuthLoginRequest, response: Response):
     
     Strictly hidden (404 Not Found) unless DEMO_LOGIN_ENABLED environment variable is set to true.
     """
-    if not DEMO_LOGIN_ENABLED:
+    # Off unless explicitly enabled, and never available in production even if the flag is set by mistake.
+    if not DEMO_LOGIN_ENABLED or os.getenv("ENVIRONMENT", "").lower() == "production":
         raise HTTPException(
-            status_code=404, 
+            status_code=404,
             detail="Not Found"
         )
     role = req.role.lower() if req.role else "citizen"
-    if role not in VALID_ROLES:
+    # A demo session can never be a super administrator: that role manages accounts.
+    if role not in VALID_ROLES or role == "super_admin":
         role = "citizen"
     access_token, refresh_token = set_auth_cookies(response, role)
     return AuthLoginResponse(role=role, token=access_token, refresh_token=refresh_token)

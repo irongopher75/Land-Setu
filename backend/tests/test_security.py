@@ -51,3 +51,30 @@ def test_oversized_body_is_refused(client):
 
 def test_readiness_checks_the_database(client):
     assert client.get("/health/ready").json() == {"status": "ready"}
+
+
+def test_mock_login_is_closed_in_production_even_if_enabled(monkeypatch):
+    import app.routes.auth as auth_mod
+    monkeypatch.setattr(auth_mod, "DEMO_LOGIN_ENABLED", True)
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    with TestClient(app) as c:
+        assert c.post("/auth/mock-login", json={"role": "state_admin"}).status_code == 404
+
+
+def test_mock_login_never_mints_super_admin(monkeypatch):
+    import app.routes.auth as auth_mod
+    monkeypatch.setattr(auth_mod, "DEMO_LOGIN_ENABLED", True)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    with TestClient(app) as c:
+        assert c.post("/auth/mock-login", json={"role": "super_admin"}).json()["role"] == "citizen"
+
+
+def test_api_refuses_to_start_without_a_strong_jwt_secret():
+    import subprocess, sys
+    env = {k: v for k, v in os.environ.items() if k != "JWT_SECRET"}
+    for bad in (None, "short"):
+        if bad:
+            env["JWT_SECRET"] = bad
+        r = subprocess.run([sys.executable, "-c", "import app.routes.auth"], env=env, capture_output=True, text=True,
+                           cwd=os.path.dirname(os.path.dirname(__file__)))
+        assert r.returncode != 0 and "JWT_SECRET must be set" in r.stderr
