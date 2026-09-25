@@ -79,13 +79,6 @@ export default function IntelligencePanel({ ulpin }) {
             <p>{data.zoning.explanation || 'Not computed.'}</p>
           </div>
 
-          {data.risk && (
-            <div className="signal">
-              <div className="signal-title"><strong>Dispute-risk estimate</strong><span className="tabular">{Math.round(data.risk.score * 100)} of 100</span></div>
-              {data.risk.explanation && <p>{data.risk.explanation}</p>}
-              {data.risk.caveat && <p className="subtle">{data.risk.caveat}</p>}
-            </div>
-          )}
         </>
       )}
     </section>

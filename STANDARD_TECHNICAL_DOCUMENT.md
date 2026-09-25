@@ -16,7 +16,7 @@ Every capability is tagged with its real status, so a reader can tell what exist
 | **[Partial]** | Exists, but is incomplete or works only in some environments. The gap is stated. |
 | **[Planned]** | Not built. Described so the design intent is clear. |
 
-Contents: 1 System Architecture, 2 Data Schemas, 3 GIS Standards, 4 API Standards and Interoperability Standards, 5 Security Frameworks, 6 UI/UX Guidelines and Color Schema, 7 Deployment and Scalability Considerations, 8 Known limitations and roadmap, Appendix A state coverage, Appendix B repository map.
+Contents: 1 System Architecture, 2 Data Schemas, 3 GIS Standards, 4 API Standards and Interoperability Standards, 5 Security Frameworks, 5A Statistical signals, 5B Dispute-risk classifier, **5C Did we attempt machine learning? Why the risk score is not shown**, 6 UI/UX Guidelines and Color Schema, 7 Deployment and Scalability Considerations, 8 Known limitations and roadmap, Appendix A state coverage, Appendix B repository map.
 
 ---
 
@@ -103,7 +103,7 @@ If any API call fails, the SPA falls back to bundled sample data. A response tha
 
 ### 1.6 Testing and delivery
 
-- 97 backend tests (`backend/tests/`) cover authentication, roles, the rule engine, the flag cache, the workflow pipeline, and public access. They run on SQLite. **The PostGIS code path is not covered by an automated test.**
+- 98 backend tests (`backend/tests/`) cover authentication, roles, the rule engine, the flag cache, the workflow pipeline, and public access. They run on SQLite. **The PostGIS code path is not covered by an automated test.**
 - GitHub Actions (`.github/workflows/firebase-hosting-merge.yml`) runs the backend tests and the frontend build on every push to `main`, then deploys the frontend to Firebase Hosting if both pass.
 
 ---
@@ -457,13 +457,13 @@ Classical statistics and scikit-learn. No language models. Code in `backend/app/
 | Lien timing | A boundary, split, merge, archival or ownership correction filed within 30 days of an encumbrance being raised | **[Implemented]** |
 | Backdating | A deed dated after it was recorded; presented more than 120 days after execution (Registration Act, 1908, s. 23 allows four months); or dated before a parcel that LandSetu itself created | **[Implemented]** |
 | Zoning mismatch | DBSCAN on parcel centroids projected to metres, per state (eps 120 m, minimum 4 neighbours, configurable). In a neighbourhood of at least 6 parcels, a parcel is flagged when at least 75% of the others share one land use and it does not. Location alone forms neighbourhoods; land use is compared afterwards, so a different use cannot split the neighbourhood that should expose it. | **[Implemented]** |
-| Dispute-risk classifier | See 5B | **[Partial]**: trained and served, weak by design of its data |
+| Dispute-risk classifier | Trained, saved and tested, **not displayed**. See 5B and 5C. | **[Implemented, withheld by decision]** |
 
 **Caching.** Results are stored per parcel in `parcel_intelligence` and read from there. Any request event marks the parcel's whole state stale (zoning is a per-state computation), and an owner-name change also marks every parcel with a similar name stale. A stale row is recomputed, with its state, on the next read.
 
 **Limits.** Seed parcels are about 270 m apart, wider than the 120 m radius, so they form no neighbourhood and are not judged for zoning. The radius is fixed per deployment, not tuned per area. Rapid re-transfer counts deeds by execution date. Name matching cannot tell two different people who share a name, which is why it is a signal and not a finding.
 
-### 5B. Dispute-risk classifier
+## 5B. Dispute-risk classifier
 
 **What it is.** A real scikit-learn logistic regression (standardised features, balanced class weights), trained by `backend/scripts/train_risk_model.py` and saved as `backend/app/intelligence/risk_model.joblib`. Gradient boosting is trained alongside and kept only if it is clearly better; on this data it was worse.
 
@@ -473,9 +473,43 @@ Classical statistics and scikit-learn. No language models. Code in `backend/app/
 
 **What it learned, and why that matters.** Largest weights: parcel age, encumbrance history, active encumbrance (positive); rule flags, zoning mismatch and fraud-pattern count (negative). The negative weights are an artefact: two of the three positives have no patterns, so the model learned that patterns lower risk. A parcel sold three times in 74 days scores 2%. This is the expected result of honest proxy labels on tiny synthetic data, and it is the reason the score carries a caveat on every display.
 
+**Status.** Trained and tested, not displayed. See 5C.
+
 **Explanations.** Each score lists its drivers: the features where this parcel is above the typical value and the model links that to higher risk (exact per-feature log-odds contributions for logistic regression). "Having none of something" is never offered as a reason.
 
 **What would make it meaningful.** Real adjudicated outcomes (revenue court and civil court land disputes linked by ULPIN), hundreds of positives, time-based validation, and calibration. Until then the deterministic rules and the pattern detectors in 5A are the signals to rely on.
+
+## 5C. Did we attempt machine learning? Why the risk score is not shown
+
+**Short answer.** Yes. We trained, validated and saved a real dispute-risk classifier. We then decided not to show its score anywhere in the product, because the evidence says the score would mislead. This is a methodological decision, made on the numbers below, not an omission.
+
+**What we built.**
+- A scikit-learn logistic regression on nine features: rule flags (without the ownership-mismatch rule), fraud-pattern count, total transfers, most transfers inside 90 days, encumbrance history, active encumbrance, applied boundary edits, parcel age, and zoning mismatch.
+- A gradient-boosting classifier trained on the same data as a comparison.
+- A reproducible training script (`backend/scripts/train_risk_model.py`), a saved model (`backend/app/intelligence/risk_model.joblib`) with its validation results inside it, per-parcel explanations, and tests.
+
+**How we labelled it.** No real dispute outcomes exist for this prototype. We did **not** invent labels from the features, because a model trained that way only relearns the rule that made its labels. We used a held-out proxy instead: a parcel is positive if its Record of Rights owner differs from its deed buyer, or if a change request on it was rejected. Neither signal is available to the model as a feature.
+
+**What the numbers say.**
+
+| Measure | Value |
+|---|---|
+| Training examples | 46 parcels (synthetic seed plus planted fixtures) |
+| Positive examples | 3 |
+| Base rate | 0.065 |
+| Logistic regression, leave-one-out ROC AUC | **0.62** |
+| Logistic regression, average precision | 0.28 |
+| Gradient boosting, leave-one-out ROC AUC | **0.31** (worse than chance, so rejected) |
+
+With three positives, an AUC of 0.62 is indistinguishable from noise. Moving one prediction changes it substantially.
+
+**The result that decided it.** The planted parcel that changed hands three times in 74 days, the clearest fraud signal in the data, scores **2%**. The reason is visible in the model: two of the three positive examples have no fraud patterns at all, so the model learned a *negative* weight on fraud-pattern count. Its largest positive weights are parcel age and encumbrance history, which is what those three parcels happen to share. The model faithfully learned its data; the data is too small to teach anything true.
+
+**Why withhold rather than display with a caveat.** A number on a land-record screen is read as a judgement about a parcel, and by extension its owner. Showing a score that ranks an obvious flip as low risk, next to detectors that correctly flag it, would teach officers to ignore either the score or the detectors. The deterministic rules (section 3) and the pattern detectors (5A) each point to specific records and can be checked. The score cannot yet be trusted, so it is not shown.
+
+**How it is withheld.** The API computes no score and returns `risk: null` with a `risk_status` note explaining why. The parcel panel and the admin view show no risk figure. The model, its training script and its tests stay in the repository. Setting `INTEL_RISK_SCORE_VISIBLE=true` on the API turns scoring back on for evaluation.
+
+**What would change the decision.** Real adjudicated outcomes linked by ULPIN, such as revenue-court and civil-court land disputes. Hundreds of positive cases. Validation on a later time period than training, and calibration, before any score reaches a screen.
 
 ---
 
@@ -664,7 +698,7 @@ backend/
   mock_data/             synthetic CSV and GeoJSON for Tamil Nadu and Chandigarh
   alembic/versions/      6 migration revisions
   scripts/set_role.py    assign a role claim to an account
-  tests/                 97 tests
+  tests/                 98 tests
 frontend/
   src/App.jsx, router.js, i18n.jsx, api.js
   src/pages/             text pages, lender preview, developer API, officer console

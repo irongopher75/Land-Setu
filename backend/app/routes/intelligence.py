@@ -16,6 +16,9 @@ from app.routes.auth import require_roles
 router = APIRouter(prefix="/parcels", tags=["Intelligence"])
 OFFICERS = ("village_officer", "auditor", "state_admin", "officer")
 
+RISK_WITHHELD = ("A dispute-risk model was trained but its score is not shown: with 3 positive examples its output is not "
+                 "reliable. See section 5C of the technical document.")
+
 NOTE = ("Statistical signals, not findings. Each one is a prompt to check the listed records. The demonstration "
         "data includes planted synthetic cases; see the synthetic_fixture field on those parcels.")
 
@@ -28,6 +31,7 @@ def _view(row: ParcelIntelligence, parcel: Parcel):
         "fraud_patterns": row.fraud_flags or [],
         "zoning": {"anomaly": bool(row.zoning_anomaly), "explanation": row.zoning_explanation},
         "risk": None if row.risk_score is None else {"score": row.risk_score, **(row.risk_score_factors or {})},
+        "risk_status": None if row.risk_score is not None else RISK_WITHHELD,
     }
 
 
@@ -54,6 +58,7 @@ def intelligence_summary(role: str = Depends(require_roles("state_admin")), db: 
         "with_fraud_patterns": sum(1 for r in rows if r.fraud_flags),
         "patterns": dict(patterns),
         "zoning_anomalies": sum(1 for r in rows if r.zoning_anomaly),
+        "risk_status": RISK_WITHHELD if not scored else None,
         "risk": {"scored": len(scored), "bands": dict(bands),
                  "histogram": [sum(1 for s in scored if i / 10 <= s < (i + 1) / 10 or (i == 9 and s == 1.0)) for i in range(10)]},
         "states": sorted(by_state.values(), key=lambda s: s["state"]),

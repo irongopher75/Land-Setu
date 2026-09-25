@@ -50,3 +50,9 @@ def zoning_min_cluster() -> int:        # a neighbourhood must hold this many pa
 
 def zoning_dominance() -> float:        # share of the neighbourhood's dominant use needed to call a mismatch
     return _num("INTEL_ZONING_DOMINANCE", 0.75)
+
+
+def risk_score_visible() -> bool:
+    """The trained risk score is withheld from every screen and response by decision (see the technical
+    document, section 5C). Setting INTEL_RISK_SCORE_VISIBLE=true computes and returns it again."""
+    return os.getenv("INTEL_RISK_SCORE_VISIBLE", "false").lower() == "true"

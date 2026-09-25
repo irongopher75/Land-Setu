@@ -46,10 +46,19 @@ def client():
         yield c
 
 
-def test_risk_score_comes_with_explanation_and_caveat(client):
+def test_risk_score_is_withheld_by_default(client):
     h = {"Authorization": f"Bearer {auth_mod.create_jwt_token('auditor', 'a-risk')}"}
     body = client.get("/parcels/TN-KPM-0107-2019/intelligence", headers=h).json()
-    risk = body["risk"]
-    assert 0 <= risk["score"] <= 1 and risk["explanation"] and risk["caveat"] == CAVEAT
-    assert risk["drivers"] and all(d["text"] for d in risk["drivers"])
-    assert risk["model"]["validation"]["warning"]
+    assert body["risk"] is None and "5C" in body["risk_status"]
+
+
+def test_model_still_scores_with_explanation_and_caveat(client):
+    """The model works; it is only withheld from display."""
+    from app.db import SessionLocal
+    from app.models import Parcel
+    from app.intelligence.features import FEATURES as F
+    m = load_model()
+    db = SessionLocal()
+    p = db.query(Parcel).filter_by(ulpin="TN-KPM-0107-2019").one()
+    score, factors = m.score(db, p, [], False, [], [{"cleared_at": None}], [])
+    assert 0 <= score <= 1 and factors["caveat"] == CAVEAT and set(factors["features"]) == set(F)

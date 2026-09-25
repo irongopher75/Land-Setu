@@ -80,7 +80,6 @@ export default function AnalyticsDashboard({ onClose }) {
                 <div><dt>Parcels checked</dt><dd className="tabular">{intel.parcels}</dd></div>
                 <div><dt>With a pattern</dt><dd className="tabular">{intel.with_fraud_patterns}</dd></div>
                 <div><dt>Zoning mismatches</dt><dd className="tabular">{intel.zoning_anomalies}</dd></div>
-                <div><dt>Risk-scored</dt><dd className="tabular">{intel.risk.scored}</dd></div>
               </dl>
               <table className="analytics-table">
                 <thead><tr><th scope="col">Pattern</th><th scope="col" className="num">Parcels</th></tr></thead>
@@ -90,12 +89,6 @@ export default function AnalyticsDashboard({ onClose }) {
                   ))}
                 </tbody>
               </table>
-              {intel.risk.scored > 0 && (
-                <table className="analytics-table">
-                  <thead><tr><th scope="col">Risk band</th><th scope="col" className="num">Parcels</th></tr></thead>
-                  <tbody>{['high', 'medium', 'low'].map((b) => <tr key={b}><th scope="row">{b}</th><td className="num tabular">{intel.risk.bands[b] || 0}</td></tr>)}</tbody>
-                </table>
-              )}
               <table className="analytics-table">
                 <thead><tr><th scope="col">ULPIN</th><th scope="col">Signals</th><th scope="col">Note</th></tr></thead>
                 <tbody>

@@ -74,6 +74,9 @@ def compute_state(db: Session, state: str, risk_model=None) -> int:
 
 
 def _model():
+    from app.intelligence import config
+    if not config.risk_score_visible():
+        return None  # withheld by decision: see section 5C of the technical document
     try:
         from app.intelligence.risk import load_model
         return load_model()
