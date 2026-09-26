@@ -34,7 +34,6 @@ const ParcelPanel = lazy(() => import('./components/ParcelPanel'));
 const StateLogModal = lazy(() => import('./components/StateLogModal'));
 const CitizenServiceTrackerModal = lazy(() => import('./components/CitizenServiceTrackerModal'));
 const SatelliteAiChangeDetectionModal = lazy(() => import('./components/SatelliteAiChangeDetectionModal'));
-const AuditLogModal = lazy(() => import('./components/AuditLogModal'));
 const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard'));
 
 export default function App() {
@@ -66,7 +65,6 @@ export default function App() {
   const [showStateLogs, setShowStateLogs] = useState(false);
   const [showCitizenTracker, setShowCitizenTracker] = useState(false);
   const [showSatelliteAi, setShowSatelliteAi] = useState(false);
-  const [showAuditLog, setShowAuditLog] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [restructure, setRestructure] = useState(null); // { mode: 'split' | 'merge', parcel }
   const [focusPoint, setFocusPoint] = useState(null);
@@ -225,7 +223,7 @@ export default function App() {
         {activeView === 'officer' && <DashboardPage role={effectiveRole} isLoggedIn={isLoggedIn} />}
         {activeView === 'officer-queue' && <QueuePage role={effectiveRole} isLoggedIn={isLoggedIn} />}
         {activeView === 'officer-editor' && <EditorPage role={effectiveRole} isLoggedIn={isLoggedIn} />}
-        {activeView === 'officer-audit' && <AuditPage role={effectiveRole} isLoggedIn={isLoggedIn} selectedState={selectedState} />}
+        {activeView === 'officer-audit' && <AuditPage role={effectiveRole} isLoggedIn={isLoggedIn} />}
         {activeView === 'officer-import' && <ImportPage role={effectiveRole} isLoggedIn={isLoggedIn} />}
         {activeView === 'officer-analytics' && <AnalyticsPage role={effectiveRole} isLoggedIn={isLoggedIn} />}
         {activeView === 'officer-users' && <UsersPage role={effectiveRole} isLoggedIn={isLoggedIn} />}
@@ -287,13 +285,6 @@ export default function App() {
           />
         )}
 
-        {showAuditLog && (
-          <AuditLogModal
-            stateFilter={selectedState}
-            role={effectiveRole}
-            onClose={() => setShowAuditLog(false)}
-          />
-        )}
         </Suspense>
         {activeView !== 'map' && <SiteFooter />}
       </main>

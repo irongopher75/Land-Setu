@@ -284,6 +284,12 @@ export const getAuditChain = async (ulpin) => {
 };
 
 // Single-approver track for spelling-level corrections.
+// The records service's audit log: filters { ulpin, event, actor_role, date_from, date_to, offset, limit }.
+export const getAuditLog = (filters = {}) => {
+  const q = new URLSearchParams(Object.entries(filters).filter(([, v]) => v !== '' && v != null)).toString();
+  return restCall('get', `/parcels/audit-log?${q}`, 'Loading the audit log');
+};
+
 // Requests filed by the signed-in account, newest first: { total, offset, limit, items }.
 export const getMyRequests = (offset = 0, limit = 20) =>
   restCall('get', `/parcels/requests/mine?offset=${offset}&limit=${limit}`, 'Loading your requests');

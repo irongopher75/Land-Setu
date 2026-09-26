@@ -8,7 +8,7 @@ const NAV = [
   { path: '/officer', label: 'Dashboard' },
   { path: '/officer/queue', label: 'Approval queue' },
   { path: '/officer/editor', label: 'Parcel editor' },
-  { path: '/officer/audit', label: 'Audit log' },
+  { path: '/officer/audit', label: 'Audit log', roles: ['auditor', 'state_admin'] },
   { path: '/officer/import', label: 'Data import', roles: ['state_admin'] },
   { path: '/officer/analytics', label: 'Analytics', roles: ['state_admin'] },
   { path: '/officer/users', label: 'Users and roles', superOnly: true },

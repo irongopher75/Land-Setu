@@ -260,3 +260,34 @@ def analytics_summary(role: str = Depends(require_roles("state_admin")), db: Ses
     totals["flagged_rate"] = round(totals["flagged_parcels"] / t, 4)
     totals["encumbrance_rate"] = round(totals["encumbered_parcels"] / t, 4)
     return {"states": result, "totals": totals}
+
+
+@router.get("/audit-log")
+def list_audit_log(ulpin: Optional[str] = Query(None, max_length=80), event: Optional[str] = Query(None, max_length=40),
+                   actor_role: Optional[str] = Query(None, max_length=40),
+                   date_from: Optional[str] = Query(None, max_length=10, description="YYYY-MM-DD, inclusive"),
+                   date_to: Optional[str] = Query(None, max_length=10, description="YYYY-MM-DD, inclusive"),
+                   offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200),
+                   role: str = Depends(require_roles("auditor", "state_admin")), db: Session = Depends(get_db)):
+    """The records service's audit log across all parcels, newest first, filtered and paginated.
+
+    Entries are the same hash-chained rows served per parcel at /parcels/{ulpin}/audit-chain; that endpoint
+    re-verifies a chain. Account ids never leave the server (actor_ref is a keyed hash)."""
+    from app.models import ParcelAuditLog
+    q = db.query(ParcelAuditLog)
+    if ulpin:
+        q = q.filter(ParcelAuditLog.ulpin.ilike(f"%{ulpin.strip()}%"))
+    if event:
+        q = q.filter(ParcelAuditLog.event == event)
+    if actor_role:
+        q = q.filter(ParcelAuditLog.actor_role == actor_role)
+    if date_from:
+        q = q.filter(ParcelAuditLog.created_at >= date_from)
+    if date_to:
+        q = q.filter(ParcelAuditLog.created_at < f"{date_to}T99")   # inclusive of the whole day (ISO strings)
+    total = q.count()
+    rows = q.order_by(ParcelAuditLog.created_at.desc(), ParcelAuditLog.id.desc()).offset(offset).limit(limit).all()
+    return {"total": total, "offset": offset, "limit": limit, "items": [
+        {"ulpin": r.ulpin, "seq": r.seq, "event": r.event, "actor_role": r.actor_role, "actor_ref": r.actor_ref,
+         "request_id": r.request_id, "from_status": r.from_status, "to_status": r.to_status, "note": r.note,
+         "created_at": r.created_at, "entry_hash": r.entry_hash} for r in rows]}

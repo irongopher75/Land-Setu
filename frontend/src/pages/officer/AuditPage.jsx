@@ -1,13 +1,13 @@
 import React from 'react';
 import OfficerFrame from './OfficerFrame';
-import AuditLogModal from '../../components/AuditLogModal';
-import { navigate } from '../../router';
+import AuditLogViewer from '../../components/AuditLogViewer';
 
-export default function AuditPage({ role, isLoggedIn, selectedState }) {
+// Auditors and state administrators. The API enforces the same roles.
+export default function AuditPage({ role, isLoggedIn }) {
   return (
-    <OfficerFrame title="Audit log" path="/officer/audit" role={role} isLoggedIn={isLoggedIn} wide>
-      <AuditLogModal stateFilter={selectedState} role={role} onClose={() => navigate('/officer')} />
-      <p className="subtle">The hash chain for a single parcel is on its record: open the parcel on the map and choose the title hash chain.</p>
+    <OfficerFrame title="Audit log" path="/officer/audit" role={role} isLoggedIn={isLoggedIn} allow={['auditor', 'state_admin']} wide>
+      <AuditLogViewer />
+      <p className="subtle">To re-verify one parcel's hash chain, open the parcel on the map and choose Audit hash chain.</p>
     </OfficerFrame>
   );
 }

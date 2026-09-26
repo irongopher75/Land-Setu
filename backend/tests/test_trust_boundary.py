@@ -363,3 +363,15 @@ def test_requester_sees_own_requests_with_status_and_rejection_remarks(client):
     assert item["status"] == "REJECTED" and item["remarks"] == "Sale deed not attached"
     chain = client.get("/parcels/TB-TRACK-1/audit-chain").json()["entries"]
     assert "Sale deed" not in str(chain)   # remarks stay off the public audit log
+
+
+def test_audit_log_viewer_endpoint_filters_and_paginates(client):
+    assert client.get("/parcels/audit-log", headers=hdr("citizen", "c-al")).status_code == 403
+    assert client.get("/parcels/audit-log", headers=hdr("village_officer", "vo-al")).status_code == 403
+    page = client.get("/parcels/audit-log?limit=5", headers=hdr("state_admin", "sa-al")).json()
+    assert page["total"] > 5 and len(page["items"]) == 5
+    nxt = client.get("/parcels/audit-log?limit=5&offset=5", headers=hdr("auditor", "au-al")).json()
+    assert {i["entry_hash"] for i in page["items"]}.isdisjoint({i["entry_hash"] for i in nxt["items"]})
+    one = client.get("/parcels/audit-log?ulpin=TN-CHN-0042-1187&event=imported", headers=hdr("auditor", "au-al")).json()
+    assert one["total"] >= 1 and all(i["ulpin"] == "TN-CHN-0042-1187" and i["event"] == "imported" for i in one["items"])
+    assert "uid" not in str(page["items"][0].keys())
