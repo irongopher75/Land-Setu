@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, RefreshCw } from 'lucide-react';
 import { getAuditChain } from '../api';
-import { getDeedBlockchain } from '../blockchain';
 
 const EVENT_LABEL = {
   imported: 'Record loaded', created: 'Created', submitted: 'Change requested', under_review: 'Passed a review stage',
@@ -13,20 +12,16 @@ const ROLE_LABEL = {
 };
 const short = (h) => (h ? `${h.slice(0, 12)}...${h.slice(-8)}` : '');
 
-export default function BlockchainExplorerModal({ ulpin, parcel, onClose }) {
+export default function BlockchainExplorerModal({ ulpin, onClose }) {
   const [chain, setChain] = useState(null);      // audit log from the records service
-  const [legacy, setLegacy] = useState(null);    // browser-side record, only when the service is unreachable
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     const live = await getAuditChain(ulpin);
     setChain(live);
-    if (!live) {
-      try { setLegacy(await getDeedBlockchain(ulpin, parcel)); } catch (e) { setLegacy([]); }
-    }
     setLoading(false);
-  }, [ulpin, parcel]);
+  }, [ulpin]);
 
   useEffect(() => { if (ulpin) load(); }, [ulpin, load]);
 
@@ -57,7 +52,7 @@ export default function BlockchainExplorerModal({ ulpin, parcel, onClose }) {
 
         {!chain && !loading && (
           <div className="callout callout--alert" role="status">
-            The records service is not reachable, so the live audit log cannot be shown. Below is the older record kept in this browser. It is not the audit log and is not verified.
+            The records service is not reachable, so the audit log cannot be shown or verified. The log is kept and hashed only by the records service; this browser holds no copy of it. Try again when the service is back.
           </div>
         )}
 
@@ -85,19 +80,7 @@ export default function BlockchainExplorerModal({ ulpin, parcel, onClose }) {
               </li>
             ))}
           </ol>
-        ) : (
-          <ol className="chain-list">
-            {(legacy || []).map((blk) => (
-              <li className="chain-block" key={blk.blockHeight}>
-                <div className="chain-block-head">
-                  <span className="chain-block-n tabular">Legacy {blk.blockHeight}</span>
-                  <span>{blk.actionType.replace(/_/g, ' ').toLowerCase()}</span>
-                </div>
-                <dl className="chain-hashes"><div><dt>Hash</dt><dd>{short(blk.currentHash)}</dd></div></dl>
-              </li>
-            ))}
-          </ol>
-        )}
+        ) : null}
 
         <button className="btn btn--primary" onClick={onClose}>Close</button>
       </div>

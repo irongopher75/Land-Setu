@@ -265,11 +265,13 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // Deed Blockchain: Append-only ledger restricted to governance officers
+    // Deed blockchain: legacy browser-assembled blocks. No client role may add, change or remove a block.
+    // The tamper-evident ledger is the records service's append-only audit log (parcel_audit_log, served
+    // with server-recomputed hashes at GET /parcels/{ulpin}/audit-chain). A block assembled in a browser
+    // proves nothing, so none is accepted here. isValidDeedBlock documents the legacy shape.
     match /deed_blockchain/{docId} {
       allow read: if isAuthenticated();
-      allow create: if isGovernanceOfficer() && isValidDeedBlock(request.resource.data);
-      allow update, delete: if false;
+      allow create, update, delete: if false;
     }
 
     // Protected zones collection - notified zones change parcel flags, so only a state administrator

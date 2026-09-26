@@ -9,7 +9,6 @@ import {
   markParcelDeletedInFirestore,
   getFirestoreDeletedUlpins
 } from './firebaseFirestore';
-import { getDeedBlockchain } from './blockchain';
 import { auth } from './firebase';
 
 // Confidence for values this browser made up or copied from bundled samples. Only the records service,
@@ -312,44 +311,19 @@ export const getAuditChain = async (ulpin) => {
 // Single-approver track for spelling-level corrections.
 export const fastApproveRequest = (requestId) => restPost(`/parcels/requests/${requestId}/fast-approve`, 'Fast-track approval');
 
-export const getParcelBlockchain = async (ulpin, parcelDetail = {}) => {
-  return await getDeedBlockchain(ulpin, parcelDetail);
-};
-
+// The passport and its ledger reference come only from the records service: the block hash is the head of the
+// server's audit log (hashes recomputed on every read). Nothing here is assembled or signed in the browser.
 export const getParcelPassport = async (ulpin) => {
-  const parcel = await getParcelDetail(ulpin).catch(() => ({}));
   const audit = await getAuditChain(ulpin);
-  const chain = audit ? [] : await getDeedBlockchain(ulpin, parcel).catch(() => []);
-  const latestBlock = audit
-    ? { currentHash: `0x${audit.head_hash}`, blockHeight: audit.entries.length }
-    : (chain.length > 0 ? chain[chain.length - 1] : null);
-
-  try {
-    const res = await client.get(`/parcels/${ulpin}/passport`);
-    return {
-      ...res.data,
-      block_hash: latestBlock?.currentHash || '0x7f8a9b2c3d4e5f6a',
-      block_height: latestBlock?.blockHeight || 2,
-      blockchain_status: 'VERIFIED_SHA256'
-    };
-  } catch (err) {
-    return {
-      ulpin,
-      timestamp: new Date().toISOString(),
-      signed_token: `JWT-SOVEREIGN-${ulpin}-${latestBlock?.currentHash?.substring(2, 10) || '0x7f8a'}`,
-      passport_url: `https://landsetu-e4e5e.web.app/passport/${ulpin}`,
-      status: "VALID",
-      block_hash: latestBlock?.currentHash || '0x7f8a9b2c3d4e5f6a',
-      block_height: latestBlock?.blockHeight || 2,
-      blockchain_status: 'VERIFIED_SHA256',
-      payload: {
-        ulpin,
-        owner: parcel?.layers?.ror?.owner_name || 'Land Owner',
-        state: parcel?.state || 'TamilNadu',
-        issuer: 'Sub-Registrar & Revenue Authority (Blockchain Verified)'
-      }
-    };
-  }
+  const res = await client.get(`/parcels/${ulpin}/passport`).catch((err) => {
+    throw restError(err, 'Issuing a parcel passport');
+  });
+  return {
+    ...res.data,
+    block_hash: audit ? `0x${audit.head_hash}` : null,
+    block_height: audit ? audit.entries.length : null,
+    ledger_verified: audit ? audit.verified === true : null,
+  };
 };
 
 // Split, merge and correction requests exist only in the backend database. The Firestore

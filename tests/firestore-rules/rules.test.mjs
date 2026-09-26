@@ -229,3 +229,21 @@ describe('protected_zones: only a state administrator edits notified zones', () 
     await assertSucceeds(setDoc(doc(stateAdmin(), 'protected_zones', 'PZ-1'), zone));
   });
 });
+
+describe('deed_blockchain: no client adds a block', () => {
+  const block = {
+    ulpin: parcel.ulpin, blockHeight: 3, prevHash: '0xabc', currentHash: '0xdef', createdAt: '2026-09-26',
+  };
+
+  test('an officer cannot append a block, whatever its role', async () => {
+    for (const db of [village(), auditor(), stateAdmin(), superAdmin()]) {
+      await assertFails(setDoc(doc(db, 'deed_blockchain', 'BLK-3'), block));
+    }
+  });
+
+  test('an existing block cannot be changed or removed', async () => {
+    await seed('deed_blockchain/BLK-1', { ...block, blockHeight: 1 });
+    await assertFails(updateDoc(doc(stateAdmin(), 'deed_blockchain', 'BLK-1'), { currentHash: '0x000' }));
+    await assertFails(deleteDoc(doc(superAdmin(), 'deed_blockchain', 'BLK-1')));
+  });
+});

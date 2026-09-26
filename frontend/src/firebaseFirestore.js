@@ -149,32 +149,4 @@ export const getFirestoreBoundaryRequest = async (reqId) => {
   }
 };
 
-export const saveDeedBlockToFirestore = async (blockData) => {
-  try {
-    const docId = `${blockData.ulpin}_BLK_${blockData.blockHeight}_${blockData.currentHash.substring(2, 10)}`;
-    const bRef = doc(db, 'deed_blockchain', docId);
-    await setDoc(bRef, {
-      ...blockData,
-      createdAt: new Date().toISOString()
-    }, { merge: true });
-  } catch (err) {
-    console.warn('Firestore save deed block notice:', err.message);
-  }
-};
-
-export const getFirestoreDeedBlocks = async (ulpin) => {
-  try {
-    const q = query(collection(db, 'deed_blockchain'), where('ulpin', '==', ulpin));
-    const snap = await getDocs(q);
-    const blocks = [];
-    snap.forEach(d => {
-      blocks.push(d.data());
-    });
-    return blocks;
-  } catch (err) {
-    console.warn('Firestore fetch deed blocks notice:', err.message);
-    return [];
-  }
-};
-
 export { db, doc, setDoc, getDoc, collection, getDocs, query, where, updateDoc, deleteDoc };

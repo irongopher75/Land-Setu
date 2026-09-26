@@ -60,7 +60,7 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, o
       setPassportData(await getParcelPassport(ulpin));
       setShowQR(true);
     } catch (err) {
-      console.error('Failed to fetch passport:', err);
+      alert(err.message || 'The parcel passport could not be issued.');
     }
   };
 
