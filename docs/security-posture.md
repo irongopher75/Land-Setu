@@ -212,7 +212,7 @@ curl -si -X POST https://landsetu-api.onrender.com/auth/mock-login \
 
 ### B2. Flat-degree overlap area vs. Turf.js geodesic area (TN-CHN-0042-1187: 5,860 m² overlap on a 452 m² parcel)
 
-**Status: The area formula is fixed. Of the three problems behind the live symptom, parts 2 and 3 are Fixed (`62c3c3e`, `05bc7b3`). Part 1, the seed data, is Open, and the list of affected parcels is below.**
+**Status: Fixed. The area formula was never the cause. Part 2 was fixed in `62c3c3e`, part 3 in `05bc7b3`, and part 1 (the seed data) in `4f8407f` and `40c9520`, deployed and checked live on 2026-09-26 (record below).**
 
 - **Part 2 fixed in `62c3c3e`.** `RuleEngine._check_area_consistency` raises an `area_mismatch` flag when the difference between boundary area and recorded extent, divided by the recorded extent, exceeds `AREA_MISMATCH_TOLERANCE` (default `0.10`, set by environment variable). Alembic `0007` clears cached flags so existing databases evaluate it.
 - **Part 3 fixed in `05bc7b3`.** Area is computed on the server from the polygon at filing and again at approval. The client value is ignored, and so is any value already stored on the request. The source record's extent is kept in `layers.ror.recorded_extent_sqm` before `area_sqm` is replaced.
@@ -245,6 +245,49 @@ The overlap figure is geometrically correct for the polygons stored. The polygon
 3. **Approval writes the client-supplied area** (`routes/parcels.py:594`, `existing.area_sqm = req.area_sqm`; `:605` for new parcels). The area comes from the browser (`calculatePolygonAreaSqm`, `MapView.jsx:31`, a spherical formula rather than Turf.js) and is never recomputed on the server. Target: compute `area_sqm` from the approved geometry on the server at approval time, and keep the recorded (RoR) extent in `layers.ror` as a separate field.
 
 The UI shows `area_sqm` with no label for which of the two figures it is (Phase 0 finding 4).
+
+#### B2 part 1 fixed and deployed: seed geometry, live correction and flag reset (26 September 2026)
+
+**What changed:**
+- **`4f8407f`.** Every seeded polygon is now a plot of its recorded size, laid out as such rather than rescaled from the old shapes.
+  - Chennai Park Town and Chandigarh Sector 17: rectangular plots with 12 to 20 m road frontages, in groups of two or three.
+  - Kanchipuram village plots: 12 × 25 m. The 0.4 ha fields: 50 × 80 m. The 0.05 ha Chennai plots: 16 × 31.25 m.
+  - The planted rule fixtures are kept deliberately: the `1187`/`1188` side-wall and `1188`/`1190` rear-wall overlaps (75.7 m² and 24.0 m²), and `CHD-SEC-0017-0203` inside the eco-zone (39.7 m²).
+  - A single contiguous block made two ordinary commercial records read as zoning anomalies, so plots are grouped in threes or fewer. The intelligence tests caught this.
+  - `backend/scripts/generate_seed_geometry.py` regenerates the state files.
+  - `scripts/validate_seed_geometry.py` reports **0 of 46 outside tolerance**; the worst deviation is 0.72%.
+- **`40c9520`, how the correction reaches the hosted database.**
+  - **Options ruled out.** A re-seed would drop parcels, and with them live requests, approvals and the append-only audit log. Alembic `0007` alone cannot run there: Render builds tables with `create_all` at startup, has never run Alembic, and its database is not stamped.
+  - **What runs.** `app/seed_corrections.py` runs at API startup, in one transaction:
+    1. replace every seeded polygon that is outside tolerance, except any that an approved boundary, split or merge changed;
+    2. append a `geometry_corrected` audit entry for each;
+    3. then clear every cached flag (`0007`'s effect), strictly after step 1.
+  - It is idempotent, and no record field changes.
+- **`bc811aa`.** Tamil Nadu and Chandigarh open at zoom 17 on the corrected plots. Real-size plots were about 5 px wide at zoom 15.
+
+**Rehearsal on a throwaway database.**
+1. Seeded by the previous release (`505b6cc`): 38 cached `area_mismatch` flags.
+2. Started with the new release: 46 parcels corrected and flags cleared. Afterwards:
+   - 0 `area_mismatch` flags;
+   - the intended rule flags unchanged;
+   - every audit chain verifies;
+   - a second start does nothing.
+
+**Live deployment.** Pushed at 10:39:46 UTC. Render served `bc811aa` (= HEAD) by 10:41:15 UTC. The Hosting deploy passed CI.
+
+Live snapshots were taken before and after, covering every parcel's record, flags and audit chain (46 parcels):
+
+| Check | Result |
+|---|---|
+| Parcel set | identical before and after (46) |
+| `area_mismatch` after | none |
+| Record fields changed (`area_sqm`, `state`, `status`, `layers`) | none |
+| Polygons changed | 46 of 46; worst deviation from the recorded extent 0.72% |
+| Rule flags | identical before and after: overlaps on `1187`, `1188`, `1190`; zone on `0203`; plus the data-derived ownership, encumbrance and FSI flags |
+| Audit chains | all verify; each grew by exactly one `geometry_corrected` entry |
+| `TN-CHN-0042-1188`, `1190`, `1191`, `1192` | records intact (520, 380, 490, 750 m²; owners unchanged); drawn on the live map and open their records |
+
+**Live map.** Signed-out checks were repeated for Tamil Nadu, Chandigarh, Maharashtra and Rajasthan: no parcel outside the API's list, both no-records notes present, and no page errors.
 
 ### B3. Bounding-box state detection misassigns parcels near state borders
 
@@ -678,6 +721,7 @@ By 08:27 UTC the Render API served the new schema: `CreateCustomParcelRequest` r
 - Approval inventing "verified" departmental records (C5, `94360b0`).
 - Client-supplied area and state stored as authoritative (B2 part 3 and B3 persisted state, `05bc7b3`).
 - No check between recorded extent and boundary area (B2 part 2, `62c3c3e`).
+- Seed geometry 10x to 157x its recorded extents (B2 part 1, `4f8407f` and `40c9520`), corrected in place on the hosted database 2026-09-26.
 - Vite dev server in the container (D).
 - Map `moveend` not debounced (D).
 
@@ -687,8 +731,8 @@ This ranking judges impact on a land registry, not how serious each item sounded
 
 1. **The map shows the wrong set of parcels (C1).** This is the most serious open item even though no original audit raised it. It silently shows an incomplete map with no warning, and officers act on what the map shows. Every other safeguard (overlap flags, approvals) is only as good as the parcels actually drawn.
 2. ~~The old JWT secret is in public git history (A2).~~ Closed 2026-09-26: the live secret is none of the committed values (A2 live check).
-3. **The live database's cached flags predate the area rule (C10).** The API is redeployed, but migration `0007` has not been applied to the Render database, so `area_mismatch` does not appear on existing parcels yet.
-4. **The seed geometry is out of scale (B2 part 1).** Every seeded parcel now carries an `area_mismatch` flag, so the demo map shows all parcels as flagged until `mock_data/*_geometries.geojson` is regenerated. The list is from `scripts/validate_seed_geometry.py`.
+3. ~~The live database's cached flags predate the area rule.~~ Cleared at startup by `40c9520`, after the geometry correction (B2 part 1 record).
+4. ~~The seed geometry is out of scale (B2 part 1).~~ Fixed and deployed 2026-09-26: 0 of 46 outside tolerance, live records intact.
 5. **No refused write has been checked through the live UI with an officer account (C10).** Local and live checks cover the code path and the banner.
 6. **The frontend state detection is bounding-box based (B3 remainder).** It now only decides which state the map shows. Official boundary data is still needed.
 7. **Anonymous owner-name enumeration (C7).** Needs a policy decision.
