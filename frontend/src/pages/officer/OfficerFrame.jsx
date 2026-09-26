@@ -2,7 +2,7 @@ import React from 'react';
 import PageShell from '../../components/PageShell';
 import { useAuthInfo } from '../../authContext';
 
-const OFFICER_ROLES = ['village_officer', 'auditor', 'state_admin'];
+const OFFICER_ROLES = ['village_officer', 'officer', 'auditor', 'state_admin'];
 
 const NAV = [
   { path: '/officer', label: 'Dashboard' },

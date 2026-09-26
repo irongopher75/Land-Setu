@@ -10,6 +10,7 @@ import {
 } from './firebaseFirestore';
 import { auth } from './firebase';
 import { notifySyncIssue } from './syncNotice';
+import { KNOWN_ROLES } from './roles';
 
 // Confidence for values this browser made up or copied from bundled samples. Only the records service,
 // importing from a department's own record, may label a value 'verified'.
@@ -109,7 +110,7 @@ export const wakeBackend = () => {
   client.get('/health', { timeout: 65000 }).catch(() => {});
 };
 
-const KNOWN_ROLES = ['citizen', 'village_officer', 'auditor', 'state_admin', 'super_admin'];
+
 
 // Role for display. The server session is the source of truth. If the records service is not
 // reachable, fall back to the role claim on the signed-in account. The server still enforces

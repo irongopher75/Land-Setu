@@ -1,6 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { X, QrCode, Lock, Trash2, Cpu } from 'lucide-react';
 import ConfidenceBadge from './ConfidenceBadge';
+import { can } from '../roles';
 import FlagDiff from './FlagDiff';
 import ParcelTimeline from './ParcelTimeline';
 import IntelligencePanel from './IntelligencePanel';
@@ -9,7 +10,6 @@ import { getParcelDetail, getParcelPassport, requestParcelDeletion } from '../ap
 const ParcelPassportQR = lazy(() => import('./ParcelPassportQR'));
 const BlockchainExplorerModal = lazy(() => import('./BlockchainExplorerModal'));
 
-const RESTRUCTURE_ROLES = ['village_officer', 'officer', 'state_admin'];
 
 function Field({ label, value, mono, tone }) {
   if (value === undefined || value === null || value === '') return null;
@@ -115,28 +115,30 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, o
                 </div>
               )}
               <div className="btn-row">
-                <button className="btn" onClick={handlePassportClick}><QrCode size={15} /> QR passport</button>
-                {role !== 'citizen' && !inactive ? (
+                {can(role, 'passport') && <button className="btn" onClick={handlePassportClick}><QrCode size={15} /> QR passport</button>}
+                {can(role, 'fileBoundary') && !inactive ? (
                   <button className="btn" onClick={() => onReshapeBoundary && onReshapeBoundary(parcel)}>Reshape boundary</button>
                 ) : (
-                  <button className="btn" disabled title="Citizens have read-only access."><Lock size={14} /> Read only</button>
+                  <span className="subtle"><Lock size={14} aria-hidden="true" /> Viewing only: your role cannot change this parcel's boundary.</span>
                 )}
-                {role === 'state_admin' && !inactive && (
+                {can(role, 'requestArchival') && !inactive && (
                   <button className="btn btn--seal" onClick={handleRequestDeletion} disabled={deleting} title="Needs approval from the village land officer and the auditor.">
                     <Trash2 size={15} /> {deleting ? 'Submitting' : 'Request archival'}
                   </button>
                 )}
               </div>
 
-              {RESTRUCTURE_ROLES.includes(role) && parcel?.geometry && !inactive && (
+              {can(role, 'splitMerge') && parcel?.geometry && !inactive && (
                 <div className="btn-row">
                   <button className="btn" onClick={() => onStartRestructure('split', parcel)}>Split parcel</button>
                   <button className="btn" onClick={() => onStartRestructure('merge', parcel)}>Merge with neighbour</button>
                 </div>
               )}
-              <div className="btn-row">
-                <button className="btn" onClick={onRequestCorrection}>Report an issue with this parcel</button>
-              </div>
+              {can(role, 'fileCorrection') && (
+                <div className="btn-row">
+                  <button className="btn" onClick={onRequestCorrection}>Report an issue with this parcel</button>
+                </div>
+              )}
 
               <div className="panel-tabs" role="tablist">
                 <button role="tab" aria-selected={tab === 'record'} className={tab === 'record' ? 'is-active' : ''} onClick={() => setTab('record')}>Record</button>

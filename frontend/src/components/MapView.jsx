@@ -6,6 +6,7 @@ import { getParcelsGeoJSON, getProtectedZonesGeoJSON, createCustomParcel, identi
 import ApprovalQueueModal from './ApprovalQueueModal';
 import RestructurePanel from './RestructurePanel';
 import { colors, landUseColor } from '../palette';
+import { can } from '../roles';
 
 const SHOW_SEEDED_PARCELS = import.meta.env.VITE_SHOW_SEEDED_PARCELS === 'true';
 
@@ -413,7 +414,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
                 ${props.owner_name ? `Owner: <strong>${esc(props.owner_name)}</strong><br/>` : ''}
                 Zoning: <strong>${esc(theme.label)}</strong>
               </div>
-              ${role === 'state_admin' ? `
+              ${can(role, 'requestArchival') ? `
                 <button class="btn btn--seal-solid btn--block" data-archive-ulpin="${esc(props.ulpin)}">
                   Request archival
                 </button>
@@ -531,7 +532,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
 
   const fetchPendingCount = async () => {
     // The approval queue is for officers. Asking as a citizen or signed-out visitor only returns 401 or 403.
-    if (role === 'citizen') { setPendingCount(0); return; }
+    if (!can(role, 'reviewQueue')) { setPendingCount(0); return; }
     try {
       const pending = await getPendingRequests();
       setPendingCount(pending.length);
@@ -744,14 +745,14 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
           <Target size={14} aria-hidden="true" /> {locating ? 'Locating' : 'My location'}
         </button>
 
-        {(role === 'auditor' || role === 'state_admin' || role === 'village_officer') && (
+        {can(role, 'reviewQueue') && (
           <button className={`btn map-chip-btn ${pendingCount > 0 ? 'btn--seal' : ''}`} onClick={() => setShowApprovalModal(true)}>
             <ClipboardList size={14} aria-hidden="true" />
             Approval queue {pendingCount > 0 && <span className="badge stale tabular">{pendingCount} pending</span>}
           </button>
         )}
 
-        {role === 'citizen' && <div className="map-readonly-note"><Lock size={14} aria-hidden="true" /> {signedIn ? 'Your account has no officer role, so the map is read only.' : 'Read-only view. Sign in as an officer to edit boundaries.'}</div>}
+        {!can(role, 'fileBoundary') && <div className="map-readonly-note"><Lock size={14} aria-hidden="true" /> {signedIn ? 'Your account has no officer role, so the map is read only.' : 'Read-only view. Sign in as an officer to edit boundaries.'}</div>}
         {locationError && <div className="callout callout--alert" role="alert">{locationError}</div>}
         {noRecordsForState && (
           <div className="map-readonly-note" role="status">
@@ -762,7 +763,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
 
       {!isDrawingMode && !restructure && (
         <div className="map-fab-zone">
-          {role !== 'citizen' ? (
+          {can(role, 'fileBoundary') ? (
             <button
               className="btn btn--primary"
               onClick={() => {

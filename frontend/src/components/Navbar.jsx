@@ -2,13 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { getAllStates, getRoleDiagnostic } from '../api';
 import ParcelSearch from './ParcelSearch';
 import { LANGUAGES, useT } from '../i18n';
+import { ROLE_LABEL, can } from '../roles';
 
-const ROLE_LABEL = {
-  village_officer: 'Village Land Officer',
-  auditor: 'Land Auditor',
-  state_admin: 'State Admin Officer',
-  super_admin: 'Super Administrator',
-};
 
 const LINKS = [
   { view: 'landing', path: '/', key: 'nav.home' },
@@ -88,7 +83,10 @@ export default function Navbar({ activeView, selectedState, setSelectedState, cu
               <a href={`#${l.path}`} aria-current={activeView === l.view ? 'page' : undefined} className={activeView === l.view ? 'active' : ''}>{t(l.key)}</a>
             </li>
           ))}
-          {isLoggedIn && currentRole !== 'citizen' && (
+          {isLoggedIn && currentRole === 'bank' && (
+            <li><a href="#/bank" className={activeView === 'bank' ? 'active' : ''} aria-current={activeView === 'bank' ? 'page' : undefined}>Lender checks</a></li>
+          )}
+          {isLoggedIn && can(currentRole, 'officerConsole') && (
             <li><a href="#/officer" className={activeView.startsWith('officer') ? 'active' : ''} aria-current={activeView.startsWith('officer') ? 'page' : undefined}>Officer console</a></li>
           )}
           {(currentRole === 'state_admin' || currentRole === 'super_admin') && isLoggedIn && <li><button className="tab-btn" onClick={onOpenStateLogs}>State activity</button></li>}

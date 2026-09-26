@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import OfficerFrame from './OfficerFrame';
+import { useAuthInfo } from '../../authContext';
 import { listAccounts, createAccount, setAccountRole, setAccountDisabled, listRoleAudit } from '../../api';
 
 const ROLES = [
@@ -34,7 +35,9 @@ export default function UsersPage({ role, isLoggedIn }) {
     }
   }, []);
 
-  useEffect(() => { if (isLoggedIn) load(); }, [isLoggedIn, load]);
+  // Only a super administrator may list accounts; for anyone else the frame shows the permission notice.
+  const { isSuper } = useAuthInfo();
+  useEffect(() => { if (isLoggedIn && isSuper) load(); }, [isLoggedIn, isSuper, load]);
 
   const save = async (u) => {
     const next = draft[u.uid];
