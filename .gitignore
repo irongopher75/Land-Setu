@@ -38,3 +38,4 @@ venv/
 # Local tool output
 secrets-report.json
 skills-lock.json
+tests/firestore-rules/node_modules/

@@ -1,5 +1,6 @@
 import math
 import json
+import os
 from typing import List, Dict, Any, Optional, Iterable
 from sqlalchemy import cast, func, and_, not_, update
 from sqlalchemy.orm import Session
@@ -12,6 +13,22 @@ if not IS_SQLITE:
 
 EARTH_RADIUS_M = 6378137.0  # same radius Turf.js uses
 MIN_OVERLAP_SQM = 0.5
+
+
+def _area_tolerance() -> float:
+    raw = os.getenv("AREA_MISMATCH_TOLERANCE", "0.10")
+    try:
+        value = float(raw)
+    except ValueError:
+        raise RuntimeError(f"AREA_MISMATCH_TOLERANCE must be a number such as 0.10, got {raw!r}")
+    if not 0 < value < 10:
+        raise RuntimeError(f"AREA_MISMATCH_TOLERANCE must be between 0 and 10, got {value}")
+    return value
+
+
+# Largest allowed difference between a parcel's recorded extent and the area of its boundary, as a fraction of
+# the recorded extent. 0.10 means 10%. Set AREA_MISMATCH_TOLERANCE to change it.
+AREA_MISMATCH_TOLERANCE = _area_tolerance()
 
 
 def _ring_area_sqm(coords) -> float:
@@ -48,6 +65,21 @@ def compute_geodesic_area_sqm(geom_shape) -> float:
     for hole in geom_shape.interiors:
         area -= abs(_ring_area_sqm(list(hole.coords)))
     return float(area)
+
+
+def recorded_extent_sqm(parcel) -> Optional[float]:
+    """The extent the source record states. An approved boundary change keeps the earlier record's figure in
+    layers.ror.recorded_extent_sqm; otherwise area_sqm is still the record's own."""
+    ror = (parcel.layers or {}).get("ror") or {}
+    value = ror.get("recorded_extent_sqm")
+    return value if value is not None else parcel.area_sqm
+
+
+def area_discrepancy(boundary_area: float, recorded: Optional[float]) -> Optional[float]:
+    """|boundary - recorded| / recorded, or None when there is no usable recorded extent."""
+    if recorded is None or recorded <= 0:
+        return None
+    return abs(boundary_area - recorded) / recorded
 
 
 def parse_geometry_shape(geom_val):
@@ -147,6 +179,7 @@ class RuleEngine:
             RuleEngine._check_ownership_mismatch(parcel),
             RuleEngine._check_fsi_violation(parcel),
             RuleEngine._check_encumbrance(parcel),
+            RuleEngine._check_area_consistency(parcel),
         ):
             if check:
                 flags.append(check)
@@ -305,3 +338,28 @@ class RuleEngine:
                 }
             }
         return None
+
+    @staticmethod
+    def _check_area_consistency(parcel: Parcel) -> Optional[Dict[str, Any]]:
+        """Recorded extent against the area of the boundary on the map. A large gap means one of them is wrong,
+        so the parcel is flagged for review instead of either figure being silently trusted."""
+        shape_ = parse_geometry_shape(parcel.geometry)
+        if shape_ is None or shape_.is_empty:
+            return None
+        recorded = recorded_extent_sqm(parcel)
+        boundary = compute_geodesic_area_sqm(shape_)
+        ratio = area_discrepancy(boundary, recorded)
+        if ratio is None or ratio <= AREA_MISMATCH_TOLERANCE:
+            return None
+        return {
+            "rule": "area_mismatch",
+            "flag": True,
+            "reason": (f"Boundary area ({boundary:,.0f} sq m) differs from the recorded extent ({recorded:,.0f} sq m) "
+                       f"by {ratio:.0%}, more than the {AREA_MISMATCH_TOLERANCE:.0%} allowed. Review before relying on either figure."),
+            "evidence": {
+                "boundary_area_sqm": round(boundary, 2),
+                "recorded_extent_sqm": round(recorded, 2),
+                "difference_ratio": round(ratio, 4),
+                "tolerance": AREA_MISMATCH_TOLERANCE,
+            },
+        }

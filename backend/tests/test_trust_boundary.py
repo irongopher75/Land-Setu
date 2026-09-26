@@ -1,0 +1,205 @@
+"""The approval workflow stores only values the server computed or a source record supplied.
+
+- Area and state come from the approved polygon, whatever the browser sent or the request holds.
+- Approving a boundary never invents owner, zoning, tax or encumbrance records, and never labels them verified.
+- The adapter labels a layer verified only when the source record supplied it.
+- A recorded extent far from the boundary's area is flagged for review.
+"""
+import os
+
+os.environ.setdefault("JWT_SECRET", "test_secret_key_minimum_32_chars_long_for_security_test")
+os.environ.setdefault("ALLOW_SQLITE_FALLBACK", "true")
+
+import pytest
+from conftest import insert_parcel
+from fastapi.testclient import TestClient
+from shapely.geometry import shape
+
+from app.adapter import SchemaAdapter
+from app.db import Base, engine, SessionLocal
+from app.main import app
+from app.models import BoundaryChangeRequest, Parcel
+from app.rules import AREA_MISMATCH_TOLERANCE, RuleEngine, compute_geodesic_area_sqm
+from app.seed import seed_database
+import app.routes.auth as auth_mod
+
+
+@pytest.fixture(scope="module")
+def client():
+    Base.metadata.create_all(bind=engine)
+    seed_database()
+    with TestClient(app) as c:
+        yield c
+
+
+def hdr(role, uid):
+    return {"Authorization": f"Bearer {auth_mod.create_jwt_token(role, uid)}"}
+
+
+def square(x, y, size=0.001):
+    return {"type": "Polygon", "coordinates": [[[x, y], [x + size, y], [x + size, y + size], [x, y + size], [x, y]]]}
+
+
+def file_boundary(c, ulpin, geometry, **forged):
+    """A village officer marks a boundary. Extra keyword arguments are sent as-is, to forge fields."""
+    body = {"ulpin": ulpin, "owner_name": "Typed By Officer", "geometry": geometry, **forged}
+    return c.post("/parcels/custom", headers=hdr("village_officer", "vo-tb"), json=body)
+
+
+def walk_to_approval(c, request_id):
+    """Auditor passes, then the state administrator approves. Returns the approval response."""
+    r = c.post(f"/parcels/requests/{request_id}/auditor-pass", headers=hdr("auditor", "au-tb"))
+    assert r.status_code == 200, r.text
+    return c.post(f"/parcels/requests/{request_id}/approve", headers=hdr("state_admin", "sa-tb"))
+
+
+def parcel(ulpin):
+    with SessionLocal() as db:
+        return db.query(Parcel).filter(Parcel.ulpin == ulpin).first()
+
+
+# A square inside Tamil Nadu (the backend's point-in-polygon puts 77.4 E, 11.0 N there) and one in Bengaluru.
+TN_GEOM = square(77.40, 11.00)
+KARNATAKA_GEOM = square(77.59, 12.97)
+
+
+# --- Area and state are server-computed -------------------------------------------------------------------
+
+def test_forged_area_and_state_at_filing_are_ignored(client):
+    r = file_boundary(client, "TB-FORGE-1", TN_GEOM, area_sqm=1.0, state="Karnataka")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["state"] == "TamilNadu"
+    with SessionLocal() as db:
+        req = db.get(BoundaryChangeRequest, body["request_id"])
+        assert req.state == "TamilNadu"
+        assert req.area_sqm == pytest.approx(compute_geodesic_area_sqm(shape(TN_GEOM)), abs=0.01)  # stored to the centimetre
+
+    assert walk_to_approval(client, body["request_id"]).status_code == 200
+    p = parcel("TB-FORGE-1")
+    assert p.state == "TamilNadu"
+    assert p.area_sqm == pytest.approx(compute_geodesic_area_sqm(shape(TN_GEOM)), abs=0.01)  # stored to the centimetre
+    assert p.area_sqm != 1.0
+
+
+def test_values_stored_on_a_request_are_recomputed_at_approval(client):
+    """Requests filed before this fix carried the browser's area and state. Approval must not trust them."""
+    r = file_boundary(client, "TB-FORGE-2", square(77.42, 11.00))
+    rid = r.json()["request_id"]
+    with SessionLocal() as db:
+        req = db.get(BoundaryChangeRequest, rid)
+        req.area_sqm, req.state = 1.0, "Karnataka"   # as an older client could have stored them
+        db.commit()
+
+    assert walk_to_approval(client, rid).status_code == 200
+    p = parcel("TB-FORGE-2")
+    assert p.state == "TamilNadu"
+    assert p.area_sqm == pytest.approx(compute_geodesic_area_sqm(shape(square(77.42, 11.00))), abs=0.01)  # stored to the centimetre
+
+
+def test_approval_cannot_move_an_existing_parcel_to_another_state(client):
+    insert_parcel("TB-MOVE-1", square(77.44, 11.00), state="TamilNadu", area_sqm=12_000.0)
+    r = file_boundary(client, "TB-MOVE-1", KARNATAKA_GEOM, state="TamilNadu")
+    assert r.status_code == 200, r.text
+    assert walk_to_approval(client, r.json()["request_id"]).status_code == 409
+    p = parcel("TB-MOVE-1")
+    assert p.state == "TamilNadu"
+    assert shape(p.geometry).equals(shape(square(77.44, 11.00)))
+
+
+def test_ulpin_state_code_must_match_where_the_boundary_lies(client):
+    r = file_boundary(client, "TN-TB-0001-0001", KARNATAKA_GEOM, state="TamilNadu")
+    assert r.status_code == 409
+    assert "Karnataka" in r.json()["detail"]
+
+
+def test_reshaping_keeps_the_recorded_extent(client):
+    insert_parcel("TB-RESHAPE-1", square(77.46, 11.00), state="TamilNadu", area_sqm=12_000.0)
+    r = file_boundary(client, "TB-RESHAPE-1", square(77.46, 11.00, size=0.0005))
+    assert walk_to_approval(client, r.json()["request_id"]).status_code == 200
+    p = parcel("TB-RESHAPE-1")
+    assert p.layers["ror"]["recorded_extent_sqm"] == 12_000.0
+    assert p.area_sqm == pytest.approx(compute_geodesic_area_sqm(shape(square(77.46, 11.00, size=0.0005))), abs=0.01)  # stored to the centimetre
+
+
+# --- Approval invents nothing -----------------------------------------------------------------------------
+
+def test_approving_a_new_parcel_invents_no_departmental_record(client):
+    r = file_boundary(client, "TB-NEW-1", square(77.48, 11.00))
+    assert walk_to_approval(client, r.json()["request_id"]).status_code == 200
+    layers = parcel("TB-NEW-1").layers
+
+    assert layers["ror"]["owner_name"] is None
+    assert layers["ror"]["claimed_owner_name"] == "Typed By Officer"
+    assert layers["zoning"]["land_use"] is None
+    assert layers["tax"]["annual_value"] is None
+    assert layers["building_permit"]["status"] is None
+    assert layers["encumbrance"]["active"] is None
+    for name, layer in layers.items():
+        assert layer["confidence"] == "unverified", name
+    assert "verified" not in {layer["confidence"] for layer in layers.values()}
+
+
+def test_citizens_do_not_see_the_unverified_owner_claim(client):
+    r = file_boundary(client, "TB-NEW-2", square(77.50, 11.00))
+    assert walk_to_approval(client, r.json()["request_id"]).status_code == 200
+    detail = client.get("/parcels/TB-NEW-2").json()
+    assert "claimed_owner_name" not in detail["layers"].get("ror", {})
+
+
+# --- Adapter labels only sourced values verified ----------------------------------------------------------
+
+def _normalize(row):
+    base = {"ulpin": "TN-TB-0000-0001", "pattadar_peyar": "A Owner", "khatha_num": "KH-1", "extent_hectares": "0.05"}
+    return SchemaAdapter().normalize("TamilNadu", {**base, **row})["layers"]
+
+
+def test_adapter_leaves_a_missing_encumbrance_unknown():
+    layers = _normalize({})
+    assert layers["encumbrance"]["active"] is None
+    assert layers["encumbrance"]["confidence"] == "unverified"
+
+
+def test_adapter_does_not_verify_layers_the_record_did_not_supply():
+    layers = _normalize({})
+    for name in ("zoning", "building_permit", "tax", "registration"):
+        assert layers[name]["confidence"] == "unverified", name
+
+
+def test_adapter_invents_no_ror_date():
+    layers = _normalize({})
+    assert layers["ror"]["last_verified"] is None
+    assert layers["ror"]["confidence"] == "stale"   # supplied, but nothing shows it is current
+
+
+def test_adapter_verifies_a_current_sourced_value():
+    layers = _normalize({"tax_annual_value": "42000", "tax_last_updated": "2025-04-01"})
+    assert layers["tax"]["confidence"] == "verified"
+
+
+# --- Recorded extent against boundary area ----------------------------------------------------------------
+
+def test_seed_parcel_with_mismatched_extent_is_flagged(client):
+    flags = client.get("/parcels/TN-CHN-0042-1187/flags").json()
+    area = next(f for f in flags if f["rule"] == "area_mismatch")
+    assert area["evidence"]["recorded_extent_sqm"] == pytest.approx(452.0)
+    assert area["evidence"]["boundary_area_sqm"] > 60_000
+
+
+def test_extent_within_tolerance_is_not_flagged():
+    geom = square(77.52, 11.00)
+    boundary = compute_geodesic_area_sqm(shape(geom))
+    within = Parcel(ulpin="TB-AREA-OK", state="TamilNadu", geometry=geom, layers={},
+                    area_sqm=boundary * (1 + AREA_MISMATCH_TOLERANCE * 0.9))
+    outside = Parcel(ulpin="TB-AREA-BAD", state="TamilNadu", geometry=geom, layers={},
+                     area_sqm=boundary * (1 + AREA_MISMATCH_TOLERANCE * 1.5))
+    assert RuleEngine._check_area_consistency(within) is None
+    assert RuleEngine._check_area_consistency(outside)["rule"] == "area_mismatch"
+
+
+def test_recorded_extent_is_preferred_over_area_sqm():
+    geom = square(77.54, 11.00)
+    boundary = compute_geodesic_area_sqm(shape(geom))
+    p = Parcel(ulpin="TB-AREA-REC", state="TamilNadu", geometry=geom, area_sqm=boundary,
+               layers={"ror": {"recorded_extent_sqm": boundary * 3}})
+    assert RuleEngine._check_area_consistency(p)["evidence"]["recorded_extent_sqm"] == pytest.approx(boundary * 3)

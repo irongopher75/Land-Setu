@@ -29,7 +29,8 @@ def db():
 
 
 def _mk(db, ulpin, geom):
-    p = Parcel(ulpin=ulpin, state=STATE, area_sqm=100, geometry=mapping(geom), layers=LAYERS)
+    # Recorded extent matches the boundary, so only the neighbour rules under test can raise a flag.
+    p = Parcel(ulpin=ulpin, state=STATE, area_sqm=compute_geodesic_area_sqm(geom), geometry=mapping(geom), layers=LAYERS)
     db.add(p)
     _refresh_flags_after_change(db, p)
     db.commit()
