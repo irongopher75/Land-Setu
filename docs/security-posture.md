@@ -22,7 +22,7 @@ The source code shows what *would* be deployed. It does not prove what *is* depl
 
 ### A1. Firestore in open test mode / credentials committed
 
-**Status: Fixed in source. The unauthenticated-read denial is confirmed live. The full deployed ruleset still needs a live check.**
+**Status: Fixed. The deployed ruleset matches the repo byte for byte (checked 2026-09-26, deployment record below).**
 
 - **Default deny.** `firestore.rules`, final block: `match /{document=**} { allow read, write: if false; }`.
 - **Role checks.** Access is gated on the custom claim, through `hasRole()`: `request.auth.token.role in allowedRoles`. It is used by `isGovernanceOfficer()`, `isAdminOrAuditor()` and `isStateAdmin()`.
@@ -43,6 +43,50 @@ diff /tmp/deployed.rules firestore.rules
 You can also open the Firebase console at Firestore Database, then Rules, and compare the text with the repo file. `firebase deploy --only firestore:rules --dry-run` only compiles the local file. It does not show what is deployed.
 
 **New while re-checking:** the rules are role-gated, but they still let officers bypass the backend approval workflow. This is recorded separately as **C4**.
+
+#### Deployment record, 26 September 2026
+
+`gcloud` is not installed on the deploying machine, so the check used `scripts/show_live_firestore_rules.cjs`. The script reads the released ruleset through the signed-in Firebase CLI account and is read-only:
+
+```sh
+node scripts/show_live_firestore_rules.cjs landsetu-e4e5e > /tmp/live.rules
+diff /tmp/live.rules firestore.rules && echo "live rules match the repo"
+```
+
+**Before deploying** (checked 2026-09-26, about 08:02 UTC):
+```
+release projects/landsetu-e4e5e/releases/cloud.firestore -> projects/landsetu-e4e5e/rulesets/b2d1c634-3827-4dbe-a339-122f8c5d16de (updated 2026-09-24T16:10:15.930473Z)
+live ruleset: 245 lines, sha256 40e29513ee6aa9a8174b6f1ffb048ee51c8440a7edfe5c2c4a5ae9bf64647b2b
+repo firestore.rules at cb70db2 (before 247446d): sha256 40e29513ee6aa9a8174b6f1ffb048ee51c8440a7edfe5c2c4a5ae9bf64647b2b  -> IDENTICAL
+repo firestore.rules at 2414d28: sha256 8ac48876eb39e9d4e0b5624994299937cde36b66a449dce7b5beb130a536adfc  -> differs
+```
+So the live project was running exactly the committed pre-fix rules. That confirms the C4 bypasses were live until this deploy.
+
+**Deploy** (`firebase deploy --only firestore:rules --project landsetu-e4e5e`):
+```
+i  cloud.firestore: checking firestore.rules for compilation errors...
+⚠  [W] 128:14 - Unused function: isValidCustomParcel.
+✔  cloud.firestore: rules file firestore.rules compiled successfully
+i  firestore: uploading rules firestore.rules...
+✔  firestore: released rules firestore.rules to cloud.firestore
+✔  Deploy complete!
+```
+The warning is expected. `isValidCustomParcel` is kept to document the shape the records service writes, now that no client may write `custom_parcels`.
+
+**After deploying** (checked 2026-09-26T08:03:48Z):
+```
+release projects/landsetu-e4e5e/releases/cloud.firestore -> projects/landsetu-e4e5e/rulesets/ff87e911-3bda-4062-9661-96fdb09cb637 (updated 2026-09-26T08:03:36.403156Z)
+live ruleset: sha256 8ac48876eb39e9d4e0b5624994299937cde36b66a449dce7b5beb130a536adfc
+repo firestore.rules at 2414d28: sha256 8ac48876eb39e9d4e0b5624994299937cde36b66a449dce7b5beb130a536adfc  -> IDENTICAL
+```
+
+**Effect on the site that is currently deployed.** The frontend on Firebase Hosting predates `247446d`. Its browser-side Firestore writes are now refused:
+
+- officer writes to `custom_parcels`;
+- `boundary_requests` without `requesterUid`;
+- deletion markers without `requestId`.
+
+Those helpers catch the error and log a console warning, so nothing breaks visibly. Records-service (API) actions are unaffected. Redeploying the frontend brings its writes in line with the new rules.
 
 ### A2. Hardcoded fallback JWT secret
 
@@ -250,7 +294,7 @@ The public search (`routes/workflow.py:198-207`) filters with `ilike` on `layers
 
 ### C4. Firestore rules let officers bypass the backend approval workflow
 
-**Status: Fixed in `247446d` for every path that sets a parcel's live state. One sub-item (`deed_blockchain`) remains open. The fix is in source; deploying the rules is a separate step (see A1 for the live check).**
+**Status: Fixed in `247446d` for every path that sets a parcel's live state, and deployed to `landsetu-e4e5e` on 2026-09-26 (A1). One sub-item (`deed_blockchain`) remains open.**
 
 `247446d`: `custom_parcels` is read-only for every client role, and deletion markers need a boundary request that reached `DELETED` for the same ULPIN. Requests are filed only at their first stage and move one stage at a time, by that stage's reviewer, never by the filer. Only `state_admin` and `super_admin` can finalise. Proven by 30 emulator tests in `tests/firestore-rules/rules.test.mjs` (`62c3c3e`).
 
@@ -399,7 +443,7 @@ This ranking judges impact on a land registry, not how serious each item sounded
 
 1. **The map shows the wrong set of parcels (C1).** This is the most serious open item even though no original audit raised it. It silently shows an incomplete map with no warning, and officers act on what the map shows. Every other safeguard (overlap flags, approvals) is only as good as the parcels actually drawn.
 2. **The old JWT secret is in public git history (A2).** High if any live environment ever used it, none otherwise. Resolved by one dashboard check or a rotation.
-3. **The updated Firestore rules are not yet deployed.** Items C4 and C5 are fixed in source, but the live project still runs the old rules until `firebase deploy --only firestore:rules` is run. Use the check in A1 before and after deploying.
+3. **The deployed frontend predates the rules change (A1 deployment record).** Its browser-side Firestore writes are refused (logged as warnings). Redeploy the frontend.
 4. **The seed geometry is out of scale (B2 part 1).** Every seeded parcel now carries an `area_mismatch` flag, so the demo map shows all parcels as flagged until `mock_data/*_geometries.geojson` is regenerated. The list is from `scripts/validate_seed_geometry.py`.
 5. **`deed_blockchain` appends are unrestricted for officers (C4 sub-item).** This affects the tamper-evident display, not the live parcel record.
 6. **The frontend state detection is bounding-box based (B3 remainder).** It now only decides which state the map shows. Official boundary data is still needed.
