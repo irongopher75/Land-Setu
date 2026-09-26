@@ -203,3 +203,58 @@ def test_recorded_extent_is_preferred_over_area_sqm():
     p = Parcel(ulpin="TB-AREA-REC", state="TamilNadu", geometry=geom, area_sqm=boundary,
                layers={"ror": {"recorded_extent_sqm": boundary * 3}})
     assert RuleEngine._check_area_consistency(p)["evidence"]["recorded_extent_sqm"] == pytest.approx(boundary * 3)
+
+
+# --- Officer corrections carry their own provenance --------------------------------------------------------
+
+def _correct(c, ulpin, layer, field, value, filer_role="citizen"):
+    r = c.post(f"/parcels/{ulpin}/correction-request", headers=hdr(filer_role, "cor-filer"),
+               json={"layer": layer, "field": field, "requested_value": value, "requested_by": "Test filer"})
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_high_track_correction_is_labelled_corrected_by_officer_not_verified(client):
+    insert_parcel("TB-COR-1", square(77.56, 11.00), owner="Asha Rao")
+    before = parcel("TB-COR-1").layers["ror"]
+    assert before["confidence"] == "verified"   # the fixture's department record
+
+    body = _correct(client, "TB-COR-1", "ror", "owner_name", "Zubin Shah")
+    assert body["track"] == "HIGH"
+    rid = body["request_id"]
+    assert client.post(f"/parcels/requests/{rid}/village-pass", headers=hdr("village_officer", "vo-cor")).status_code == 200
+    assert client.post(f"/parcels/requests/{rid}/auditor-pass", headers=hdr("auditor", "au-cor")).status_code == 200
+    assert client.post(f"/parcels/requests/{rid}/approve", headers=hdr("state_admin", "sa-cor")).status_code == 200
+
+    ror = parcel("TB-COR-1").layers["ror"]
+    assert ror["owner_name"] == "Zubin Shah"
+    assert ror["confidence"] == "corrected_by_officer"
+    assert ror["confidence"] != "verified"
+    assert ror["corrected_fields"] == ["owner_name"]
+    assert ror["corrected_by_request"] == rid
+    assert ror["last_verified"] == before["last_verified"]   # the department's date is not refreshed
+
+
+def test_fast_track_correction_is_also_not_verified(client):
+    insert_parcel("TB-COR-2", square(77.58, 11.00), owner="Asha Rao")
+    body = _correct(client, "TB-COR-2", "ror", "owner_name", "Asha Rau")   # spelling-level
+    assert body["track"] == "FAST"
+    assert client.post(f"/parcels/requests/{body['request_id']}/fast-approve",
+                       headers=hdr("auditor", "au-cor2")).status_code == 200
+    ror = parcel("TB-COR-2").layers["ror"]
+    assert ror["owner_name"] == "Asha Rau"
+    assert ror["confidence"] == "corrected_by_officer"
+
+
+def test_citizens_see_that_a_field_was_corrected(client):
+    detail = client.get("/parcels/TB-COR-1").json()   # corrected in the HIGH-track test above
+    assert detail["layers"]["ror"]["confidence"] == "corrected_by_officer"
+    assert detail["layers"]["ror"]["corrected_fields"] == ["owner_name"]
+
+
+def test_only_a_department_record_restores_verified():
+    """The adapter, importing the department's own record, is the one path that labels a layer verified.
+    It never produces the officer-correction label."""
+    layers = _normalize({"transaction_date": "2025-06-01"})
+    assert layers["ror"]["confidence"] == "verified"
+    assert all(layer["confidence"] != "corrected_by_officer" for layer in layers.values())

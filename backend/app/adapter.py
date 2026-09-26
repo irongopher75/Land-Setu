@@ -13,6 +13,15 @@ CONVERSIONS = {
     "bigha_to_sqm": lambda val: round(float(val) * 2529.29, 2) if val is not None else None,
 }
 
+# Confidence labels. Only the adapter, importing a department's own record, assigns VERIFIED or STALE.
+VERIFIED = "verified"
+STALE = "stale"
+UNVERIFIED = "unverified"
+# An officer-approved correction changed this layer. The change went through review, but no department record
+# confirms it, so it is never shown as verified. Re-importing the department's record replaces it.
+CORRECTED_BY_OFFICER = "corrected_by_officer"
+
+
 class SchemaAdapter:
     def __init__(self, config_dir: str = None):
         if config_dir is None:

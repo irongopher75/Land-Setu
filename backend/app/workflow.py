@@ -14,6 +14,7 @@ from app.db import IS_SQLITE
 from app.models import Parcel, BoundaryChangeRequest
 from app.rules import RuleEngine, parse_geometry_shape, invalidate_neighbor_flags
 from app import audit
+from app.adapter import CORRECTED_BY_OFFICER
 
 NEW_TYPES = ("SPLIT", "MERGE", "CORRECTION")
 
@@ -260,8 +261,14 @@ def apply_request(db: Session, req: BoundaryChangeRequest, role: str = "system")
         if field not in CORRECTABLE_FIELDS.get(layer, set()):
             raise HTTPException(status_code=422, detail="Field is not correctable.")
         layers = copy.deepcopy(source.layers or {})
-        layers.setdefault(layer, {})[field] = payload["requested"]
-        layers[layer]["last_verified"] = today
+        target = layers.setdefault(layer, {})
+        target[field] = payload["requested"]
+        # An officer's correction is reviewed but not a department record: label its provenance instead of
+        # keeping the earlier 'verified'. last_verified stays the department's own date.
+        target["confidence"] = CORRECTED_BY_OFFICER
+        target["corrected_fields"] = sorted(set(target.get("corrected_fields") or []) | {field})
+        target["corrected_at"] = today
+        target["corrected_by_request"] = req.id
         source.layers = layers  # reassign so JSON change is tracked
         db.flush()
         RuleEngine.refresh_flags(db, source)
