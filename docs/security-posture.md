@@ -90,7 +90,7 @@ Those helpers catch the error and log a console warning, so nothing breaks visib
 
 ### A2. Hardcoded fallback JWT secret
 
-**Status: Fixed in source. One leftover item needs a live check.**
+**Status: Fixed. The live check was done on 2026-09-26 (record below): the live secret is not any value ever committed.**
 
 - **Compose:** `docker-compose.yml:28` reads `JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in environment or .env}`, so compose refuses to start without the variable.
 - **Application:** `backend/app/routes/auth.py:16-19` reads `SECRET_KEY = os.getenv("JWT_SECRET")` and raises `RuntimeError` if the value is missing or shorter than 32 characters. There is no fallback value.
@@ -99,6 +99,33 @@ Those helpers catch the error and log a console warning, so nothing breaks visib
 - **Still in history.** The old literal `landsetu_jwt_secret_hackathon_2026` remains in public git history (commits `83a0c94` and `c44069a`). The repository is public: `https://api.github.com/repos/irongopher75/Land-Setu` returns 200 without authentication. Anyone can mint valid session tokens for any environment that was ever started with that value. The local `.env` does not contain it.
 
 **Live check.** Confirm that the Render service's `JWT_SECRET` is the generated value and not the old literal (Render dashboard, then `landsetu-api`, then Environment). If there is any doubt, rotate it. Rotation logs everyone out and has no other effect. Rewriting git history is optional once no environment uses the value.
+
+#### A2 live check, 26 September 2026 (10:25 UTC)
+
+**Method.** No Render CLI, API key or dashboard access was available to this session, so the live value could not be read. Instead it was tested for equality with every candidate, without revealing it:
+
+1. Every JWT secret value ever committed was collected from git history (`git log --all -S JWT_SECRET`):
+   - `landsetu_jwt_secret_hackathon_2026` (`83a0c94`, `c44069a`);
+   - the CI test secret;
+   - the test-suite default.
+2. For each, a 120-second `citizen` session token was signed with the API's exact claims (`iss=landsetu`, `aud=landsetu-web`, `type=access`, HS256).
+3. Each token was sent as a Bearer header to the live `GET /parcels/requests/pending`.
+
+The API tells three cases apart:
+- no token: `401 Authentication required`;
+- a token whose signature fails: `401 Invalid or expired session`;
+- a token signed with the live secret: passes authentication.
+
+**Result:**
+
+| Token signed with | Live response |
+|---|---|
+| Random 64-hex control | `401 Invalid or expired session` |
+| `landsetu_jwt_secret_hackathon_2026` | `401 Invalid or expired session` |
+| CI test secret | `401 Invalid or expired session` |
+| Test-suite default | `401 Invalid or expired session` |
+
+**Conclusion.** The live `JWT_SECRET` is none of the committed values. This is consistent with `render.yaml`'s `generateValue: true`. No rotation was needed and no live session was affected. The old value remains in public history, which is harmless now that it is known not to be in use. Rotating anyway remains an option; it only logs everyone out.
 
 ### A3. O(n²) Python-side spatial overlap checks
 
@@ -610,7 +637,7 @@ By 08:27 UTC the Render API served the new schema: `CreateCustomParcelRequest` r
 ## Closed since the original audit
 
 - Client-chosen role at login: `/auth/mock-login` returns 404 unless the flag is on, and always in production; roles come from verified custom claims (B1).
-- Hardcoded JWT secret in code and compose (A2). The old value remains in git history and needs a live check.
+- Hardcoded JWT secret in code and compose (A2). The old value remains in git history, but the live secret was checked on 2026-09-26 and is not any committed value.
 - Firestore open to any caller: default deny, role-gated rules, unauthenticated reads confirmed denied live (A1). See C4 for what the rules still allow.
 - Unauthenticated parcel writes (D).
 - Wildcard CORS with credentials (D).
@@ -637,7 +664,7 @@ By 08:27 UTC the Render API served the new schema: `CreateCustomParcelRequest` r
 This ranking judges impact on a land registry, not how serious each item sounded in the original audit.
 
 1. **The map shows the wrong set of parcels (C1).** This is the most serious open item even though no original audit raised it. It silently shows an incomplete map with no warning, and officers act on what the map shows. Every other safeguard (overlap flags, approvals) is only as good as the parcels actually drawn.
-2. **The old JWT secret is in public git history (A2).** High if any live environment ever used it, none otherwise. Resolved by one dashboard check or a rotation.
+2. ~~The old JWT secret is in public git history (A2).~~ Closed 2026-09-26: the live secret is none of the committed values (A2 live check).
 3. **The live database's cached flags predate the area rule (C10).** The API is redeployed, but migration `0007` has not been applied to the Render database, so `area_mismatch` does not appear on existing parcels yet.
 4. **The seed geometry is out of scale (B2 part 1).** Every seeded parcel now carries an `area_mismatch` flag, so the demo map shows all parcels as flagged until `mock_data/*_geometries.geojson` is regenerated. The list is from `scripts/validate_seed_geometry.py`.
 5. **No refused write has been checked through the live UI with an officer account (C10).** Local and live checks cover the code path and the banner.
