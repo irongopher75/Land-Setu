@@ -1,5 +1,6 @@
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, where, updateDoc, deleteDoc } from 'firebase/firestore';
 import { app, auth } from './firebase';
+import { describeFirestoreError } from './syncNotice';
 
 let db = null;
 try {
@@ -31,37 +32,38 @@ const parseFirestoreData = (data) => {
   return clone;
 };
 
+// Writes throw an Error with a plain-language message when the store refuses or fails, so the caller can
+// tell the user. They never fail silently.
+const firestoreWrite = async (write) => {
+  if (!db) throw new Error(describeFirestoreError(null));
+  try {
+    await write();
+  } catch (err) {
+    throw Object.assign(new Error(describeFirestoreError(err)), { code: err.code });
+  }
+};
+
 // custom_parcels is read-only for browsers (firestore.rules). A parcel's live record is written only by the
 // records service, which computes area and state itself and is the only party that can attest a
 // departmental record.
 
-export const saveBoundaryRequestToFirestore = async (reqData) => {
-  try {
-    const docData = prepareFirestoreData(reqData);
-    const reqRef = doc(db, 'boundary_requests', reqData.id);
-    await setDoc(reqRef, {
-      ...docData,
-      status: reqData.status,
-      requesterUid: auth?.currentUser?.uid || '',
-      createdAt: new Date().toISOString()
-    });
-  } catch (err) {
-    console.warn('Firestore boundary request sync notice:', err.message);
-  }
-};
+export const saveBoundaryRequestToFirestore = (reqData) => firestoreWrite(async () => {
+  const docData = prepareFirestoreData(reqData);
+  await setDoc(doc(db, 'boundary_requests', reqData.id), {
+    ...docData,
+    status: reqData.status,
+    requesterUid: auth?.currentUser?.uid || '',
+    createdAt: new Date().toISOString()
+  });
+});
 
-export const updateBoundaryRequestInFirestore = async (reqId, status, approverRole) => {
-  try {
-    const reqRef = doc(db, 'boundary_requests', reqId);
-    await updateDoc(reqRef, {
-      status,
-      approverRole,
-      approvedAt: new Date().toISOString()
-    });
-  } catch (err) {
-    console.warn('Firestore update request notice:', err.message);
-  }
-};
+export const updateBoundaryRequestInFirestore = (reqId, status, approverRole) => firestoreWrite(async () => {
+  await updateDoc(doc(db, 'boundary_requests', String(reqId)), {
+    status,
+    approverRole,
+    approvedAt: new Date().toISOString()
+  });
+});
 
 export const getFirestoreCustomParcels = async () => {
   try {
@@ -110,18 +112,26 @@ export const getFirestorePendingRequests = async () => {
 };
 
 // The marker must name the deletion request that completed every stage (firestore.rules).
-export const markParcelDeletedInFirestore = async (ulpin, requestId) => {
-  try {
-    const pRef = doc(db, 'deleted_parcels', ulpin);
-    await setDoc(pRef, {
-      ulpin,
-      requestId: String(requestId),
-      deletedAt: new Date().toISOString()
-    });
-  } catch (err) {
-    console.warn('Firestore deleted parcel sync notice:', err.message);
-  }
-};
+export const markParcelDeletedInFirestore = (ulpin, requestId) => firestoreWrite(async () => {
+  await setDoc(doc(db, 'deleted_parcels', ulpin), {
+    ulpin,
+    requestId: String(requestId),
+    deletedAt: new Date().toISOString()
+  });
+});
+
+// Profile of the signed-in user (users/{uid}). Optional fields are left out rather than sent as null, which
+// the rules reject.
+export const saveUserProfileToFirestore = (user) => firestoreWrite(async () => {
+  const profile = {
+    uid: user.uid,
+    email: user.email,
+    displayName: user.displayName || user.email.split('@')[0],
+    lastLogin: new Date().toISOString()
+  };
+  if (user.photoURL) profile.photoURL = user.photoURL;
+  await setDoc(doc(db, 'users', user.uid), profile, { merge: true });
+});
 
 export const getFirestoreDeletedUlpins = async () => {
   try {

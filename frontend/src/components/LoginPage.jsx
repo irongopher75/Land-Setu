@@ -9,7 +9,8 @@ import {
   sendPasswordResetEmail,
   sendEmailVerification,
 } from '../firebase';
-import { db, doc, setDoc } from '../firebaseFirestore';
+import { saveUserProfileToFirestore } from '../firebaseFirestore';
+import { notifySyncIssue } from '../syncNotice';
 import { resolveRole } from '../api';
 import DigiLockerModal from './DigiLockerModal';
 
@@ -44,17 +45,11 @@ export default function LoginPage({ onLoginSuccess, onExploreDemo }) {
 
   // Sync user profile to Firestore
   const syncUserToFirestore = async (user) => {
+    // Sign-in has already succeeded; a failed profile copy does not undo it, but the user is told.
     try {
-      const userRef = doc(db, 'users', user.uid);
-      await setDoc(userRef, {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName || user.email.split('@')[0],
-        photoURL: user.photoURL || null,
-        lastLogin: new Date().toISOString()
-      }, { merge: true });
+      await saveUserProfileToFirestore(user);
     } catch (err) {
-      console.warn('Firestore sync notice:', err.message);
+      notifySyncIssue('Saving your profile', err.message);
     }
   };
 

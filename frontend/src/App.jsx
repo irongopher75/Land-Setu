@@ -25,6 +25,7 @@ import ImportPage from './pages/officer/ImportPage';
 import EditorPage from './pages/officer/EditorPage';
 import UsersPage from './pages/officer/UsersPage';
 import { logout, resolveRole, wakeBackend } from './api';
+import { SYNC_NOTICE_EVENT } from './syncNotice';
 import { auth, signOut as firebaseSignOut, onAuthStateChanged } from './firebase';
 
 const LoginPage = lazy(() => import('./components/LoginPage'));
@@ -70,6 +71,7 @@ export default function App() {
   const [restructure, setRestructure] = useState(null); // { mode: 'split' | 'merge', parcel }
   const [focusPoint, setFocusPoint] = useState(null);
   const [fallbackToast, setFallbackToast] = useState(null);
+  const [syncNotice, setSyncNotice] = useState(null);
 
   // Monitor Network Fallbacks
   useEffect(() => {
@@ -79,6 +81,13 @@ export default function App() {
     };
     window.addEventListener('landsetu-fallback-notice', onFallback);
     return () => window.removeEventListener('landsetu-fallback-notice', onFallback);
+  }, []);
+
+  // A shared-copy write failed after the records service accepted the action. Stays until dismissed.
+  useEffect(() => {
+    const onSync = (e) => setSyncNotice(e.detail);
+    window.addEventListener(SYNC_NOTICE_EVENT, onSync);
+    return () => window.removeEventListener(SYNC_NOTICE_EVENT, onSync);
   }, []);
 
   // Monitor Firebase Auth State & Auto Redirect to Map View
@@ -158,6 +167,13 @@ export default function App() {
         <div className="toast toast--top" role="status">
           <strong>Offline demo mode.</strong>
           <span>{fallbackToast.actionName} fell back to local data at {fallbackToast.time}</span>
+        </div>
+      )}
+      {syncNotice && (
+        <div className="toast toast--top toast--alert" role="alert">
+          <strong>{syncNotice.action}: the shared copy was not updated.</strong>
+          <span>{syncNotice.reason}</span>
+          <button className="btn" onClick={() => setSyncNotice(null)}>Dismiss</button>
         </div>
       )}
       <Navbar

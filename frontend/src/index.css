@@ -317,6 +317,10 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; line-height
 .map-tip .is-alert { color: var(--accent-seal); }
 .map-tip .is-verified { color: var(--verified-ink); }
 .toast--top { top: 72px; right: var(--space-6); left: auto; bottom: auto; transform: none; border: var(--line) solid var(--accent-seal); }
+/* A refused shared-copy write: stays until dismissed, wraps long reasons, fits a phone. */
+.toast--alert { flex-wrap: wrap; max-width: min(520px, calc(100vw - 2 * var(--space-4))); right: var(--space-4); border-width: 2px; }
+.toast--alert span { flex: 1 1 100%; }
+.toast--alert .btn { color: var(--ink-on-navy); background: transparent; border: var(--line) solid var(--ink-on-navy); }
 .audience-tabs { display: grid; grid-template-columns: 1fr 1fr; border: var(--line) solid var(--ink-navy); }
 .audience-tabs button { font: inherit; font-weight: 700; text-align: left; padding: var(--space-3); background: transparent; color: var(--ink-navy); border: 0; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
 .audience-tabs button + button { border-left: var(--line) solid var(--ink-navy); }

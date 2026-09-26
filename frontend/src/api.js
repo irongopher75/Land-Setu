@@ -10,6 +10,7 @@ import {
   getFirestoreDeletedUlpins
 } from './firebaseFirestore';
 import { auth } from './firebase';
+import { notifySyncIssue } from './syncNotice';
 
 // Confidence for values this browser made up or copied from bundled samples. Only the records service,
 // importing from a department's own record, may label a value 'verified'.
@@ -356,14 +357,27 @@ const requestTypeFromStatus = (status, fallbackType) => {
   return String(status || '').includes('DELETION') ? 'DELETION' : 'BOUNDARY';
 };
 
-export const recordDeletedUlpin = async (ulpin, requestId) => {
+// Write to the shared Firestore copy of the approval queue. When the records service already accepted the
+// action (`accepted`), a failed write does not undo it: the user is told the shared copy was not updated.
+// When the shared copy is the only record of the action, a failed write means the action did not happen,
+// so it is thrown for the caller to show.
+const writeSharedCopy = async (write, action, accepted) => {
+  try {
+    await write();
+  } catch (err) {
+    if (!accepted) throw new Error(`${action} did not go through. ${err.message}`);
+    notifySyncIssue(action, err.message);
+  }
+};
+
+export const recordDeletedUlpin = async (ulpin, requestId, accepted = false) => {
   if (!ulpin) return;
+  await writeSharedCopy(() => markParcelDeletedInFirestore(ulpin, requestId), 'Recording the deletion', accepted);
   const local = JSON.parse(localStorage.getItem(DELETED_ULPINS_KEY) || '[]');
   if (!local.includes(ulpin)) {
     local.push(ulpin);
     localStorage.setItem(DELETED_ULPINS_KEY, JSON.stringify(local));
   }
-  await markParcelDeletedInFirestore(ulpin, requestId);
 };
 
 export const getDeletedUlpins = async () => {
@@ -416,7 +430,7 @@ export const requestParcelDeletion = async (ulpin, reason = "State Admin request
     created_at: new Date().toISOString()
   };
 
-  await saveBoundaryRequestToFirestore(delReq);
+  await writeSharedCopy(() => saveBoundaryRequestToFirestore(delReq), 'Filing the deletion request', backendId != null);
 
   const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
   reqs.push(delReq);
@@ -439,9 +453,11 @@ export const villageApproveDeletion = async (requestId) => {
     throw new Error('Permission Denied: Only Village Land Officers can approve Stage 1 deletion. State Admin cannot self-approve.');
   }
 
+  let accepted = false;
   if (!isLocalhostBackendForbidden()) {
     try {
       await client.post(`/parcels/requests/${requestId}/village-approve-deletion`);
+      accepted = true;
     } catch (err) {
       if (err.response?.status === 403 || err.response?.status === 400) {
         throw new Error(err.response?.data?.detail || err.message);
@@ -450,7 +466,7 @@ export const villageApproveDeletion = async (requestId) => {
     }
   }
 
-  await updateBoundaryRequestInFirestore(requestId, 'PENDING_DELETION_AUDITOR', currentRole);
+  await writeSharedCopy(() => updateBoundaryRequestInFirestore(requestId, 'PENDING_DELETION_AUDITOR', currentRole), 'Village approval', accepted);
 
   const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
   const req = reqs.find(r => String(r.id) === String(requestId));
@@ -474,9 +490,11 @@ export const auditorApproveDeletion = async (requestId) => {
   const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
   const req = fsReq || reqs.find(r => String(r.id) === String(requestId));
 
+  let accepted = false;
   if (!isLocalhostBackendForbidden()) {
     try {
       await client.post(`/parcels/requests/${requestId}/auditor-approve-deletion`);
+      accepted = true;
     } catch (err) {
       if (err.response?.status === 403 || err.response?.status === 400) {
         throw new Error(err.response?.data?.detail || err.message);
@@ -485,10 +503,10 @@ export const auditorApproveDeletion = async (requestId) => {
     }
   }
 
-  await updateBoundaryRequestInFirestore(requestId, 'DELETED', currentRole);
+  await writeSharedCopy(() => updateBoundaryRequestInFirestore(requestId, 'DELETED', currentRole), 'Final deletion approval', accepted);
 
   if (req && req.ulpin) {
-    await recordDeletedUlpin(req.ulpin, requestId);
+    await recordDeletedUlpin(req.ulpin, requestId, accepted);
 
     const customParcels = JSON.parse(localStorage.getItem('landsetu_custom_parcels') || '{}');
     delete customParcels[req.ulpin];
@@ -895,7 +913,7 @@ export const auditorPassRequest = async (requestId, request = null) => {
     return restPost(`/parcels/requests/${requestId}/auditor-pass`, 'Auditor review');
   }
 
-  await updateBoundaryRequestInFirestore(requestId, 'PENDING_STATE_ADMIN', currentRole);
+  await writeSharedCopy(() => updateBoundaryRequestInFirestore(requestId, 'PENDING_STATE_ADMIN', currentRole), 'Passing the audit', false);
 
   const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
   const req = reqs.find(r => r.id === requestId);
@@ -931,9 +949,11 @@ export const rejectBoundaryRequest = async (requestId, request = null) => {
     return restPost(`/parcels/requests/${requestId}/reject`, 'Rejection');
   }
 
+  let accepted = false;
   if (!isLocalhostBackendForbidden()) {
     try {
       await client.post(`/parcels/requests/${requestId}/reject`);
+      accepted = true;
     } catch (err) {
       if (err.response?.status === 403) {
         throw new Error(err.response?.data?.detail || err.message);
@@ -942,7 +962,7 @@ export const rejectBoundaryRequest = async (requestId, request = null) => {
     }
   }
 
-  await updateBoundaryRequestInFirestore(requestId, 'REJECTED', currentRole);
+  await writeSharedCopy(() => updateBoundaryRequestInFirestore(requestId, 'REJECTED', currentRole), 'Rejecting the request', accepted);
 
   const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
   const req = reqs.find(r => r.id === requestId);
