@@ -247,11 +247,28 @@ def test_adapter_verifies_a_current_sourced_value():
 
 # --- Recorded extent against boundary area ----------------------------------------------------------------
 
-def test_seed_parcel_with_mismatched_extent_is_flagged(client):
-    flags = client.get("/parcels/TN-CHN-0042-1187/flags").json()
-    area = next(f for f in flags if f["rule"] == "area_mismatch")
-    assert area["evidence"]["recorded_extent_sqm"] == pytest.approx(452.0)
-    assert area["evidence"]["boundary_area_sqm"] > 60_000
+def test_no_seeded_parcel_has_an_area_mismatch(client):
+    """The seed geometry matches every recorded extent (scripts/validate_seed_geometry.py). The rule itself is
+    exercised with synthetic parcels below."""
+    # Seeded ULPINs only: other tests in this module add their own parcels to the same database.
+    seeded = ("TN-CHN-0042-", "CHD-SEC-0017-", "TN-KPM-0107-", "TN-CGL-", "TN-TVL-", "TN-CHN-0051-")
+    checked = 0
+    for state in ("TamilNadu", "Chandigarh"):
+        for feature in client.get(f"/parcels/geojson/all?state={state}").json()["features"]:
+            ulpin = feature["properties"]["ulpin"]
+            if not ulpin.startswith(seeded):
+                continue
+            rules = [f["rule"] for f in client.get(f"/parcels/{ulpin}/flags").json()]
+            assert "area_mismatch" not in rules, ulpin
+            checked += 1
+    assert checked >= 17
+
+
+def test_planted_overlap_and_zone_fixtures_survive_the_geometry_fix(client):
+    rules = lambda u: {f["rule"] for f in client.get(f"/parcels/{u}/flags").json()}
+    assert "boundary_overlap" in rules("TN-CHN-0042-1187")
+    assert "boundary_overlap" in rules("TN-CHN-0042-1190")
+    assert "protected_zone_containment" in rules("CHD-SEC-0017-0203")
 
 
 def test_extent_within_tolerance_is_not_flagged():

@@ -11,6 +11,7 @@ Two kinds of data are written here, and they are kept apart on purpose:
    They are examples that show the detectors work. They are not findings about any real person, parcel or
    activity. All names are invented.
 """
+import math
 import random
 from datetime import date, datetime, timedelta, timezone
 
@@ -96,8 +97,40 @@ def _parcel(db, ulpin, district, poly, raw, fixture, created_at="2025-03-01T10:0
     return p
 
 
-def _square(lng, lat, size=0.0005):
-    return Polygon([(lng, lat), (lng + size, lat), (lng + size, lat + size), (lng, lat + size)])
+def _plot(lng, lat, width_m, depth_m):
+    """A rectangular plot whose south-west corner is at (lng, lat), sized in metres. Every fixture's polygon matches
+    the extent its record states (extent_hectares * 10,000 = width_m * depth_m), so the area_mismatch rule stays
+    quiet on them; see scripts/validate_seed_geometry.py."""
+    dlng = width_m / (111_320.0 * math.cos(math.radians(lat)))
+    dlat = depth_m / 110_574.0
+    return Polygon([(lng, lat), (lng + dlng, lat), (lng + dlng, lat + dlat), (lng, lat + dlat)])
+
+
+# Plot sizes, in metres, for each fixture's recorded extent.
+VILLAGE_PLOT = (12.0, 25.0)     # 0.03 ha house plot in Nemili village, narrow frontage onto the village street
+FIELD_PLOT = (50.0, 80.0)       # 0.4 ha agricultural field in Chengalpattu and Tiruvallur
+CITY_PLOT = (16.0, 31.25)       # 0.05 ha urban plot in Chennai
+
+
+# Where each planted fixture sits. plant_fixtures() and app/seed_corrections.py both read this, so a database
+# seeded with the old oversized squares is corrected to exactly these polygons.
+KPM_ORIGIN, KPM_STEP = (79.7640, 12.9850), 0.00058
+OUTSIDE_FIXTURES = [("TN-CGL-0311-0041", "Chengalpattu", 79.9760, 12.6920, "R. Venkatesan"),
+                    ("TN-TVL-0205-0077", "Tiruvallur", 79.9080, 13.1430, "R. Venkatesen")]
+
+
+def fixture_polygons() -> dict:
+    """ULPIN -> Polygon for every planted fixture parcel."""
+    lng0, lat0 = KPM_ORIGIN
+    polys = {}
+    for i in range(25):
+        r, c = divmod(i, 5)
+        polys[f"TN-KPM-0107-20{i + 1:02d}"] = _plot(lng0 + c * KPM_STEP, lat0 + r * KPM_STEP, *VILLAGE_PLOT)
+    for ulpin, _district, lng, lat, _owner in OUTSIDE_FIXTURES:
+        polys[ulpin] = _plot(lng, lat, *FIELD_PLOT)
+    for k, ulpin in enumerate(("TN-CHN-0051-3301", "TN-CHN-0051-3302")):
+        polys[ulpin] = _plot(80.2860 + k * 0.0012, 13.0960, *CITY_PLOT)
+    return polys
 
 
 def plant_fixtures(db) -> bool:
@@ -112,7 +145,9 @@ def plant_fixtures(db) -> bool:
     # Plots 3, 17 and 22 carry the benami name cluster (with plots outside the grid below).
     # Plot 19 gets a mortgage and a boundary request six days later: the lien-timing fixture.
     benami = {3: "R. Venkatesan", 17: "R. Venkatesan", 22: "R Venkatesan"}
-    lng0, lat0, step = 79.7640, 12.9850, 0.00058
+    polys = fixture_polygons()
+    lng0, lat0 = KPM_ORIGIN
+    step = KPM_STEP
     for i in range(25):
         r, c = divmod(i, 5)
         n = i + 1
@@ -121,7 +156,7 @@ def plant_fixtures(db) -> bool:
         use = "commercial" if n == 13 else "residential"
         deed = date(2016 + rng.randrange(8), 1 + rng.randrange(12), 1 + rng.randrange(27))
         tag = {13: "zoning_anomaly", 7: "flipping", 19: "lien_timing"}.get(n, "benami" if n in benami else "neighbourhood")
-        _parcel(db, ulpin, "Kanchipuram", _square(lng0 + c * step, lat0 + r * step),
+        _parcel(db, ulpin, "Kanchipuram", polys[ulpin],
                 _raw(ulpin, owner, owner, use, deed.isoformat(), 0.03, f"REG-{deed.year}-K{n:03d}"), tag)
         if n != 7:
             db.add(RegistrationTransaction(ulpin=ulpin, transaction_id=f"REG-{deed.year}-K{n:03d}", kind="sale",
@@ -141,7 +176,7 @@ def plant_fixtures(db) -> bool:
                             raised_at="2025-05-02T10:30:00+00:00", synthetic_fixture="lien_timing"))
     lien_req = BoundaryChangeRequest(
         ulpin="TN-KPM-0107-2019", state="TamilNadu", requester_role="village_officer", requested_by="Fixture filer",
-        geometry=_square(lng0 + 3 * step, lat0 + 3 * step).__geo_interface__, area_sqm=300.0,
+        geometry=_plot(lng0 + 3 * step, lat0 + 3 * step, *VILLAGE_PLOT).__geo_interface__, area_sqm=300.0,
         reason="Planted synthetic fixture: boundary change filed six days after a mortgage", status="REJECTED",
         type="BOUNDARY", track="HIGH", requester_uid="synthetic-fixture",
         history=[{"at": "2025-05-08T09:00:00+00:00", "status": "PENDING_APPROVAL", "role": "village_officer",
@@ -152,11 +187,9 @@ def plant_fixtures(db) -> bool:
     db.add(lien_req)
 
     # Benami cluster continued outside the grid: two more districts, spelling variants.
-    outside = [("TN-CGL-0311-0041", "Chengalpattu", 79.9760, 12.6920, "R. Venkatesan"),
-               ("TN-TVL-0205-0077", "Tiruvallur", 79.9080, 13.1430, "R. Venkatesen")]
-    for ulpin, district, lng, lat, owner in outside:
+    for ulpin, district, lng, lat, owner in OUTSIDE_FIXTURES:
         d = date(2024, 8, 12)
-        _parcel(db, ulpin, district, _square(lng, lat), _raw(ulpin, owner, owner, "agricultural", d.isoformat(), 0.4,
+        _parcel(db, ulpin, district, polys[ulpin], _raw(ulpin, owner, owner, "agricultural", d.isoformat(), 0.4,
                                                              f"REG-2024-{ulpin[-4:]}"), "benami")
         db.add(RegistrationTransaction(ulpin=ulpin, transaction_id=f"REG-2024-{ulpin[-4:]}", buyer_name=owner,
                                        deed_date=d.isoformat(), recorded_at=_iso(d, 4), synthetic_fixture="benami"))
@@ -166,7 +199,7 @@ def plant_fixtures(db) -> bool:
     future = ("TN-CHN-0051-3302", date(2025, 9, 30), "2025-07-04T10:00:00+00:00", "backdating_future")
     for k, (ulpin, deed, recorded, tag) in enumerate((late, future)):
         owner = "K. Aravind" if k == 0 else "N. Shobana"
-        _parcel(db, ulpin, "Chennai", _square(80.2860 + k * 0.0012, 13.0960),
+        _parcel(db, ulpin, "Chennai", polys[ulpin],
                 _raw(ulpin, owner, owner, "residential", deed.isoformat(), 0.05, f"REG-X-{ulpin[-4:]}"), tag,
                 created_at=recorded)
         db.add(RegistrationTransaction(ulpin=ulpin, transaction_id=f"REG-X-{ulpin[-4:]}", buyer_name=owner,
