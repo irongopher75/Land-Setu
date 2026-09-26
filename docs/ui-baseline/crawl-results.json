@@ -1,0 +1,1286 @@
+[
+  {
+    "route": "/",
+    "width": 375,
+    "name": "home",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 2480,
+    "title": "LandSetu | One record for every parcel",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "file": "screens/home@375.png"
+  },
+  {
+    "route": "/",
+    "width": 768,
+    "name": "home",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 2051,
+    "title": "LandSetu | One record for every parcel",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "file": "screens/home@768.png"
+  },
+  {
+    "route": "/",
+    "width": 1440,
+    "name": "home",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1992,
+    "title": "LandSetu | One record for every parcel",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "file": "screens/home@1440.png"
+  },
+  {
+    "route": "/map",
+    "width": 375,
+    "name": "map",
+    "console": [
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch custom parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch custom parcels notice: Missing or insufficient permissions.",
+      "goto: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/#/map\", waiting until \"networkidle\"\u001b[22m\n"
+    ],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 45874,
+    "title": "LandSetu | One record for every parcel",
+    "h1": [],
+    "file": "screens/map@375.png"
+  },
+  {
+    "route": "/map",
+    "width": 768,
+    "name": "map",
+    "console": [
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch custom parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch custom parcels notice: Missing or insufficient permissions.",
+      "goto: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/#/map\", waiting until \"networkidle\"\u001b[22m\n"
+    ],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 45919,
+    "title": "LandSetu | One record for every parcel",
+    "h1": [],
+    "file": "screens/map@768.png"
+  },
+  {
+    "route": "/map",
+    "width": 1440,
+    "name": "map",
+    "console": [
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch custom parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch custom parcels notice: Missing or insufficient permissions.",
+      "goto: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/#/map\", waiting until \"networkidle\"\u001b[22m\n"
+    ],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 45921,
+    "title": "LandSetu | One record for every parcel",
+    "h1": [],
+    "file": "screens/map@1440.png"
+  },
+  {
+    "route": "/login",
+    "width": 375,
+    "name": "login",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 2521,
+    "title": "LandSetu | One record for every parcel",
+    "h1": [],
+    "file": "screens/login@375.png"
+  },
+  {
+    "route": "/login",
+    "width": 768,
+    "name": "login",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1991,
+    "title": "LandSetu | One record for every parcel",
+    "h1": [],
+    "file": "screens/login@768.png"
+  },
+  {
+    "route": "/login",
+    "width": 1440,
+    "name": "login",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1985,
+    "title": "LandSetu | One record for every parcel",
+    "h1": [],
+    "file": "screens/login@1440.png"
+  },
+  {
+    "route": "/search",
+    "width": 375,
+    "name": "search",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1934,
+    "title": "Search parcels | LandSetu",
+    "h1": [
+      "Search parcels"
+    ],
+    "file": "screens/search@375.png"
+  },
+  {
+    "route": "/search",
+    "width": 768,
+    "name": "search",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1986,
+    "title": "Search parcels | LandSetu",
+    "h1": [
+      "Search parcels"
+    ],
+    "file": "screens/search@768.png"
+  },
+  {
+    "route": "/search",
+    "width": 1440,
+    "name": "search",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1989,
+    "title": "Search parcels | LandSetu",
+    "h1": [
+      "Search parcels"
+    ],
+    "file": "screens/search@1440.png"
+  },
+  {
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 375,
+    "name": "search_q_TN-CHN-0042-1187",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1963,
+    "title": "Search parcels | LandSetu",
+    "h1": [
+      "Search parcels"
+    ],
+    "file": "screens/search_q_TN-CHN-0042-1187@375.png"
+  },
+  {
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 768,
+    "name": "search_q_TN-CHN-0042-1187",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1983,
+    "title": "Search parcels | LandSetu",
+    "h1": [
+      "Search parcels"
+    ],
+    "file": "screens/search_q_TN-CHN-0042-1187@768.png"
+  },
+  {
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 1440,
+    "name": "search_q_TN-CHN-0042-1187",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1946,
+    "title": "Search parcels | LandSetu",
+    "h1": [
+      "Search parcels"
+    ],
+    "file": "screens/search_q_TN-CHN-0042-1187@1440.png"
+  },
+  {
+    "route": "/about",
+    "width": 375,
+    "name": "about",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1952,
+    "title": "About this platform | LandSetu",
+    "h1": [
+      "About this platform"
+    ],
+    "file": "screens/about@375.png"
+  },
+  {
+    "route": "/about",
+    "width": 768,
+    "name": "about",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1940,
+    "title": "About this platform | LandSetu",
+    "h1": [
+      "About this platform"
+    ],
+    "file": "screens/about@768.png"
+  },
+  {
+    "route": "/about",
+    "width": 1440,
+    "name": "about",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1971,
+    "title": "About this platform | LandSetu",
+    "h1": [
+      "About this platform"
+    ],
+    "file": "screens/about@1440.png"
+  },
+  {
+    "route": "/how-it-works",
+    "width": 375,
+    "name": "how-it-works",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1982,
+    "title": "How it works | LandSetu",
+    "h1": [
+      "How it works"
+    ],
+    "file": "screens/how-it-works@375.png"
+  },
+  {
+    "route": "/how-it-works",
+    "width": 768,
+    "name": "how-it-works",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1932,
+    "title": "How it works | LandSetu",
+    "h1": [
+      "How it works"
+    ],
+    "file": "screens/how-it-works@768.png"
+  },
+  {
+    "route": "/how-it-works",
+    "width": 1440,
+    "name": "how-it-works",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1958,
+    "title": "How it works | LandSetu",
+    "h1": [
+      "How it works"
+    ],
+    "file": "screens/how-it-works@1440.png"
+  },
+  {
+    "route": "/coverage",
+    "width": 375,
+    "name": "coverage",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 2030,
+    "title": "Where records are available | LandSetu",
+    "h1": [
+      "Where records are available"
+    ],
+    "file": "screens/coverage@375.png"
+  },
+  {
+    "route": "/coverage",
+    "width": 768,
+    "name": "coverage",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 2040,
+    "title": "Where records are available | LandSetu",
+    "h1": [
+      "Where records are available"
+    ],
+    "file": "screens/coverage@768.png"
+  },
+  {
+    "route": "/coverage",
+    "width": 1440,
+    "name": "coverage",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 2038,
+    "title": "Where records are available | LandSetu",
+    "h1": [
+      "Where records are available"
+    ],
+    "file": "screens/coverage@1440.png"
+  },
+  {
+    "route": "/services",
+    "width": 375,
+    "name": "services",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1914,
+    "title": "For land officers | LandSetu",
+    "h1": [
+      "For land officers"
+    ],
+    "file": "screens/services@375.png"
+  },
+  {
+    "route": "/services",
+    "width": 768,
+    "name": "services",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1968,
+    "title": "For land officers | LandSetu",
+    "h1": [
+      "For land officers"
+    ],
+    "file": "screens/services@768.png"
+  },
+  {
+    "route": "/services",
+    "width": 1440,
+    "name": "services",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1970,
+    "title": "For land officers | LandSetu",
+    "h1": [
+      "For land officers"
+    ],
+    "file": "screens/services@1440.png"
+  },
+  {
+    "route": "/faq",
+    "width": 375,
+    "name": "faq",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1973,
+    "title": "Help and frequently asked questions | LandSetu",
+    "h1": [
+      "Help and frequently asked questions"
+    ],
+    "file": "screens/faq@375.png"
+  },
+  {
+    "route": "/faq",
+    "width": 768,
+    "name": "faq",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1953,
+    "title": "Help and frequently asked questions | LandSetu",
+    "h1": [
+      "Help and frequently asked questions"
+    ],
+    "file": "screens/faq@768.png"
+  },
+  {
+    "route": "/faq",
+    "width": 1440,
+    "name": "faq",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1949,
+    "title": "Help and frequently asked questions | LandSetu",
+    "h1": [
+      "Help and frequently asked questions"
+    ],
+    "file": "screens/faq@1440.png"
+  },
+  {
+    "route": "/grievance",
+    "width": 375,
+    "name": "grievance",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1925,
+    "title": "Grievance and contact | LandSetu",
+    "h1": [
+      "Grievance and contact"
+    ],
+    "file": "screens/grievance@375.png"
+  },
+  {
+    "route": "/grievance",
+    "width": 768,
+    "name": "grievance",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 2199,
+    "title": "Grievance and contact | LandSetu",
+    "h1": [
+      "Grievance and contact"
+    ],
+    "file": "screens/grievance@768.png"
+  },
+  {
+    "route": "/grievance",
+    "width": 1440,
+    "name": "grievance",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1924,
+    "title": "Grievance and contact | LandSetu",
+    "h1": [
+      "Grievance and contact"
+    ],
+    "file": "screens/grievance@1440.png"
+  },
+  {
+    "route": "/terms",
+    "width": 375,
+    "name": "terms",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1942,
+    "title": "Terms of use | LandSetu",
+    "h1": [
+      "Terms of use"
+    ],
+    "file": "screens/terms@375.png"
+  },
+  {
+    "route": "/terms",
+    "width": 768,
+    "name": "terms",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1923,
+    "title": "Terms of use | LandSetu",
+    "h1": [
+      "Terms of use"
+    ],
+    "file": "screens/terms@768.png"
+  },
+  {
+    "route": "/terms",
+    "width": 1440,
+    "name": "terms",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1971,
+    "title": "Terms of use | LandSetu",
+    "h1": [
+      "Terms of use"
+    ],
+    "file": "screens/terms@1440.png"
+  },
+  {
+    "route": "/privacy",
+    "width": 375,
+    "name": "privacy",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1949,
+    "title": "Privacy policy | LandSetu",
+    "h1": [
+      "Privacy policy"
+    ],
+    "file": "screens/privacy@375.png"
+  },
+  {
+    "route": "/privacy",
+    "width": 768,
+    "name": "privacy",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1932,
+    "title": "Privacy policy | LandSetu",
+    "h1": [
+      "Privacy policy"
+    ],
+    "file": "screens/privacy@768.png"
+  },
+  {
+    "route": "/privacy",
+    "width": 1440,
+    "name": "privacy",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1964,
+    "title": "Privacy policy | LandSetu",
+    "h1": [
+      "Privacy policy"
+    ],
+    "file": "screens/privacy@1440.png"
+  },
+  {
+    "route": "/accessibility",
+    "width": 375,
+    "name": "accessibility",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1956,
+    "title": "Accessibility statement | LandSetu",
+    "h1": [
+      "Accessibility statement"
+    ],
+    "file": "screens/accessibility@375.png"
+  },
+  {
+    "route": "/accessibility",
+    "width": 768,
+    "name": "accessibility",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 2014,
+    "title": "Accessibility statement | LandSetu",
+    "h1": [
+      "Accessibility statement"
+    ],
+    "file": "screens/accessibility@768.png"
+  },
+  {
+    "route": "/accessibility",
+    "width": 1440,
+    "name": "accessibility",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1992,
+    "title": "Accessibility statement | LandSetu",
+    "h1": [
+      "Accessibility statement"
+    ],
+    "file": "screens/accessibility@1440.png"
+  },
+  {
+    "route": "/bank",
+    "width": 375,
+    "name": "bank",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1950,
+    "title": "Lender verification | LandSetu",
+    "h1": [
+      "Lender verification"
+    ],
+    "file": "screens/bank@375.png"
+  },
+  {
+    "route": "/bank",
+    "width": 768,
+    "name": "bank",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1986,
+    "title": "Lender verification | LandSetu",
+    "h1": [
+      "Lender verification"
+    ],
+    "file": "screens/bank@768.png"
+  },
+  {
+    "route": "/bank",
+    "width": 1440,
+    "name": "bank",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 2041,
+    "title": "Lender verification | LandSetu",
+    "h1": [
+      "Lender verification"
+    ],
+    "file": "screens/bank@1440.png"
+  },
+  {
+    "route": "/developers",
+    "width": 375,
+    "name": "developers",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1937,
+    "title": "Developer API | LandSetu",
+    "h1": [
+      "Developer API"
+    ],
+    "file": "screens/developers@375.png"
+  },
+  {
+    "route": "/developers",
+    "width": 768,
+    "name": "developers",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1974,
+    "title": "Developer API | LandSetu",
+    "h1": [
+      "Developer API"
+    ],
+    "file": "screens/developers@768.png"
+  },
+  {
+    "route": "/developers",
+    "width": 1440,
+    "name": "developers",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1982,
+    "title": "Developer API | LandSetu",
+    "h1": [
+      "Developer API"
+    ],
+    "file": "screens/developers@1440.png"
+  },
+  {
+    "route": "/officer",
+    "width": 375,
+    "name": "officer",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1947,
+    "title": "Officer dashboard | LandSetu",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "file": "screens/officer@375.png"
+  },
+  {
+    "route": "/officer",
+    "width": 768,
+    "name": "officer",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1947,
+    "title": "Officer dashboard | LandSetu",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "file": "screens/officer@768.png"
+  },
+  {
+    "route": "/officer",
+    "width": 1440,
+    "name": "officer",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1975,
+    "title": "Officer dashboard | LandSetu",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "file": "screens/officer@1440.png"
+  },
+  {
+    "route": "/officer/queue",
+    "width": 375,
+    "name": "officer_queue",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1965,
+    "title": "Approval queue | LandSetu",
+    "h1": [
+      "Approval queue"
+    ],
+    "file": "screens/officer_queue@375.png"
+  },
+  {
+    "route": "/officer/queue",
+    "width": 768,
+    "name": "officer_queue",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1966,
+    "title": "Approval queue | LandSetu",
+    "h1": [
+      "Approval queue"
+    ],
+    "file": "screens/officer_queue@768.png"
+  },
+  {
+    "route": "/officer/queue",
+    "width": 1440,
+    "name": "officer_queue",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1939,
+    "title": "Approval queue | LandSetu",
+    "h1": [
+      "Approval queue"
+    ],
+    "file": "screens/officer_queue@1440.png"
+  },
+  {
+    "route": "/officer/editor",
+    "width": 375,
+    "name": "officer_editor",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1924,
+    "title": "Parcel editor | LandSetu",
+    "h1": [
+      "Parcel editor"
+    ],
+    "file": "screens/officer_editor@375.png"
+  },
+  {
+    "route": "/officer/editor",
+    "width": 768,
+    "name": "officer_editor",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1987,
+    "title": "Parcel editor | LandSetu",
+    "h1": [
+      "Parcel editor"
+    ],
+    "file": "screens/officer_editor@768.png"
+  },
+  {
+    "route": "/officer/editor",
+    "width": 1440,
+    "name": "officer_editor",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 2013,
+    "title": "Parcel editor | LandSetu",
+    "h1": [
+      "Parcel editor"
+    ],
+    "file": "screens/officer_editor@1440.png"
+  },
+  {
+    "route": "/officer/audit",
+    "width": 375,
+    "name": "officer_audit",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1970,
+    "title": "Audit log | LandSetu",
+    "h1": [
+      "Audit log"
+    ],
+    "file": "screens/officer_audit@375.png"
+  },
+  {
+    "route": "/officer/audit",
+    "width": 768,
+    "name": "officer_audit",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1937,
+    "title": "Audit log | LandSetu",
+    "h1": [
+      "Audit log"
+    ],
+    "file": "screens/officer_audit@768.png"
+  },
+  {
+    "route": "/officer/audit",
+    "width": 1440,
+    "name": "officer_audit",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1965,
+    "title": "Audit log | LandSetu",
+    "h1": [
+      "Audit log"
+    ],
+    "file": "screens/officer_audit@1440.png"
+  },
+  {
+    "route": "/officer/import",
+    "width": 375,
+    "name": "officer_import",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1982,
+    "title": "Data import | LandSetu",
+    "h1": [
+      "Data import"
+    ],
+    "file": "screens/officer_import@375.png"
+  },
+  {
+    "route": "/officer/import",
+    "width": 768,
+    "name": "officer_import",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 2032,
+    "title": "Data import | LandSetu",
+    "h1": [
+      "Data import"
+    ],
+    "file": "screens/officer_import@768.png"
+  },
+  {
+    "route": "/officer/import",
+    "width": 1440,
+    "name": "officer_import",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1973,
+    "title": "Data import | LandSetu",
+    "h1": [
+      "Data import"
+    ],
+    "file": "screens/officer_import@1440.png"
+  },
+  {
+    "route": "/officer/analytics",
+    "width": 375,
+    "name": "officer_analytics",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1980,
+    "title": "State analytics | LandSetu",
+    "h1": [
+      "State analytics"
+    ],
+    "file": "screens/officer_analytics@375.png"
+  },
+  {
+    "route": "/officer/analytics",
+    "width": 768,
+    "name": "officer_analytics",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1968,
+    "title": "State analytics | LandSetu",
+    "h1": [
+      "State analytics"
+    ],
+    "file": "screens/officer_analytics@768.png"
+  },
+  {
+    "route": "/officer/analytics",
+    "width": 1440,
+    "name": "officer_analytics",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1958,
+    "title": "State analytics | LandSetu",
+    "h1": [
+      "State analytics"
+    ],
+    "file": "screens/officer_analytics@1440.png"
+  },
+  {
+    "route": "/officer/users",
+    "width": 375,
+    "name": "officer_users",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 2005,
+    "title": "Users and roles | LandSetu",
+    "h1": [
+      "Users and roles"
+    ],
+    "file": "screens/officer_users@375.png"
+  },
+  {
+    "route": "/officer/users",
+    "width": 768,
+    "name": "officer_users",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 2593,
+    "title": "Users and roles | LandSetu",
+    "h1": [
+      "Users and roles"
+    ],
+    "file": "screens/officer_users@768.png"
+  },
+  {
+    "route": "/officer/users",
+    "width": 1440,
+    "name": "officer_users",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 3081,
+    "title": "Users and roles | LandSetu",
+    "h1": [
+      "Users and roles"
+    ],
+    "file": "screens/officer_users@1440.png"
+  },
+  {
+    "route": "/does-not-exist",
+    "width": 375,
+    "name": "does-not-exist",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1933,
+    "title": "Page not found | LandSetu",
+    "h1": [
+      "Page not found"
+    ],
+    "file": "screens/does-not-exist@375.png"
+  },
+  {
+    "route": "/does-not-exist",
+    "width": 768,
+    "name": "does-not-exist",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 2038,
+    "title": "Page not found | LandSetu",
+    "h1": [
+      "Page not found"
+    ],
+    "file": "screens/does-not-exist@768.png"
+  },
+  {
+    "route": "/does-not-exist",
+    "width": 1440,
+    "name": "does-not-exist",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 1947,
+    "title": "Page not found | LandSetu",
+    "h1": [
+      "Page not found"
+    ],
+    "file": "screens/does-not-exist@1440.png"
+  },
+  {
+    "route": "/map",
+    "width": 375,
+    "name": "flow-map-parcel-click",
+    "console": [
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch custom parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch custom parcels notice: Missing or insufficient permissions.",
+      "goto: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/#/map\", waiting until \"networkidle\"\u001b[22m\n",
+      "note: 39 interactive map paths"
+    ],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 48588,
+    "title": "LandSetu | One record for every parcel",
+    "h1": [],
+    "file": "screens/flow-map-parcel-click@375.png"
+  },
+  {
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 375,
+    "name": "flow-search-open-parcel",
+    "console": [
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch custom parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch custom parcels notice: Missing or insufficient permissions."
+    ],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 5080,
+    "title": "Search parcels | LandSetu",
+    "h1": [],
+    "file": "screens/flow-search-open-parcel@375.png",
+    "note": "clicked \"Open on map\"; ULPIN text nodes after nav: 1; url http://localhost:5173/#/map"
+  },
+  {
+    "route": "/search",
+    "width": 375,
+    "name": "flow-search-no-results",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 4055,
+    "title": "Search parcels | LandSetu",
+    "h1": [
+      "Search parcels"
+    ],
+    "file": "screens/flow-search-no-results@375.png"
+  },
+  {
+    "route": "/map",
+    "width": 768,
+    "name": "flow-map-parcel-click",
+    "console": [
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch custom parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch custom parcels notice: Missing or insufficient permissions.",
+      "goto: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/#/map\", waiting until \"networkidle\"\u001b[22m\n",
+      "note: 39 interactive map paths"
+    ],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 48378,
+    "title": "LandSetu | One record for every parcel",
+    "h1": [],
+    "file": "screens/flow-map-parcel-click@768.png"
+  },
+  {
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 768,
+    "name": "flow-search-open-parcel",
+    "console": [
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch custom parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch custom parcels notice: Missing or insufficient permissions."
+    ],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 5284,
+    "title": "Search parcels | LandSetu",
+    "h1": [],
+    "file": "screens/flow-search-open-parcel@768.png",
+    "note": "clicked \"Open on map\"; ULPIN text nodes after nav: 1; url http://localhost:5173/#/map"
+  },
+  {
+    "route": "/search",
+    "width": 768,
+    "name": "flow-search-no-results",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 4057,
+    "title": "Search parcels | LandSetu",
+    "h1": [
+      "Search parcels"
+    ],
+    "file": "screens/flow-search-no-results@768.png"
+  },
+  {
+    "route": "/map",
+    "width": 1440,
+    "name": "flow-map-parcel-click",
+    "console": [
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch custom parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch custom parcels notice: Missing or insufficient permissions.",
+      "goto: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/#/map\", waiting until \"networkidle\"\u001b[22m\n",
+      "note: 39 interactive map paths"
+    ],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 48368,
+    "title": "LandSetu | One record for every parcel",
+    "h1": [],
+    "file": "screens/flow-map-parcel-click@1440.png"
+  },
+  {
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 1440,
+    "name": "flow-search-open-parcel",
+    "console": [
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch deleted parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch custom parcels notice: Missing or insufficient permissions.",
+      "warning: Firestore fetch custom parcels notice: Missing or insufficient permissions."
+    ],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 5051,
+    "title": "Search parcels | LandSetu",
+    "h1": [],
+    "file": "screens/flow-search-open-parcel@1440.png",
+    "note": "clicked \"Open on map\"; ULPIN text nodes after nav: 1; url http://localhost:5173/#/map"
+  },
+  {
+    "route": "/search",
+    "width": 1440,
+    "name": "flow-search-no-results",
+    "console": [],
+    "failed": [],
+    "http": [],
+    "slow": [],
+    "loadMs": 3994,
+    "title": "Search parcels | LandSetu",
+    "h1": [
+      "Search parcels"
+    ],
+    "file": "screens/flow-search-no-results@1440.png"
+  }
+]
