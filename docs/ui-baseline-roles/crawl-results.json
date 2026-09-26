@@ -1,0 +1,3621 @@
+[
+  {
+    "role": "citizen",
+    "route": "/",
+    "width": 375,
+    "file": "screens/citizen__home@375.jpg",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/map",
+    "width": 375,
+    "file": "screens/citizen__map@375.jpg",
+    "h1": [],
+    "pageWidth": 465,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 375,
+    "file": "screens/citizen__search_q_TN-CHN-0042-1187@375.jpg",
+    "h1": [
+      "Search parcels"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/officer",
+    "width": 375,
+    "file": "screens/citizen__officer@375.jpg",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "warning: Firestore fetch requests notice: \nfalse for 'list' @ L252, false for 'list' @ L287",
+      "warning: Firestore fetch requests notice: \nfalse for 'list' @ L252, false for 'list' @ L287",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/parcels/requests/pending",
+      "403 GET http://localhost:8000/parcels/requests/pending"
+    ]
+  },
+  {
+    "role": "citizen",
+    "route": "/officer/queue",
+    "width": 375,
+    "file": "screens/citizen__officer_queue@375.jpg",
+    "h1": [
+      "Approval queue"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/officer/editor",
+    "width": 375,
+    "file": "screens/citizen__officer_editor@375.jpg",
+    "h1": [
+      "Parcel editor"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/officer/audit",
+    "width": 375,
+    "file": "screens/citizen__officer_audit@375.jpg",
+    "h1": [
+      "Audit log"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/officer/import",
+    "width": 375,
+    "file": "screens/citizen__officer_import@375.jpg",
+    "h1": [
+      "Data import"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/officer/analytics",
+    "width": 375,
+    "file": "screens/citizen__officer_analytics@375.jpg",
+    "h1": [
+      "State analytics"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/officer/users",
+    "width": 375,
+    "file": "screens/citizen__officer_users@375.jpg",
+    "h1": [
+      "Users and roles"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit"
+    ]
+  },
+  {
+    "role": "citizen",
+    "route": "/bank",
+    "width": 375,
+    "file": "screens/citizen__bank@375.jpg",
+    "h1": [
+      "Lender verification"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "flow:map-parcel",
+    "width": 375,
+    "file": "screens/citizen__flow-map-parcel@375.jpg",
+    "actions": [
+      "",
+      "QR passport",
+      "Read only",
+      "Report an issue with this parcel",
+      "Record",
+      "History",
+      "Audit hash chain"
+    ],
+    "pageWidth": 465,
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/",
+    "width": 768,
+    "file": "screens/citizen__home@768.jpg",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/map",
+    "width": 768,
+    "file": "screens/citizen__map@768.jpg",
+    "h1": [],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 768,
+    "file": "screens/citizen__search_q_TN-CHN-0042-1187@768.jpg",
+    "h1": [
+      "Search parcels"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/officer",
+    "width": 768,
+    "file": "screens/citizen__officer@768.jpg",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "warning: Firestore fetch requests notice: \nfalse for 'list' @ L252, false for 'list' @ L287",
+      "warning: Firestore fetch requests notice: \nfalse for 'list' @ L252, false for 'list' @ L287",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/parcels/requests/pending",
+      "403 GET http://localhost:8000/parcels/requests/pending"
+    ]
+  },
+  {
+    "role": "citizen",
+    "route": "/officer/queue",
+    "width": 768,
+    "file": "screens/citizen__officer_queue@768.jpg",
+    "h1": [
+      "Approval queue"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/officer/editor",
+    "width": 768,
+    "file": "screens/citizen__officer_editor@768.jpg",
+    "h1": [
+      "Parcel editor"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/officer/audit",
+    "width": 768,
+    "file": "screens/citizen__officer_audit@768.jpg",
+    "h1": [
+      "Audit log"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/officer/import",
+    "width": 768,
+    "file": "screens/citizen__officer_import@768.jpg",
+    "h1": [
+      "Data import"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/officer/analytics",
+    "width": 768,
+    "file": "screens/citizen__officer_analytics@768.jpg",
+    "h1": [
+      "State analytics"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/officer/users",
+    "width": 768,
+    "file": "screens/citizen__officer_users@768.jpg",
+    "h1": [
+      "Users and roles"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit"
+    ]
+  },
+  {
+    "role": "citizen",
+    "route": "/bank",
+    "width": 768,
+    "file": "screens/citizen__bank@768.jpg",
+    "h1": [
+      "Lender verification"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "flow:map-parcel",
+    "width": 768,
+    "file": "screens/citizen__flow-map-parcel@768.jpg",
+    "actions": [
+      "",
+      "QR passport",
+      "Read only",
+      "Report an issue with this parcel",
+      "Record",
+      "History",
+      "Audit hash chain"
+    ],
+    "pageWidth": 768,
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/",
+    "width": 1440,
+    "file": "screens/citizen__home@1440.jpg",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/map",
+    "width": 1440,
+    "file": "screens/citizen__map@1440.jpg",
+    "h1": [],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 1440,
+    "file": "screens/citizen__search_q_TN-CHN-0042-1187@1440.jpg",
+    "h1": [
+      "Search parcels"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/officer",
+    "width": 1440,
+    "file": "screens/citizen__officer@1440.jpg",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "warning: Firestore fetch requests notice: \nfalse for 'list' @ L252, false for 'list' @ L287",
+      "warning: Firestore fetch requests notice: \nfalse for 'list' @ L252, false for 'list' @ L287",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/parcels/requests/pending",
+      "403 GET http://localhost:8000/parcels/requests/pending"
+    ]
+  },
+  {
+    "role": "citizen",
+    "route": "/officer/queue",
+    "width": 1440,
+    "file": "screens/citizen__officer_queue@1440.jpg",
+    "h1": [
+      "Approval queue"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/officer/editor",
+    "width": 1440,
+    "file": "screens/citizen__officer_editor@1440.jpg",
+    "h1": [
+      "Parcel editor"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/officer/audit",
+    "width": 1440,
+    "file": "screens/citizen__officer_audit@1440.jpg",
+    "h1": [
+      "Audit log"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/officer/import",
+    "width": 1440,
+    "file": "screens/citizen__officer_import@1440.jpg",
+    "h1": [
+      "Data import"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/officer/analytics",
+    "width": 1440,
+    "file": "screens/citizen__officer_analytics@1440.jpg",
+    "h1": [
+      "State analytics"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "/officer/users",
+    "width": 1440,
+    "file": "screens/citizen__officer_users@1440.jpg",
+    "h1": [
+      "Users and roles"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/users"
+    ]
+  },
+  {
+    "role": "citizen",
+    "route": "/bank",
+    "width": 1440,
+    "file": "screens/citizen__bank@1440.jpg",
+    "h1": [
+      "Lender verification"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "route": "flow:map-parcel",
+    "width": 1440,
+    "file": "screens/citizen__flow-map-parcel@1440.jpg",
+    "actions": [
+      "",
+      "QR passport",
+      "Read only",
+      "Report an issue with this parcel",
+      "Record",
+      "History",
+      "Audit hash chain"
+    ],
+    "pageWidth": 1440,
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "citizen",
+    "roleTag": "Citizen"
+  },
+  {
+    "role": "village_officer",
+    "route": "/",
+    "width": 375,
+    "file": "screens/village_officer__home@375.jpg",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/map",
+    "width": 375,
+    "file": "screens/village_officer__map@375.jpg",
+    "h1": [],
+    "pageWidth": 465,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 375,
+    "file": "screens/village_officer__search_q_TN-CHN-0042-1187@375.jpg",
+    "h1": [
+      "Search parcels"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/officer",
+    "width": 375,
+    "file": "screens/village_officer__officer@375.jpg",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/officer/queue",
+    "width": 375,
+    "file": "screens/village_officer__officer_queue@375.jpg",
+    "h1": [
+      "Approval queue"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/officer/editor",
+    "width": 375,
+    "file": "screens/village_officer__officer_editor@375.jpg",
+    "h1": [
+      "Parcel editor"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/officer/audit",
+    "width": 375,
+    "file": "screens/village_officer__officer_audit@375.jpg",
+    "h1": [
+      "Audit log"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/officer/import",
+    "width": 375,
+    "file": "screens/village_officer__officer_import@375.jpg",
+    "h1": [
+      "Data import"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/officer/analytics",
+    "width": 375,
+    "file": "screens/village_officer__officer_analytics@375.jpg",
+    "h1": [
+      "State analytics"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/officer/users",
+    "width": 375,
+    "file": "screens/village_officer__officer_users@375.jpg",
+    "h1": [
+      "Users and roles"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit"
+    ]
+  },
+  {
+    "role": "village_officer",
+    "route": "/bank",
+    "width": 375,
+    "file": "screens/village_officer__bank@375.jpg",
+    "h1": [
+      "Lender verification"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "flow:map-parcel",
+    "width": 375,
+    "file": "screens/village_officer__flow-map-parcel@375.jpg",
+    "actions": [
+      "",
+      "QR passport",
+      "Reshape boundary",
+      "Split parcel",
+      "Merge with neighbour",
+      "Report an issue with this parcel",
+      "Record",
+      "History",
+      "Audit hash chain"
+    ],
+    "pageWidth": 465,
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/",
+    "width": 768,
+    "file": "screens/village_officer__home@768.jpg",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/map",
+    "width": 768,
+    "file": "screens/village_officer__map@768.jpg",
+    "h1": [],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 768,
+    "file": "screens/village_officer__search_q_TN-CHN-0042-1187@768.jpg",
+    "h1": [
+      "Search parcels"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/officer",
+    "width": 768,
+    "file": "screens/village_officer__officer@768.jpg",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/officer/queue",
+    "width": 768,
+    "file": "screens/village_officer__officer_queue@768.jpg",
+    "h1": [
+      "Approval queue"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/officer/editor",
+    "width": 768,
+    "file": "screens/village_officer__officer_editor@768.jpg",
+    "h1": [
+      "Parcel editor"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/officer/audit",
+    "width": 768,
+    "file": "screens/village_officer__officer_audit@768.jpg",
+    "h1": [
+      "Audit log"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/officer/import",
+    "width": 768,
+    "file": "screens/village_officer__officer_import@768.jpg",
+    "h1": [
+      "Data import"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/officer/analytics",
+    "width": 768,
+    "file": "screens/village_officer__officer_analytics@768.jpg",
+    "h1": [
+      "State analytics"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/officer/users",
+    "width": 768,
+    "file": "screens/village_officer__officer_users@768.jpg",
+    "h1": [
+      "Users and roles"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/users"
+    ]
+  },
+  {
+    "role": "village_officer",
+    "route": "/bank",
+    "width": 768,
+    "file": "screens/village_officer__bank@768.jpg",
+    "h1": [
+      "Lender verification"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "flow:map-parcel",
+    "width": 768,
+    "file": "screens/village_officer__flow-map-parcel@768.jpg",
+    "actions": [
+      "",
+      "QR passport",
+      "Reshape boundary",
+      "Split parcel",
+      "Merge with neighbour",
+      "Report an issue with this parcel",
+      "Record",
+      "History",
+      "Audit hash chain"
+    ],
+    "pageWidth": 768,
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/",
+    "width": 1440,
+    "file": "screens/village_officer__home@1440.jpg",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/map",
+    "width": 1440,
+    "file": "screens/village_officer__map@1440.jpg",
+    "h1": [],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 1440,
+    "file": "screens/village_officer__search_q_TN-CHN-0042-1187@1440.jpg",
+    "h1": [
+      "Search parcels"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/officer",
+    "width": 1440,
+    "file": "screens/village_officer__officer@1440.jpg",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/officer/queue",
+    "width": 1440,
+    "file": "screens/village_officer__officer_queue@1440.jpg",
+    "h1": [
+      "Approval queue"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/officer/editor",
+    "width": 1440,
+    "file": "screens/village_officer__officer_editor@1440.jpg",
+    "h1": [
+      "Parcel editor"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/officer/audit",
+    "width": 1440,
+    "file": "screens/village_officer__officer_audit@1440.jpg",
+    "h1": [
+      "Audit log"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/officer/import",
+    "width": 1440,
+    "file": "screens/village_officer__officer_import@1440.jpg",
+    "h1": [
+      "Data import"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/officer/analytics",
+    "width": 1440,
+    "file": "screens/village_officer__officer_analytics@1440.jpg",
+    "h1": [
+      "State analytics"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "/officer/users",
+    "width": 1440,
+    "file": "screens/village_officer__officer_users@1440.jpg",
+    "h1": [
+      "Users and roles"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit"
+    ]
+  },
+  {
+    "role": "village_officer",
+    "route": "/bank",
+    "width": 1440,
+    "file": "screens/village_officer__bank@1440.jpg",
+    "h1": [
+      "Lender verification"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "route": "flow:map-parcel",
+    "width": 1440,
+    "file": "screens/village_officer__flow-map-parcel@1440.jpg",
+    "actions": [
+      "",
+      "QR passport",
+      "Reshape boundary",
+      "Split parcel",
+      "Merge with neighbour",
+      "Report an issue with this parcel",
+      "Record",
+      "History",
+      "Audit hash chain"
+    ],
+    "pageWidth": 1440,
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "village_officer",
+    "roleTag": "Village Land Officer"
+  },
+  {
+    "role": "auditor",
+    "route": "/",
+    "width": 375,
+    "file": "screens/auditor__home@375.jpg",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/map",
+    "width": 375,
+    "file": "screens/auditor__map@375.jpg",
+    "h1": [],
+    "pageWidth": 465,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 375,
+    "file": "screens/auditor__search_q_TN-CHN-0042-1187@375.jpg",
+    "h1": [
+      "Search parcels"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/officer",
+    "width": 375,
+    "file": "screens/auditor__officer@375.jpg",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/officer/queue",
+    "width": 375,
+    "file": "screens/auditor__officer_queue@375.jpg",
+    "h1": [
+      "Approval queue"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/officer/editor",
+    "width": 375,
+    "file": "screens/auditor__officer_editor@375.jpg",
+    "h1": [
+      "Parcel editor"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/officer/audit",
+    "width": 375,
+    "file": "screens/auditor__officer_audit@375.jpg",
+    "h1": [
+      "Audit log"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/officer/import",
+    "width": 375,
+    "file": "screens/auditor__officer_import@375.jpg",
+    "h1": [
+      "Data import"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/officer/analytics",
+    "width": 375,
+    "file": "screens/auditor__officer_analytics@375.jpg",
+    "h1": [
+      "State analytics"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/officer/users",
+    "width": 375,
+    "file": "screens/auditor__officer_users@375.jpg",
+    "h1": [
+      "Users and roles"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit"
+    ]
+  },
+  {
+    "role": "auditor",
+    "route": "/bank",
+    "width": 375,
+    "file": "screens/auditor__bank@375.jpg",
+    "h1": [
+      "Lender verification"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "flow:map-parcel",
+    "width": 375,
+    "file": "screens/auditor__flow-map-parcel@375.jpg",
+    "actions": [
+      "",
+      "QR passport",
+      "Reshape boundary",
+      "Report an issue with this parcel",
+      "Record",
+      "History",
+      "Audit hash chain"
+    ],
+    "pageWidth": 465,
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/",
+    "width": 768,
+    "file": "screens/auditor__home@768.jpg",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/map",
+    "width": 768,
+    "file": "screens/auditor__map@768.jpg",
+    "h1": [],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 768,
+    "file": "screens/auditor__search_q_TN-CHN-0042-1187@768.jpg",
+    "h1": [
+      "Search parcels"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/officer",
+    "width": 768,
+    "file": "screens/auditor__officer@768.jpg",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/officer/queue",
+    "width": 768,
+    "file": "screens/auditor__officer_queue@768.jpg",
+    "h1": [
+      "Approval queue"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/officer/editor",
+    "width": 768,
+    "file": "screens/auditor__officer_editor@768.jpg",
+    "h1": [
+      "Parcel editor"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/officer/audit",
+    "width": 768,
+    "file": "screens/auditor__officer_audit@768.jpg",
+    "h1": [
+      "Audit log"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/officer/import",
+    "width": 768,
+    "file": "screens/auditor__officer_import@768.jpg",
+    "h1": [
+      "Data import"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/officer/analytics",
+    "width": 768,
+    "file": "screens/auditor__officer_analytics@768.jpg",
+    "h1": [
+      "State analytics"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/officer/users",
+    "width": 768,
+    "file": "screens/auditor__officer_users@768.jpg",
+    "h1": [
+      "Users and roles"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/users"
+    ]
+  },
+  {
+    "role": "auditor",
+    "route": "/bank",
+    "width": 768,
+    "file": "screens/auditor__bank@768.jpg",
+    "h1": [
+      "Lender verification"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "flow:map-parcel",
+    "width": 768,
+    "file": "screens/auditor__flow-map-parcel@768.jpg",
+    "actions": [
+      "",
+      "QR passport",
+      "Reshape boundary",
+      "Report an issue with this parcel",
+      "Record",
+      "History",
+      "Audit hash chain"
+    ],
+    "pageWidth": 768,
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/",
+    "width": 1440,
+    "file": "screens/auditor__home@1440.jpg",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/map",
+    "width": 1440,
+    "file": "screens/auditor__map@1440.jpg",
+    "h1": [],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 1440,
+    "file": "screens/auditor__search_q_TN-CHN-0042-1187@1440.jpg",
+    "h1": [
+      "Search parcels"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/officer",
+    "width": 1440,
+    "file": "screens/auditor__officer@1440.jpg",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/officer/queue",
+    "width": 1440,
+    "file": "screens/auditor__officer_queue@1440.jpg",
+    "h1": [
+      "Approval queue"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/officer/editor",
+    "width": 1440,
+    "file": "screens/auditor__officer_editor@1440.jpg",
+    "h1": [
+      "Parcel editor"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/officer/audit",
+    "width": 1440,
+    "file": "screens/auditor__officer_audit@1440.jpg",
+    "h1": [
+      "Audit log"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/officer/import",
+    "width": 1440,
+    "file": "screens/auditor__officer_import@1440.jpg",
+    "h1": [
+      "Data import"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/officer/analytics",
+    "width": 1440,
+    "file": "screens/auditor__officer_analytics@1440.jpg",
+    "h1": [
+      "State analytics"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "/officer/users",
+    "width": 1440,
+    "file": "screens/auditor__officer_users@1440.jpg",
+    "h1": [
+      "Users and roles"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/users"
+    ]
+  },
+  {
+    "role": "auditor",
+    "route": "/bank",
+    "width": 1440,
+    "file": "screens/auditor__bank@1440.jpg",
+    "h1": [
+      "Lender verification"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "route": "flow:map-parcel",
+    "width": 1440,
+    "file": "screens/auditor__flow-map-parcel@1440.jpg",
+    "actions": [
+      "",
+      "QR passport",
+      "Reshape boundary",
+      "Report an issue with this parcel",
+      "Record",
+      "History",
+      "Audit hash chain"
+    ],
+    "pageWidth": 1440,
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "auditor",
+    "roleTag": "Land Auditor"
+  },
+  {
+    "role": "state_admin",
+    "route": "/",
+    "width": 375,
+    "file": "screens/state_admin__home@375.jpg",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/map",
+    "width": 375,
+    "file": "screens/state_admin__map@375.jpg",
+    "h1": [],
+    "pageWidth": 465,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 375,
+    "file": "screens/state_admin__search_q_TN-CHN-0042-1187@375.jpg",
+    "h1": [
+      "Search parcels"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/officer",
+    "width": 375,
+    "file": "screens/state_admin__officer@375.jpg",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/officer/queue",
+    "width": 375,
+    "file": "screens/state_admin__officer_queue@375.jpg",
+    "h1": [
+      "Approval queue"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/officer/editor",
+    "width": 375,
+    "file": "screens/state_admin__officer_editor@375.jpg",
+    "h1": [
+      "Parcel editor"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/officer/audit",
+    "width": 375,
+    "file": "screens/state_admin__officer_audit@375.jpg",
+    "h1": [
+      "Audit log"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/officer/import",
+    "width": 375,
+    "file": "screens/state_admin__officer_import@375.jpg",
+    "h1": [
+      "Data import"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/officer/analytics",
+    "width": 375,
+    "file": "screens/state_admin__officer_analytics@375.jpg",
+    "h1": [
+      "State analytics"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/officer/users",
+    "width": 375,
+    "file": "screens/state_admin__officer_users@375.jpg",
+    "h1": [
+      "Users and roles"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit"
+    ]
+  },
+  {
+    "role": "state_admin",
+    "route": "/bank",
+    "width": 375,
+    "file": "screens/state_admin__bank@375.jpg",
+    "h1": [
+      "Lender verification"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "flow:map-parcel",
+    "width": 375,
+    "file": "screens/state_admin__flow-map-parcel@375.jpg",
+    "actions": [
+      "",
+      "QR passport",
+      "Reshape boundary",
+      "Request archival",
+      "Split parcel",
+      "Merge with neighbour",
+      "Report an issue with this parcel",
+      "Record",
+      "History",
+      "Audit hash chain"
+    ],
+    "pageWidth": 465,
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/",
+    "width": 768,
+    "file": "screens/state_admin__home@768.jpg",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/map",
+    "width": 768,
+    "file": "screens/state_admin__map@768.jpg",
+    "h1": [],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 768,
+    "file": "screens/state_admin__search_q_TN-CHN-0042-1187@768.jpg",
+    "h1": [
+      "Search parcels"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/officer",
+    "width": 768,
+    "file": "screens/state_admin__officer@768.jpg",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/officer/queue",
+    "width": 768,
+    "file": "screens/state_admin__officer_queue@768.jpg",
+    "h1": [
+      "Approval queue"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/officer/editor",
+    "width": 768,
+    "file": "screens/state_admin__officer_editor@768.jpg",
+    "h1": [
+      "Parcel editor"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/officer/audit",
+    "width": 768,
+    "file": "screens/state_admin__officer_audit@768.jpg",
+    "h1": [
+      "Audit log"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/officer/import",
+    "width": 768,
+    "file": "screens/state_admin__officer_import@768.jpg",
+    "h1": [
+      "Data import"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/officer/analytics",
+    "width": 768,
+    "file": "screens/state_admin__officer_analytics@768.jpg",
+    "h1": [
+      "State analytics"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/officer/users",
+    "width": 768,
+    "file": "screens/state_admin__officer_users@768.jpg",
+    "h1": [
+      "Users and roles"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit"
+    ]
+  },
+  {
+    "role": "state_admin",
+    "route": "/bank",
+    "width": 768,
+    "file": "screens/state_admin__bank@768.jpg",
+    "h1": [
+      "Lender verification"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "flow:map-parcel",
+    "width": 768,
+    "file": "screens/state_admin__flow-map-parcel@768.jpg",
+    "actions": [
+      "",
+      "QR passport",
+      "Reshape boundary",
+      "Request archival",
+      "Split parcel",
+      "Merge with neighbour",
+      "Report an issue with this parcel",
+      "Record",
+      "History",
+      "Audit hash chain"
+    ],
+    "pageWidth": 768,
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/",
+    "width": 1440,
+    "file": "screens/state_admin__home@1440.jpg",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/map",
+    "width": 1440,
+    "file": "screens/state_admin__map@1440.jpg",
+    "h1": [],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 1440,
+    "file": "screens/state_admin__search_q_TN-CHN-0042-1187@1440.jpg",
+    "h1": [
+      "Search parcels"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/officer",
+    "width": 1440,
+    "file": "screens/state_admin__officer@1440.jpg",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/officer/queue",
+    "width": 1440,
+    "file": "screens/state_admin__officer_queue@1440.jpg",
+    "h1": [
+      "Approval queue"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/officer/editor",
+    "width": 1440,
+    "file": "screens/state_admin__officer_editor@1440.jpg",
+    "h1": [
+      "Parcel editor"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/officer/audit",
+    "width": 1440,
+    "file": "screens/state_admin__officer_audit@1440.jpg",
+    "h1": [
+      "Audit log"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/officer/import",
+    "width": 1440,
+    "file": "screens/state_admin__officer_import@1440.jpg",
+    "h1": [
+      "Data import"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/officer/analytics",
+    "width": 1440,
+    "file": "screens/state_admin__officer_analytics@1440.jpg",
+    "h1": [
+      "State analytics"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "/officer/users",
+    "width": 1440,
+    "file": "screens/state_admin__officer_users@1440.jpg",
+    "h1": [
+      "Users and roles"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit"
+    ]
+  },
+  {
+    "role": "state_admin",
+    "route": "/bank",
+    "width": 1440,
+    "file": "screens/state_admin__bank@1440.jpg",
+    "h1": [
+      "Lender verification"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "route": "flow:map-parcel",
+    "width": 1440,
+    "file": "screens/state_admin__flow-map-parcel@1440.jpg",
+    "actions": [
+      "",
+      "QR passport",
+      "Reshape boundary",
+      "Request archival",
+      "Split parcel",
+      "Merge with neighbour",
+      "Report an issue with this parcel",
+      "Record",
+      "History",
+      "Audit hash chain"
+    ],
+    "pageWidth": 1440,
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "state_admin",
+    "roleTag": "State Admin Officer"
+  },
+  {
+    "role": "officer",
+    "route": "/",
+    "width": 375,
+    "file": "screens/officer__home@375.jpg",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/map",
+    "width": 375,
+    "file": "screens/officer__map@375.jpg",
+    "h1": [],
+    "pageWidth": 465,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 375,
+    "file": "screens/officer__search_q_TN-CHN-0042-1187@375.jpg",
+    "h1": [
+      "Search parcels"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/officer",
+    "width": 375,
+    "file": "screens/officer__officer@375.jpg",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/officer/queue",
+    "width": 375,
+    "file": "screens/officer__officer_queue@375.jpg",
+    "h1": [
+      "Approval queue"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/officer/editor",
+    "width": 375,
+    "file": "screens/officer__officer_editor@375.jpg",
+    "h1": [
+      "Parcel editor"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/officer/audit",
+    "width": 375,
+    "file": "screens/officer__officer_audit@375.jpg",
+    "h1": [
+      "Audit log"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/officer/import",
+    "width": 375,
+    "file": "screens/officer__officer_import@375.jpg",
+    "h1": [
+      "Data import"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/officer/analytics",
+    "width": 375,
+    "file": "screens/officer__officer_analytics@375.jpg",
+    "h1": [
+      "State analytics"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/officer/users",
+    "width": 375,
+    "file": "screens/officer__officer_users@375.jpg",
+    "h1": [
+      "Users and roles"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit"
+    ]
+  },
+  {
+    "role": "officer",
+    "route": "/bank",
+    "width": 375,
+    "file": "screens/officer__bank@375.jpg",
+    "h1": [
+      "Lender verification"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "flow:map-parcel",
+    "width": 375,
+    "file": "screens/officer__flow-map-parcel@375.jpg",
+    "actions": [
+      "",
+      "QR passport",
+      "Read only",
+      "Report an issue with this parcel",
+      "Record",
+      "History",
+      "Audit hash chain"
+    ],
+    "pageWidth": 465,
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/",
+    "width": 768,
+    "file": "screens/officer__home@768.jpg",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/map",
+    "width": 768,
+    "file": "screens/officer__map@768.jpg",
+    "h1": [],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 768,
+    "file": "screens/officer__search_q_TN-CHN-0042-1187@768.jpg",
+    "h1": [
+      "Search parcels"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/officer",
+    "width": 768,
+    "file": "screens/officer__officer@768.jpg",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/officer/queue",
+    "width": 768,
+    "file": "screens/officer__officer_queue@768.jpg",
+    "h1": [
+      "Approval queue"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/officer/editor",
+    "width": 768,
+    "file": "screens/officer__officer_editor@768.jpg",
+    "h1": [
+      "Parcel editor"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/officer/audit",
+    "width": 768,
+    "file": "screens/officer__officer_audit@768.jpg",
+    "h1": [
+      "Audit log"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/officer/import",
+    "width": 768,
+    "file": "screens/officer__officer_import@768.jpg",
+    "h1": [
+      "Data import"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/officer/analytics",
+    "width": 768,
+    "file": "screens/officer__officer_analytics@768.jpg",
+    "h1": [
+      "State analytics"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/officer/users",
+    "width": 768,
+    "file": "screens/officer__officer_users@768.jpg",
+    "h1": [
+      "Users and roles"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/users"
+    ]
+  },
+  {
+    "role": "officer",
+    "route": "/bank",
+    "width": 768,
+    "file": "screens/officer__bank@768.jpg",
+    "h1": [
+      "Lender verification"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "flow:map-parcel",
+    "width": 768,
+    "file": "screens/officer__flow-map-parcel@768.jpg",
+    "actions": [
+      "",
+      "QR passport",
+      "Read only",
+      "Report an issue with this parcel",
+      "Record",
+      "History",
+      "Audit hash chain"
+    ],
+    "pageWidth": 768,
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/",
+    "width": 1440,
+    "file": "screens/officer__home@1440.jpg",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/map",
+    "width": 1440,
+    "file": "screens/officer__map@1440.jpg",
+    "h1": [],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 1440,
+    "file": "screens/officer__search_q_TN-CHN-0042-1187@1440.jpg",
+    "h1": [
+      "Search parcels"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/officer",
+    "width": 1440,
+    "file": "screens/officer__officer@1440.jpg",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/officer/queue",
+    "width": 1440,
+    "file": "screens/officer__officer_queue@1440.jpg",
+    "h1": [
+      "Approval queue"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/officer/editor",
+    "width": 1440,
+    "file": "screens/officer__officer_editor@1440.jpg",
+    "h1": [
+      "Parcel editor"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/officer/audit",
+    "width": 1440,
+    "file": "screens/officer__officer_audit@1440.jpg",
+    "h1": [
+      "Audit log"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/officer/import",
+    "width": 1440,
+    "file": "screens/officer__officer_import@1440.jpg",
+    "h1": [
+      "Data import"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/officer/analytics",
+    "width": 1440,
+    "file": "screens/officer__officer_analytics@1440.jpg",
+    "h1": [
+      "State analytics"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "/officer/users",
+    "width": 1440,
+    "file": "screens/officer__officer_users@1440.jpg",
+    "h1": [
+      "Users and roles"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit"
+    ]
+  },
+  {
+    "role": "officer",
+    "route": "/bank",
+    "width": 1440,
+    "file": "screens/officer__bank@1440.jpg",
+    "h1": [
+      "Lender verification"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "route": "flow:map-parcel",
+    "width": 1440,
+    "file": "screens/officer__flow-map-parcel@1440.jpg",
+    "actions": [
+      "",
+      "QR passport",
+      "Read only",
+      "Report an issue with this parcel",
+      "Record",
+      "History",
+      "Audit hash chain"
+    ],
+    "pageWidth": 1440,
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "officer",
+    "roleTag": "Citizen"
+  },
+  {
+    "role": "bank",
+    "route": "/",
+    "width": 375,
+    "file": "screens/bank__home@375.jpg",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/map",
+    "width": 375,
+    "file": "screens/bank__map@375.jpg",
+    "h1": [],
+    "pageWidth": 465,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 375,
+    "file": "screens/bank__search_q_TN-CHN-0042-1187@375.jpg",
+    "h1": [
+      "Search parcels"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/officer",
+    "width": 375,
+    "file": "screens/bank__officer@375.jpg",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "warning: Firestore fetch requests notice: \nfalse for 'list' @ L252, false for 'list' @ L287",
+      "warning: Firestore fetch requests notice: \nfalse for 'list' @ L252, false for 'list' @ L287",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/parcels/requests/pending",
+      "403 GET http://localhost:8000/parcels/requests/pending"
+    ]
+  },
+  {
+    "role": "bank",
+    "route": "/officer/queue",
+    "width": 375,
+    "file": "screens/bank__officer_queue@375.jpg",
+    "h1": [
+      "Approval queue"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/officer/editor",
+    "width": 375,
+    "file": "screens/bank__officer_editor@375.jpg",
+    "h1": [
+      "Parcel editor"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/officer/audit",
+    "width": 375,
+    "file": "screens/bank__officer_audit@375.jpg",
+    "h1": [
+      "Audit log"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/officer/import",
+    "width": 375,
+    "file": "screens/bank__officer_import@375.jpg",
+    "h1": [
+      "Data import"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/officer/analytics",
+    "width": 375,
+    "file": "screens/bank__officer_analytics@375.jpg",
+    "h1": [
+      "State analytics"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/officer/users",
+    "width": 375,
+    "file": "screens/bank__officer_users@375.jpg",
+    "h1": [
+      "Users and roles"
+    ],
+    "pageWidth": 375,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/users"
+    ]
+  },
+  {
+    "role": "bank",
+    "route": "/bank",
+    "width": 375,
+    "file": "screens/bank__bank@375.jpg",
+    "h1": [
+      "Lender verification"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "flow:map-parcel",
+    "width": 375,
+    "file": "screens/bank__flow-map-parcel@375.jpg",
+    "actions": [
+      "",
+      "QR passport",
+      "Read only",
+      "Report an issue with this parcel",
+      "Record",
+      "History",
+      "Audit hash chain"
+    ],
+    "pageWidth": 465,
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/",
+    "width": 768,
+    "file": "screens/bank__home@768.jpg",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/map",
+    "width": 768,
+    "file": "screens/bank__map@768.jpg",
+    "h1": [],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 768,
+    "file": "screens/bank__search_q_TN-CHN-0042-1187@768.jpg",
+    "h1": [
+      "Search parcels"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/officer",
+    "width": 768,
+    "file": "screens/bank__officer@768.jpg",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "warning: Firestore fetch requests notice: \nfalse for 'list' @ L252, false for 'list' @ L287",
+      "warning: Firestore fetch requests notice: \nfalse for 'list' @ L252, false for 'list' @ L287",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/parcels/requests/pending",
+      "403 GET http://localhost:8000/parcels/requests/pending"
+    ]
+  },
+  {
+    "role": "bank",
+    "route": "/officer/queue",
+    "width": 768,
+    "file": "screens/bank__officer_queue@768.jpg",
+    "h1": [
+      "Approval queue"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/officer/editor",
+    "width": 768,
+    "file": "screens/bank__officer_editor@768.jpg",
+    "h1": [
+      "Parcel editor"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/officer/audit",
+    "width": 768,
+    "file": "screens/bank__officer_audit@768.jpg",
+    "h1": [
+      "Audit log"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/officer/import",
+    "width": 768,
+    "file": "screens/bank__officer_import@768.jpg",
+    "h1": [
+      "Data import"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/officer/analytics",
+    "width": 768,
+    "file": "screens/bank__officer_analytics@768.jpg",
+    "h1": [
+      "State analytics"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/officer/users",
+    "width": 768,
+    "file": "screens/bank__officer_users@768.jpg",
+    "h1": [
+      "Users and roles"
+    ],
+    "pageWidth": 768,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit"
+    ]
+  },
+  {
+    "role": "bank",
+    "route": "/bank",
+    "width": 768,
+    "file": "screens/bank__bank@768.jpg",
+    "h1": [
+      "Lender verification"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "flow:map-parcel",
+    "width": 768,
+    "file": "screens/bank__flow-map-parcel@768.jpg",
+    "actions": [
+      "",
+      "QR passport",
+      "Read only",
+      "Report an issue with this parcel",
+      "Record",
+      "History",
+      "Audit hash chain"
+    ],
+    "pageWidth": 768,
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/",
+    "width": 1440,
+    "file": "screens/bank__home@1440.jpg",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/map",
+    "width": 1440,
+    "file": "screens/bank__map@1440.jpg",
+    "h1": [],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 1440,
+    "file": "screens/bank__search_q_TN-CHN-0042-1187@1440.jpg",
+    "h1": [
+      "Search parcels"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/officer",
+    "width": 1440,
+    "file": "screens/bank__officer@1440.jpg",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "warning: Firestore fetch requests notice: \nfalse for 'list' @ L252, false for 'list' @ L287",
+      "warning: Firestore fetch requests notice: \nfalse for 'list' @ L252, false for 'list' @ L287",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/parcels/requests/pending",
+      "403 GET http://localhost:8000/parcels/requests/pending"
+    ]
+  },
+  {
+    "role": "bank",
+    "route": "/officer/queue",
+    "width": 1440,
+    "file": "screens/bank__officer_queue@1440.jpg",
+    "h1": [
+      "Approval queue"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/officer/editor",
+    "width": 1440,
+    "file": "screens/bank__officer_editor@1440.jpg",
+    "h1": [
+      "Parcel editor"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/officer/audit",
+    "width": 1440,
+    "file": "screens/bank__officer_audit@1440.jpg",
+    "h1": [
+      "Audit log"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/officer/import",
+    "width": 1440,
+    "file": "screens/bank__officer_import@1440.jpg",
+    "h1": [
+      "Data import"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/officer/analytics",
+    "width": 1440,
+    "file": "screens/bank__officer_analytics@1440.jpg",
+    "h1": [
+      "State analytics"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "/officer/users",
+    "width": 1440,
+    "file": "screens/bank__officer_users@1440.jpg",
+    "h1": [
+      "Users and roles"
+    ],
+    "pageWidth": 1440,
+    "denied": "Your account role does not include this page. Roles are assigned by the state land records office.",
+    "console": [
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "http": [
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit",
+      "403 GET http://localhost:8000/admin/users",
+      "403 GET http://localhost:8000/admin/audit"
+    ]
+  },
+  {
+    "role": "bank",
+    "route": "/bank",
+    "width": 1440,
+    "file": "screens/bank__bank@1440.jpg",
+    "h1": [
+      "Lender verification"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "route": "flow:map-parcel",
+    "width": 1440,
+    "file": "screens/bank__flow-map-parcel@1440.jpg",
+    "actions": [
+      "",
+      "QR passport",
+      "Read only",
+      "Report an issue with this parcel",
+      "Record",
+      "History",
+      "Audit hash chain"
+    ],
+    "pageWidth": 1440,
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "bank",
+    "roleTag": "Citizen"
+  },
+  {
+    "role": "super_admin",
+    "route": "/",
+    "width": 375,
+    "file": "screens/super_admin__home@375.jpg",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/map",
+    "width": 375,
+    "file": "screens/super_admin__map@375.jpg",
+    "h1": [],
+    "pageWidth": 465,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 375,
+    "file": "screens/super_admin__search_q_TN-CHN-0042-1187@375.jpg",
+    "h1": [
+      "Search parcels"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/officer",
+    "width": 375,
+    "file": "screens/super_admin__officer@375.jpg",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/officer/queue",
+    "width": 375,
+    "file": "screens/super_admin__officer_queue@375.jpg",
+    "h1": [
+      "Approval queue"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/officer/editor",
+    "width": 375,
+    "file": "screens/super_admin__officer_editor@375.jpg",
+    "h1": [
+      "Parcel editor"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/officer/audit",
+    "width": 375,
+    "file": "screens/super_admin__officer_audit@375.jpg",
+    "h1": [
+      "Audit log"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/officer/import",
+    "width": 375,
+    "file": "screens/super_admin__officer_import@375.jpg",
+    "h1": [
+      "Data import"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/officer/analytics",
+    "width": 375,
+    "file": "screens/super_admin__officer_analytics@375.jpg",
+    "h1": [
+      "State analytics"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/officer/users",
+    "width": 375,
+    "file": "screens/super_admin__officer_users@375.jpg",
+    "h1": [
+      "Users and roles"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/bank",
+    "width": 375,
+    "file": "screens/super_admin__bank@375.jpg",
+    "h1": [
+      "Lender verification"
+    ],
+    "pageWidth": 375,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "flow:map-parcel",
+    "width": 375,
+    "file": "screens/super_admin__flow-map-parcel@375.jpg",
+    "actions": [
+      "",
+      "QR passport",
+      "Reshape boundary",
+      "Request archival",
+      "Split parcel",
+      "Merge with neighbour",
+      "Report an issue with this parcel",
+      "Record",
+      "History",
+      "Audit hash chain"
+    ],
+    "pageWidth": 465,
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/",
+    "width": 768,
+    "file": "screens/super_admin__home@768.jpg",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/map",
+    "width": 768,
+    "file": "screens/super_admin__map@768.jpg",
+    "h1": [],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 768,
+    "file": "screens/super_admin__search_q_TN-CHN-0042-1187@768.jpg",
+    "h1": [
+      "Search parcels"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/officer",
+    "width": 768,
+    "file": "screens/super_admin__officer@768.jpg",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/officer/queue",
+    "width": 768,
+    "file": "screens/super_admin__officer_queue@768.jpg",
+    "h1": [
+      "Approval queue"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/officer/editor",
+    "width": 768,
+    "file": "screens/super_admin__officer_editor@768.jpg",
+    "h1": [
+      "Parcel editor"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/officer/audit",
+    "width": 768,
+    "file": "screens/super_admin__officer_audit@768.jpg",
+    "h1": [
+      "Audit log"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/officer/import",
+    "width": 768,
+    "file": "screens/super_admin__officer_import@768.jpg",
+    "h1": [
+      "Data import"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/officer/analytics",
+    "width": 768,
+    "file": "screens/super_admin__officer_analytics@768.jpg",
+    "h1": [
+      "State analytics"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/officer/users",
+    "width": 768,
+    "file": "screens/super_admin__officer_users@768.jpg",
+    "h1": [
+      "Users and roles"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/bank",
+    "width": 768,
+    "file": "screens/super_admin__bank@768.jpg",
+    "h1": [
+      "Lender verification"
+    ],
+    "pageWidth": 768,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "flow:map-parcel",
+    "width": 768,
+    "file": "screens/super_admin__flow-map-parcel@768.jpg",
+    "actions": [
+      "",
+      "QR passport",
+      "Reshape boundary",
+      "Request archival",
+      "Split parcel",
+      "Merge with neighbour",
+      "Report an issue with this parcel",
+      "Record",
+      "History",
+      "Audit hash chain"
+    ],
+    "pageWidth": 768,
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/",
+    "width": 1440,
+    "file": "screens/super_admin__home@1440.jpg",
+    "h1": [
+      "Compare one parcel's land records across five departments."
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/map",
+    "width": 1440,
+    "file": "screens/super_admin__map@1440.jpg",
+    "h1": [],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/search?q=TN-CHN-0042-1187",
+    "width": 1440,
+    "file": "screens/super_admin__search_q_TN-CHN-0042-1187@1440.jpg",
+    "h1": [
+      "Search parcels"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/officer",
+    "width": 1440,
+    "file": "screens/super_admin__officer@1440.jpg",
+    "h1": [
+      "Officer dashboard"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/officer/queue",
+    "width": 1440,
+    "file": "screens/super_admin__officer_queue@1440.jpg",
+    "h1": [
+      "Approval queue"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/officer/editor",
+    "width": 1440,
+    "file": "screens/super_admin__officer_editor@1440.jpg",
+    "h1": [
+      "Parcel editor"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/officer/audit",
+    "width": 1440,
+    "file": "screens/super_admin__officer_audit@1440.jpg",
+    "h1": [
+      "Audit log"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/officer/import",
+    "width": 1440,
+    "file": "screens/super_admin__officer_import@1440.jpg",
+    "h1": [
+      "Data import"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/officer/analytics",
+    "width": 1440,
+    "file": "screens/super_admin__officer_analytics@1440.jpg",
+    "h1": [
+      "State analytics"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/officer/users",
+    "width": 1440,
+    "file": "screens/super_admin__officer_users@1440.jpg",
+    "h1": [
+      "Users and roles"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "/bank",
+    "width": 1440,
+    "file": "screens/super_admin__bank@1440.jpg",
+    "h1": [
+      "Lender verification"
+    ],
+    "pageWidth": 1440,
+    "denied": "",
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "route": "flow:map-parcel",
+    "width": 1440,
+    "file": "screens/super_admin__flow-map-parcel@1440.jpg",
+    "actions": [
+      "",
+      "QR passport",
+      "Reshape boundary",
+      "Request archival",
+      "Split parcel",
+      "Merge with neighbour",
+      "Report an issue with this parcel",
+      "Record",
+      "History",
+      "Audit hash chain"
+    ],
+    "pageWidth": 1440,
+    "console": [],
+    "http": []
+  },
+  {
+    "role": "super_admin",
+    "roleTag": "Super Administrator"
+  }
+]
