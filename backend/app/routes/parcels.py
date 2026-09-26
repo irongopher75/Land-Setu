@@ -312,13 +312,17 @@ class CreateCustomParcelRequest(BaseModel):
     state: Optional[str] = Field(default=None, max_length=80)
     area_sqm: Optional[float] = None
 
+# Who may file a boundary marking. Lenders and citizens may not; a citizen reports a problem through a correction.
+BOUNDARY_FILERS = ("village_officer", "officer", "auditor", "state_admin")
+
+
 @router.post("/custom")
 def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get_current_role),
                          actor: dict = Depends(get_current_payload), db: Session = Depends(get_db)):
-    if role == "citizen":
+    if role not in BOUNDARY_FILERS and role != "super_admin":
         raise HTTPException(
             status_code=403,
-            detail="Permission denied: Citizens are in Read-Only mode and cannot mark or reshape land boundaries. Please switch to Revenue Officer role."
+            detail="Only land officers can mark or reshape a boundary. To report a wrong boundary, file a correction on the parcel."
         )
 
     from app.db import IS_SQLITE

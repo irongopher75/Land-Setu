@@ -121,7 +121,8 @@ def create_merge_request(ulpin: str, body: MergeRequest,
 
 @router.post("/{ulpin}/correction-request")
 def create_correction_request(ulpin: str, body: CorrectionRequest,
-                              role: str = Depends(get_current_role), actor: dict = Depends(get_current_payload),
+                              role: str = Depends(require_roles("citizen", "village_officer", "officer", "auditor", "state_admin")),
+                              actor: dict = Depends(get_current_payload),
                               db: Session = Depends(get_db)):
     parcel = _get_parcel(db, ulpin, active_only=True)
     _reject_duplicate(db, ulpin, "CORRECTION")

@@ -375,3 +375,13 @@ def test_audit_log_viewer_endpoint_filters_and_paginates(client):
     one = client.get("/parcels/audit-log?ulpin=TN-CHN-0042-1187&event=imported", headers=hdr("auditor", "au-al")).json()
     assert one["total"] >= 1 and all(i["ulpin"] == "TN-CHN-0042-1187" and i["event"] == "imported" for i in one["items"])
     assert "uid" not in str(page["items"][0].keys())
+
+
+def test_a_lender_cannot_file_boundary_or_correction_requests(client):
+    assert file_boundary(client, "TB-BANK-1", square(77.72, 11.00)).status_code == 200   # sanity: officers can
+    r = client.post("/parcels/custom", headers=hdr("bank", "bank-f"),
+                    json={"ulpin": "TB-BANK-2", "owner_name": "X", "geometry": square(77.74, 11.00)})
+    assert r.status_code == 403
+    r = client.post("/parcels/TN-CHN-0042-1187/correction-request", headers=hdr("bank", "bank-f"),
+                    json={"layer": "ror", "field": "owner_name", "requested_value": "Someone", "requested_by": "Bank"})
+    assert r.status_code == 403
