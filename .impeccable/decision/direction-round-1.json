@@ -1,0 +1,138 @@
+{
+  "title": "Choose the visual world for LandSetu",
+  "question": "The roll assigned the Gazette Notice direction. Keep it, take an alternate, or re-roll.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "Gazette Notice",
+      "kicker": "THE ROLL",
+      "lineage": "bilingual official gazettes and their notified schedules",
+      "thesis": "Every parcel reads as a numbered notice: each value is a clause that cites the authority behind it.",
+      "palette": ["#FAFAF7", "#141414", "#1F6B45", "#1E4F91", "#9A5B00", "#6E6E6E"],
+      "materials": ["ruled newsprint columns", "stacked bilingual headings", "numbered clauses"],
+      "viewport": "Map framed as a notified schedule with a numbered legend in the margin; the parcel panel opens as a notice whose clauses each end in their source.",
+      "risk": "A gazette look could be mistaken for an official notification, so it uses no emblem, no notification numbers, and a prototype masthead on every screen.",
+      "raised": [
+        {"from": "challenger-wayfinding", "raise": "Each provenance colour is reserved for its one meaning and appears nowhere else in the interface."},
+        {"from": "challenger-oscilloscope", "raise": "The map carries a measured frame: scale bar, live coordinates and a grid tied to real metres."},
+        {"from": "challenger-datamatics", "raise": "ULPINs, areas and tax values are set in tabular figures so columns line up."},
+        {"from": "challenger-quote-grammar", "raise": "Every empty, missing and refused state is named literally, in plain words."},
+        {"from": "challenger-elbow-panel", "raise": "The ruled frame is the layout grid: map, legend and notice sit in fixed ruled bays."}
+      ],
+      "wireframe": {"cols": 12, "rows": 10, "regions": [
+        {"label": "masthead + prototype label", "x": 0, "y": 0, "w": 12, "h": 1, "accent": true},
+        {"label": "schedule legend", "x": 0, "y": 1, "w": 2, "h": 9},
+        {"label": "map (schedule plate)", "x": 2, "y": 1, "w": 6, "h": 8},
+        {"label": "scale + coordinates", "x": 2, "y": 9, "w": 6, "h": 1},
+        {"label": "parcel notice: numbered clauses with source", "x": 8, "y": 1, "w": 4, "h": 9, "accent": true}
+      ]}
+    },
+    {
+      "id": "model-pick",
+      "label": "Registry Stamp",
+      "kicker": "IMPECCABLE’S PICK",
+      "lineage": "sub-registrar and revenue office stamps, seals and initials",
+      "thesis": "Every value carries the stamp of whoever attests it: department seal, officer initial or none.",
+      "palette": ["#F4F6F8", "#1B2430", "#1F6B45", "#5B3E96", "#9A5B00"],
+      "materials": ["rubber-stamp impressions", "ruled register pages", "ink seals"],
+      "viewport": "Map beside a register page; each field sits on a ruled line with its stamp at the line end.",
+      "risk": "Rubber stamps are the familiar shorthand for anything official and can slide into decoration."
+    },
+    {
+      "id": "challenger-wayfinding",
+      "label": "Terminal Wayfinding",
+      "verdict": "competitive",
+      "lineage": "international airport sign systems",
+      "thesis": "The workspace as a chain of decision points, each showing only the choices ahead.",
+      "palette": ["#FFD100", "#111111", "#FFFFFF"],
+      "materials": ["overhead sign bands", "pictogram insets"],
+      "viewport": "A yellow band over the map naming the state and the next action.",
+      "case": "Strong on clarity for citizens, weaker on audience identification for revenue officers.",
+      "risk": "Saturated yellow competes with parcel colours on the map.",
+      "kept": "One colour reserved for one meaning.",
+      "hero": "https://impeccable.style/worlds/cards/wayfinding-cartography-signage-terminal-yellow-wayfinding-hero.webp"
+    },
+    {
+      "id": "challenger-oscilloscope",
+      "label": "Signal Bench",
+      "verdict": "declined",
+      "lineage": "CRT oscilloscope graticules",
+      "thesis": "Everything measured against a fixed graticule.",
+      "palette": ["#0B0F0C", "#39FF6A", "#FFB000"],
+      "materials": ["phosphor trace", "etched grid"],
+      "viewport": "Parcels as traces on a dark measured grid.",
+      "case": "Loses both axes: dark lab-bench glow reads technical, not public record.",
+      "risk": "Neon on black is explicitly out of tone.",
+      "kept": "A measured frame: scale and coordinates always on the map.",
+      "hero": "https://impeccable.style/worlds/cards/scientific-notation-oscilloscope-signal-bench-hero.webp"
+    },
+    {
+      "id": "challenger-datamatics",
+      "label": "Datamatics Field",
+      "verdict": "declined",
+      "lineage": "black-and-white data art",
+      "thesis": "Records as dense barcode columns.",
+      "palette": ["#000000", "#FFFFFF"],
+      "materials": ["hairline bars", "monospace numerics"],
+      "viewport": "A barcode field of parcels.",
+      "case": "Loses both axes: strobing data art undermines calm legibility.",
+      "risk": "Unreadable for citizens.",
+      "kept": "Tabular figures for every number.",
+      "hero": "https://impeccable.style/worlds/cards/ikeda-datamatics-hero.webp"
+    },
+    {
+      "id": "challenger-quote-grammar",
+      "label": "Quoted Labels",
+      "verdict": "declined",
+      "lineage": "industrial streetwear labelling",
+      "thesis": "Name the obvious, literally.",
+      "palette": ["#FFFFFF", "#111111", "#FF6A00"],
+      "materials": ["hazard stripes", "zip-tie tags"],
+      "viewport": "Quoted zone labels over the map.",
+      "case": "Loses both axes: fashion irony is wrong for a land record.",
+      "risk": "Reads as a joke.",
+      "kept": "Plain, literal names for every state.",
+      "hero": "https://impeccable.style/worlds/cards/textiles-weave-drape-fashion-industrial-quote-grammar-hero.webp"
+    },
+    {
+      "id": "challenger-elbow-panel",
+      "label": "Elbow Panel",
+      "verdict": "declined",
+      "lineage": "starship wall-panel interfaces",
+      "thesis": "The frame itself is the layout grid.",
+      "palette": ["#000000", "#C9A0DC", "#FFB38A", "#E5B84B"],
+      "materials": ["pill segments", "colour banks"],
+      "viewport": "Colour-bank frame around the map.",
+      "case": "Loses both axes: pop-culture console, pastel on black.",
+      "risk": "Out of tone and not colourblind-safe.",
+      "kept": "A fixed ruled frame organises the workspace.",
+      "hero": "https://impeccable.style/worlds/cards/pop-culture-shelf-elbow-panel-console-hero.webp"
+    },
+    {
+      "id": "challenger-cloud-quarry",
+      "label": "Cloud Quarry",
+      "verdict": "declined",
+      "lineage": "surreal constructed weather",
+      "thesis": "Blocks cut, lifted and joined.",
+      "palette": ["#F4F7FB", "#7FB3E6", "#8A8F98"],
+      "materials": ["cumulus blocks", "saw line"],
+      "viewport": "Parcels as cut cloud blocks.",
+      "case": "Loses both axes: dissolving architecture contradicts a permanent record.",
+      "risk": "Metaphor fights the product's claim of permanence.",
+      "kept": "Measurements stated beside every block.",
+      "hero": "https://impeccable.style/worlds/cards/dream-surreal-impossible-worlds-cloud-quarry-hero.webp"
+    }
+  ],
+  "reroll": {"registers": ["safer", "bolder"]},
+  "buildPath": {"value": "code", "toggle": false},
+  "canon": true,
+  "canonCard": {
+    "label": "The category standard",
+    "thesis": "A GIGW-style government portal, executed with full craft.",
+    "palette": ["#FFFFFF", "#0B3D91", "#FF9933", "#138808"],
+    "materials": ["header band", "card grid", "tricolour accent"],
+    "viewport": "Blue header, service cards, map in a card.",
+    "risk": "Indistinguishable from every portal by design."
+  },
+  "steer": true
+}
