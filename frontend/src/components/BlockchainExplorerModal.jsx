@@ -5,6 +5,7 @@ import { getAuditChain } from '../api';
 const EVENT_LABEL = {
   imported: 'Record loaded', created: 'Created', submitted: 'Change requested', under_review: 'Passed a review stage',
   approved: 'Approved', rejected: 'Rejected', archived: 'Archived', superseded: 'Replaced by another parcel',
+  geometry_corrected: 'Seed boundary drawing corrected to the recorded extent',
 };
 const ROLE_LABEL = {
   system: 'System', citizen: 'Citizen', village_officer: 'Village land officer', auditor: 'Auditor',

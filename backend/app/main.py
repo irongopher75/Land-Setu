@@ -10,6 +10,7 @@ from app.schema_upgrade import upgrade_schema
 from app.security import SecurityMiddleware
 from app.audit import install_append_only_guard, backfill_imported
 from app.intelligence.seed_history import backfill_seed_history, plant_fixtures
+from app.seed_corrections import correct_seed_geometry
 from app.db import SessionLocal
 
 _production = os.getenv("ENVIRONMENT", "").lower() == "production"
@@ -61,6 +62,9 @@ def startup_db_event():
             backfill_seed_history(db)
             plant_fixtures(db)
             backfill_imported(db)
+            corrected = correct_seed_geometry(db)
+            if corrected:
+                print(f"Corrected seed geometry for {len(corrected)} parcels; cached rule flags cleared.")
     except Exception as e:
         print(f"Startup DB Initialization Notice: {type(e).__name__}")
 
