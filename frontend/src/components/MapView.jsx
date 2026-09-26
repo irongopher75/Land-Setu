@@ -187,8 +187,10 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
   const userLocLayerRef = useRef(null);
 
   const stateCenters = {
-    TamilNadu: { center: [13.084, 80.274], zoom: 15 },
-    Chandigarh: { center: [30.735, 76.778], zoom: 15 },
+    // Pilot states open on their seeded plots at a zoom where real-size plots (15 to 20 m frontage) are visible.
+    // Kept in step with backend/scripts/generate_seed_geometry.py.
+    TamilNadu: { center: [13.0833, 80.2720], zoom: 17 },
+    Chandigarh: { center: [30.7347, 76.7838], zoom: 17 },
     Maharashtra: { center: [19.076, 72.877], zoom: 14 },
     Karnataka: { center: [12.971, 77.594], zoom: 14 },
     Delhi: { center: [28.613, 77.209], zoom: 14 },
