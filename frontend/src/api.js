@@ -859,12 +859,15 @@ export const getRawSamples = async () => {
 
 // A boundary marking is always a request decided by the records service, for every role. There is no offline
 // path: an approval step that ran only in this browser would skip every review rule.
-// The service computes the parcel's area and state from the geometry; the browser's estimates are for display only.
+// The service computes the parcel's area and state from the geometry. The browser's area estimate is still
+// sent because API versions before 05bc7b3 require the field; current versions ignore it. State is not sent,
+// so every API version detects it on the server.
 export const createCustomParcel = (parcelData) =>
   restPost('/parcels/custom', 'Filing a boundary request', {
     ulpin: parcelData.ulpin,
     owner_name: parcelData.owner_name,
     geometry: parcelData.geometry,
+    area_sqm: parcelData.area_estimate_sqm,
   });
 
 export const getAllStates = async () => {

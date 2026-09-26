@@ -701,6 +701,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
         ulpin: customUlpin,
         owner_name: customOwner,
         geometry: geojsonPolygon,
+        area_estimate_sqm: calculatePolygonAreaSqm(vertices),
       });
 
       alert(result.message);
