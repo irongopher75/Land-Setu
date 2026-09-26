@@ -1,6 +1,6 @@
 # LandSetu security and correctness posture
 
-**Re-verified:** 26 September 2026, against `main` at `acdc640`.
+**Re-verified:** 26 September 2026, against `main` at `acdc640`. **Updated** the same day for the trust-boundary fixes (`247446d`, `94360b0`, `05bc7b3`, `62c3c3e`).
 **Replaces:** the original point-in-time audit (`audit.md`, not tracked) and the open items listed in `SKILLS.md`. Those documents are now stale in several places. This file is the current source of truth until it is merged into the Standard Technical Document.
 
 ## Method
@@ -119,7 +119,11 @@ curl -si -X POST https://landsetu-api.onrender.com/auth/mock-login \
 
 ### B2. Flat-degree overlap area vs. Turf.js geodesic area (TN-CHN-0042-1187: 5,860 m² overlap on a 452 m² parcel)
 
-**Status: The area formula is fixed. The live symptom is a different bug, a data-integrity one, and it is Open.**
+**Status: The area formula is fixed. Of the three problems behind the live symptom, parts 2 and 3 are Fixed (`62c3c3e`, `05bc7b3`). Part 1, the seed data, is Open, and the list of affected parcels is below.**
+
+- **Part 2 fixed in `62c3c3e`.** `RuleEngine._check_area_consistency` raises an `area_mismatch` flag when the difference between boundary area and recorded extent, divided by the recorded extent, exceeds `AREA_MISMATCH_TOLERANCE` (default `0.10`, set by environment variable). Alembic `0007` clears cached flags so existing databases evaluate it.
+- **Part 3 fixed in `05bc7b3`.** Area is computed on the server from the polygon at filing and again at approval. The client value is ignored, and so is any value already stored on the request. The source record's extent is kept in `layers.ror.recorded_extent_sqm` before `area_sqm` is replaced.
+- **Part 1 open (data fix, not scheduled here).** `scripts/validate_seed_geometry.py` reports **all 46 seeded parcels** outside the 10% tolerance: 17 Chennai and Chandigarh parcels at 74× to 157×, 25 Kanchipuram fixtures at 10×, two at 6×, and two at 0.8×. Every seeded parcel therefore shows an `area_mismatch` flag until the geometry is regenerated.
 
 **The area formula is correct.**
 
@@ -151,7 +155,14 @@ The UI shows `area_sqm` with no label for which of the two figures it is (Phase 
 
 ### B3. Bounding-box state detection misassigns parcels near state borders
 
-**Status: Partially mitigated. The backend uses point-in-polygon. The frontend is still bounding-box first, and its answer is the one that gets saved.**
+**Status: Partially mitigated. The persisted state is Fixed in `05bc7b3`; the frontend's bounding-box guess no longer reaches the database. The frontend still uses bounding boxes to decide which state the map shows while panning, and the state outlines are still hand-drawn.**
+
+`05bc7b3`: `server_area_and_state()` derives the state from the polygon's centroid by point-in-polygon, at filing and at approval. The client's `state` is ignored.
+
+- A ULPIN whose state code names another state is refused (409).
+- An approval that would move an existing parcel to another state is refused (409).
+- The frontend no longer sends `state`. After filing, it switches the map to the state the service returned.
+- Remaining work: make `identifyStateByCoords` call the backend first, and use official boundaries.
 
 **Backend (fixed in principle).** `backend/app/states.py:185-205` (`detect_state_from_coords`) does Shapely point-in-polygon, then falls back to the nearest polygon by distance. Remaining gaps:
 
@@ -239,9 +250,24 @@ The public search (`routes/workflow.py:198-207`) filters with `ilike` on `layers
 
 ### C4. Firestore rules let officers bypass the backend approval workflow
 
-**Status: Open. This is new; it was hidden behind the "rules are open" finding that has since been fixed.**
+**Status: Fixed in `247446d` for every path that sets a parcel's live state. One sub-item (`deed_blockchain`) remains open. The fix is in source; deploying the rules is a separate step (see A1 for the live check).**
 
-The rules check roles, but they do not enforce the workflow the backend enforces:
+`247446d`: `custom_parcels` is read-only for every client role, and deletion markers need a boundary request that reached `DELETED` for the same ULPIN. Requests are filed only at their first stage and move one stage at a time, by that stage's reviewer, never by the filer. Only `state_admin` and `super_admin` can finalise. Proven by 30 emulator tests in `tests/firestore-rules/rules.test.mjs` (`62c3c3e`).
+
+What changed, item by item:
+
+- **`custom_parcels`:** `allow create, update, delete: if false`. Only the records service (Admin SDK) writes a live parcel. The frontend no longer writes it, and it refuses to "approve" a request that exists only in the browser copy.
+- **`deleted_parcels`:** `create` needs `isAdminOrAuditor()` and `isPipelineDeletion()`, which is a `requestId` pointing at a `boundary_requests` document with `status == 'DELETED'` and the same `ulpin`. `update` and `delete` are `false`.
+- **`boundary_requests`:**
+  - Create needs `requesterUid == request.auth.uid`, no decision fields, and a first-stage status only.
+  - Updates may change only `status`, `approverRole` and `approvedAt`, and `approverRole` must equal the caller's role claim.
+  - The filer cannot decide. `isAllowedTransition()` mirrors `STAGE_REVIEWERS` in `backend/app/permissions.py`.
+  - `delete` is `false`.
+- **`protected_zones`:** edits by state admin only.
+- **Still open:** in `deed_blockchain`, any officer can still append a block with arbitrary hashes. It does not change a parcel's live record, but it weakens the "tamper-evident" display. Target: make it Admin-SDK-only like `custom_parcels`.
+- **Side effect:** the Firestore seed scripts (`frontend/src/seedCloudFirestore.mjs`, `seedAllLegacyDataToFirestore.mjs`) use the client SDK. Under the new rules they can only write through the Admin SDK or the emulator.
+
+Original finding, for the record. The rules checked roles, but they did not enforce the workflow the backend enforces:
 
 - **`custom_parcels`.** Any governance officer, including a `village_officer`, may create or update any parcel directly (`firestore.rules`, `match /custom_parcels`). The map merges these documents into every signed-in user's view (`api.js:196-216` `getApprovedCustomParcels`, used by `MapView.jsx:552`). A single officer can therefore publish a boundary without the village, auditor and state-admin approvals the backend requires (`routes/parcels.py:327-331`: "Nobody, whatever their role, saves a boundary directly").
 - **`deleted_parcels`.** An auditor or state admin may create an entry directly, and the map then hides that parcel for everyone. The backend's two-stage deletion is bypassed.
@@ -251,15 +277,34 @@ The rules check roles, but they do not enforce the workflow the backend enforces
   - Nothing stops a writer approving their own request, which the backend forbids.
 - **`deed_blockchain`.** Any officer can append a block with arbitrary `prevHash` and `currentHash`, so the "tamper-evident" chain in Firestore can be forged.
 
-**Targets:**
-- Preferred: make Firestore read-only for these collections. Set `allow write: if false`, and have the backend (Admin SDK) be the only writer, matching the main document's statement that PostgreSQL is authoritative.
-- Otherwise: add previous-status checks (`resource.data.status`), immutability of identity fields, and a requester-not-approver check. Stop the map merging `custom_parcels` into the authoritative view.
+**Targets (as written before the fix):**
+- Preferred: make Firestore read-only for these collections. Set `allow write: if false`, and have the backend (Admin SDK) be the only writer, matching the main document's statement that PostgreSQL is authoritative. *Done for `custom_parcels`.*
+- Otherwise: add previous-status checks (`resource.data.status`), immutability of identity fields, and a requester-not-approver check. *Done for `boundary_requests` and `deleted_parcels`.*
 
 ### C5. Approving a new parcel invents "verified" departmental records
 
-**Status: Open. This is a data-integrity problem.**
+**Status: Fixed in `94360b0`.**
 
-`backend/app/routes/parcels.py:597-604`. When a boundary request for a *new* ULPIN is approved, the handler writes placeholder layers and marks them `"confidence": "verified"`:
+`94360b0`: approving a new ULPIN now writes every departmental layer empty, with `confidence: "unverified"`. Owner, zoning, tax, permit and encumbrance are `None`. The typed name is kept only as `ror.claimed_owner_name`, which is hidden from citizens.
+
+Every other `"verified"` literal was checked:
+
+- **Adapter (`backend/app/adapter.py`, `_enrich_layers`):** a layer is labelled `verified` only when the source record supplied its value and that value is current. Missing values are `unverified`. An undated RoR, registration or tax record is `stale`. The invented RoR date `2022-01-01` and the default "no encumbrance" are removed. Seed confidence labels are unchanged.
+- **Frontend:** the offline sample records and the offline adapter preview in `api.js` are labelled `unverified_placeholder`. The browser-only approval path that built a "verified" parcel was removed in `247446d`.
+- **`ConfidenceBadge.jsx`:** no longer shows a missing or unknown confidence as Verified.
+- **`ParcelPanel.jsx`:** shows an unknown encumbrance status as unknown, not as "None on record".
+
+Tested in `backend/tests/test_trust_boundary.py` (`62c3c3e`).
+
+**Remaining literals, reviewed and left in place:**
+- `routes/parcels.py:222`, where `"verified"` is the audit-chain check result, not a data label.
+- The test fixture in `backend/tests/conftest.py`.
+- CSS tone classes.
+- The Firestore seed scripts, which carry sample source records.
+
+**Not changed:** an approved correction request (`workflow.py`, CORRECTION) writes the corrected field but leaves that layer's earlier confidence label. Whether an officer-approved correction counts as "verified" is a policy decision.
+
+Original finding, for the record. `backend/app/routes/parcels.py:597-604`. When a boundary request for a *new* ULPIN is approved, the handler writes placeholder layers and marks them `"confidence": "verified"`:
 
 - `ror.owner_name` is set to the requester's free-text `owner_name`;
 - zoning is fixed as `"residential"`;
@@ -341,6 +386,10 @@ Whether owner names should be public is a policy question. Some states publish R
 - Silent SQLite fallback (A4, opt-in only).
 - Flat-degree area maths (B2). The formula was never the cause of the live symptom.
 - Missing geometry and size validation (D).
+- Officers writing live parcel state through Firestore (C4, `247446d`). The `deed_blockchain` sub-item is still open.
+- Approval inventing "verified" departmental records (C5, `94360b0`).
+- Client-supplied area and state stored as authoritative (B2 part 3 and B3 persisted state, `05bc7b3`).
+- No check between recorded extent and boundary area (B2 part 2, `62c3c3e`).
 - Vite dev server in the container (D).
 - Map `moveend` not debounced (D).
 
@@ -349,11 +398,11 @@ Whether owner names should be public is a policy question. Some states publish R
 This ranking judges impact on a land registry, not how serious each item sounded in the original audit.
 
 1. **The map shows the wrong set of parcels (C1).** This is the most serious open item even though no original audit raised it. It silently shows an incomplete map with no warning, and officers act on what the map shows. Every other safeguard (overlap flags, approvals) is only as good as the parcels actually drawn.
-2. **Officers can bypass the approval workflow through Firestore (C4).** A single village officer can publish a boundary that every signed-in user sees. An auditor can hide a parcel. Both skip the multi-stage approvals the backend enforces.
-3. **Approvals write unverified or client-supplied data as authoritative (C5, B2 part 3, B3 state write).** New parcels get invented "verified" departmental layers. Area and state are taken from the browser and never recomputed on the server. A bounding-box misdetection can move a parcel into the wrong state.
-4. **Recorded area and surveyed area disagree by up to 157× with no flag (B2 parts 1 and 2).** The seed data is synthetic, so the parcels themselves do not matter. The missing rule does: it is the check that would catch this in real data.
-5. **The old JWT secret is in public git history (A2).** High if any live environment ever used it, none otherwise. Resolved by one dashboard check or a rotation.
-6. **The frontend state detection is bounding-box based (B3).** Mostly covered by item 3 once the server derives the state. Also needs official boundary data.
+2. **The old JWT secret is in public git history (A2).** High if any live environment ever used it, none otherwise. Resolved by one dashboard check or a rotation.
+3. **The updated Firestore rules are not yet deployed.** Items C4 and C5 are fixed in source, but the live project still runs the old rules until `firebase deploy --only firestore:rules` is run. Use the check in A1 before and after deploying.
+4. **The seed geometry is out of scale (B2 part 1).** Every seeded parcel now carries an `area_mismatch` flag, so the demo map shows all parcels as flagged until `mock_data/*_geometries.geojson` is regenerated. The list is from `scripts/validate_seed_geometry.py`.
+5. **`deed_blockchain` appends are unrestricted for officers (C4 sub-item).** This affects the tamper-evident display, not the live parcel record.
+6. **The frontend state detection is bounding-box based (B3 remainder).** It now only decides which state the map shows. Official boundary data is still needed.
 7. **Anonymous owner-name enumeration (C7).** Needs a policy decision.
 8. **Production refusal for the SQLite fallback is not implemented (A4).** Configuration currently prevents it. Only a mistaken flag would re-open it.
 9. **`bank` and `officer` downgraded to the citizen UI (C3).** A functional gap; it fails closed.
