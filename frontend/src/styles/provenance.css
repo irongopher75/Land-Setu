@@ -1,0 +1,121 @@
+/*
+ * Provenance badges. One shape language for every state: a square-cornered label on a tinted field, a glyph,
+ * a word. States differ in hue, border style and glyph together:
+ *   verified              solid rule, green, BadgeCheck
+ *   officer_provided      double rule, blue, UserCheck
+ *   corrected_by_officer  dashed rule, vermillion, PencilLine
+ *   stale / self_declared / unverified / sample
+ *                         dotted rule, neutral ink, no tinted field, Clock / MessageSquareQuote / HelpCircle / FlaskConical
+ * Border style carries the distinction in greyscale and for colour-vision deficiencies.
+ */
+
+.ls-prov {
+  --prov-ink: var(--ls-unconfirmed);
+  --prov-tint: var(--ls-unconfirmed-tint);
+  --prov-border: dotted;
+
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 100%;
+  padding: 2px var(--ls-space-2);
+  border: var(--ls-rule-width) var(--prov-border) var(--prov-ink);
+  border-radius: var(--ls-radius-0);
+  background: var(--prov-tint);
+  color: var(--prov-ink);
+  font-family: var(--ls-font-ui);
+  font-size: var(--ls-text-xs);
+  line-height: var(--ls-leading-tight);
+  vertical-align: middle;
+}
+
+.ls-prov__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ls-space-1);
+  font-weight: var(--ls-weight-semibold);
+  /* Long labels in Hindi and Tamil wrap rather than overflow. */
+  overflow-wrap: anywhere;
+}
+
+.ls-prov__icon {
+  flex: none;
+}
+
+.ls-prov__detail {
+  color: var(--ls-ink);
+  font-weight: var(--ls-weight-regular);
+  line-height: var(--ls-leading);
+}
+
+.ls-prov--full {
+  display: flex;
+  padding: var(--ls-space-1) var(--ls-space-2);
+}
+
+.ls-prov--verified {
+  --prov-ink: var(--ls-verified);
+  --prov-tint: var(--ls-verified-tint);
+  --prov-border: solid;
+}
+
+.ls-prov--officer {
+  --prov-ink: var(--ls-officer);
+  --prov-tint: var(--ls-officer-tint);
+  --prov-border: double;
+  border-width: var(--ls-double-rule);
+}
+
+.ls-prov--corrected {
+  --prov-ink: var(--ls-corrected);
+  --prov-tint: var(--ls-corrected-tint);
+  --prov-border: dashed;
+}
+
+/* Legend: each state beside its meaning, ruled like notice clauses. */
+.ls-prov-legend {
+  margin: 0;
+  display: grid;
+  gap: 0;
+  font-family: var(--ls-font-ui);
+  font-size: var(--ls-text-sm);
+  color: var(--ls-ink);
+}
+
+.ls-prov-legend__row {
+  display: grid;
+  grid-template-columns: 15.5rem 1fr;   /* fits the longest label, so meanings align in one column */
+  gap: var(--ls-space-3);
+  align-items: start;
+  padding: var(--ls-space-2) 0;
+  border-top: var(--ls-hairline) solid var(--ls-rule);
+}
+
+.ls-prov-legend__row:first-child {
+  border-top: 0;
+}
+
+.ls-prov-legend dt,
+.ls-prov-legend dd {
+  margin: 0;
+}
+
+.ls-prov-legend dd {
+  line-height: var(--ls-leading);
+}
+
+@media (max-width: 480px) {
+  .ls-prov-legend__row {
+    grid-template-columns: 1fr;
+    gap: var(--ls-space-1);
+  }
+}
+
+/* Forced colours (Windows high contrast): keep the border styles, which carry the distinction there. */
+@media (forced-colors: active) {
+  .ls-prov {
+    border-color: CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+}

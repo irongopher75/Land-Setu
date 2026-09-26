@@ -1,0 +1,125 @@
+/*
+ * LandSetu design tokens: the Gazette Notice world.
+ *
+ * Every parcel reads as a numbered notice whose clauses cite their authority. Structure comes from rules,
+ * not cards or shadows. Colour exists only to carry provenance or a data-quality flag, and each hue is
+ * reserved for its one meaning. Every colour is paired with a glyph, a border style and a word, so no
+ * meaning depends on colour alone.
+ *
+ * Tokens are prefixed --ls- while the older interface variables in index.css are migrated surface by
+ * surface. docs/design-system.md documents their use.
+ *
+ * Contrast (WCAG 2.1): every text colour below is at least 5.2:1 on --ls-paper, --ls-paper-sunk and its own
+ * tint. Under simulated deuteranopia the verified green and the unconfirmed ink converge, so the badges also
+ * differ in fill (tinted vs none), border style and glyph. The five provenance/flag hues stay at least deltaE 9.8 apart under simulated deuteranopia,
+ * protanopia and tritanopia.
+ */
+
+:root {
+  /* Ground and ink. Light, from the use scene: citizens read on phones outdoors, officers work at
+     desktops under office light. */
+  --ls-paper: #FAFAF7;
+  --ls-paper-sunk: #F1F1EC;       /* table heads, wells, the map's ruled margin */
+  --ls-ink: #141414;              /* text and heavy rules; 17.6:1 on paper */
+  --ls-ink-muted: #4E4E4A;        /* secondary text; 8.0:1 on paper */
+  --ls-rule: #C4C4BC;             /* hairline rules between clauses (decorative, not a boundary) */
+  --ls-rule-strong: #141414;      /* bay rules and the masthead rule */
+  --ls-selection: #D9E6F2;
+
+  /* Provenance: where a value came from. Reserved; used for nothing else. */
+  --ls-verified: #00704F;         /* a department record, current */
+  --ls-verified-tint: #E2F1EA;
+  --ls-officer: #005A8C;          /* entered by the reviewing officer when approval created the parcel */
+  --ls-officer-tint: #E1EDF6;
+  --ls-corrected: #A33D00;        /* changed by an officer-approved correction */
+  --ls-corrected-tint: #F7E8DF;
+  --ls-unconfirmed: #3E3E3B;      /* stale, self-declared, unverified or sample: nothing current confirms it */
+  --ls-unconfirmed-tint: transparent; /* no field: only confirmed or disclosed provenance gets one, which keeps
+                                         verified and not-confirmed apart even where their hues converge */
+
+  /* Data-quality flag on a parcel (area mismatch, overlap, protected zone, rule flags). Not provenance. */
+  --ls-flag: #8C3A72;
+  --ls-flag-tint: #F4E5EE;
+
+  /* System notices (a refused write, a service that cannot be reached): inverted ink, no hue. */
+  --ls-notice-bg: #141414;
+  --ls-notice-fg: #FAFAF7;
+  --ls-notice-rule: #FAFAF7;
+
+  /* Map layers. Parcels are drawn in ink so the basemap stays readable; flags reuse the flag hue with a
+     hatch so they read without colour. */
+  --ls-map-parcel-stroke: #141414;
+  --ls-map-parcel-fill: rgba(20, 20, 20, 0.06);
+  --ls-map-parcel-hover: rgba(20, 20, 20, 0.14);
+  --ls-map-selected-stroke: #141414;
+  --ls-map-flag-stroke: #8C3A72;
+  --ls-map-flag-fill: rgba(140, 58, 114, 0.18);
+  --ls-map-zone-stroke: #4E4E4A;
+
+  /* Type. Noto covers Latin, Devanagari and Tamil with one design; the serif is the notice voice, the
+     sans is the interface, the mono is for identifiers only (ULPIN, khata, request numbers). */
+  --ls-font-notice: "Noto Serif", "Noto Serif Devanagari", "Noto Serif Tamil", Georgia, serif;
+  --ls-font-ui: "Noto Sans", "Noto Sans Devanagari", "Noto Sans Tamil", system-ui, sans-serif;
+  --ls-font-id: "Noto Sans Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --ls-text-xs: 0.8125rem;   /* 13px: legal and badge text, never below this */
+  --ls-text-sm: 0.875rem;    /* 14px: dense workspace text */
+  --ls-text-base: 1rem;      /* 16px: body */
+  --ls-text-lg: 1.125rem;
+  --ls-text-xl: 1.375rem;
+  --ls-text-2xl: 1.75rem;
+  --ls-text-3xl: 2.25rem;    /* public-page headings */
+  --ls-leading-tight: 1.25;
+  --ls-leading: 1.55;        /* Devanagari and Tamil need the room */
+  --ls-weight-regular: 400;
+  --ls-weight-medium: 500;
+  --ls-weight-semibold: 600;
+  --ls-weight-bold: 700;
+  --ls-measure: 68ch;
+
+  /* Space: 4px base. Workspace uses 1-4, public pages 4-8. */
+  --ls-space-1: 0.25rem;
+  --ls-space-2: 0.5rem;
+  --ls-space-3: 0.75rem;
+  --ls-space-4: 1rem;
+  --ls-space-5: 1.5rem;
+  --ls-space-6: 2rem;
+  --ls-space-7: 3rem;
+  --ls-space-8: 4rem;
+
+  /* Rules and corners. Notices are square; inputs keep a 2px corner only for touch affordance. */
+  --ls-hairline: 1px;
+  --ls-rule-width: 2px;
+  --ls-double-rule: 3px;          /* rendered as border-style: double */
+  --ls-radius-0: 0;
+  --ls-radius-control: 2px;
+
+  /* Elevation: one shadow, only for things that float over the map (sheet, toast, popover). */
+  --ls-shadow-float: 0 6px 20px rgba(20, 20, 20, 0.16);
+
+  /* Layers */
+  --ls-z-map: 0;
+  --ls-z-map-controls: 400;       /* above Leaflet panes (which top out at 400 for markers) */
+  --ls-z-panel: 500;
+  --ls-z-sheet: 600;
+  --ls-z-masthead: 700;
+  --ls-z-modal: 900;
+  --ls-z-toast: 1000;
+
+  /* Motion. Workspace motion is state change only; public pages may use --ls-dur-slow once. */
+  --ls-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ls-dur-fast: 120ms;
+  --ls-dur: 180ms;
+  --ls-dur-slow: 320ms;
+
+  /* Focus: a two-tone ring that holds on paper, tints and the inverted notice. */
+  --ls-focus-ring: 0 0 0 2px var(--ls-paper), 0 0 0 4px var(--ls-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ls-dur-fast: 0ms;
+    --ls-dur: 0ms;
+    --ls-dur-slow: 0ms;
+  }
+}
