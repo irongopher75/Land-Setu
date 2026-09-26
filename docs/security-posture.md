@@ -437,6 +437,89 @@ The full backend suite is 145 passed.
 
 **Not live yet.** This is not pushed. The API and site deploy on the next push to `main`.
 
+#### C5b. A missing or unrecognised confidence value was shown as "Verified" (26 September 2026)
+
+**Status: Fixed in `94360b0` and live since the Hosting redeploy of 2026-09-26. Rebuilt, with the same behaviour, in `433f472`.** This is a trust-boundary fix in the same family as C4, C5 and C5a.
+
+**What was wrong.** From the first commit in history (`83a0c94`, 2026-09-11), `frontend/src/components/ConfidenceBadge.jsx` had two faults:
+- It began with `const value = (confidence || 'verified')`, so any departmental layer with no `confidence` field was shown with the green **Verified** badge.
+- Any value it did not recognise (for example `"approved"`) fell through to the final branch. That branch drew the same green verified style and check icon, with the raw value as its text.
+
+The interface therefore claimed department confirmation for exactly the values nothing confirmed. The seeded records always carry a confidence label, so the fault showed only where a layer lacked one. That was a systemic hole, not an observed misreport on a named parcel.
+
+**How long.** Behaviourally, about 15 days: from `83a0c94` (2026-09-11) until the fixed build reached Firebase Hosting on 2026-09-26. The fix was committed in `94360b0` (2026-09-26 07:49 UTC) and deployed first by the manual Hosting deploy recorded in C10, then by every CI deploy since. Git history cannot say whether a given day's live bundle was built from each intermediate commit.
+
+**What it does now.** Only the exact value `verified` renders as Verified. A missing value, an empty string, `null` or any unrecognised string renders as **Not confirmed**. Matching is exact after lower-casing, so even `"Verified "` with a trailing space is treated as not confirmed. The rebuilt badge system in `433f472` keeps this rule (`keyOf()` falls back to `unverified`).
+
+**Live check, 2026-09-26.** This ran on `https://landsetu-e4e5e.web.app` with the live bundle, rewriting TN-CHN-0042-1187's API response in the browser. Six layers were sent with a missing field, `""`, `null`, `"VERIFIED_BY_SOMEONE"`, `"approved"` and `"Verified "`. All six rendered **Not confirmed**.
+
+#### C11. Live verification of the pushed fixes (26 September 2026)
+
+**Deployed state:**
+- `main` was pushed to `505b6cc`. `a21e7fb`, `e61db99`, `d9bb374` and `1f9d995` had already been pushed from this machine outside this session, and Render was serving `1f9d995` (`/health` reported `"commit":"1f9d995"`).
+- Nothing under `backend/` changed between `1f9d995` and `505b6cc`, so Render correctly did not rebuild. The live API is the backend at HEAD.
+- The GitHub Actions run for `505b6cc` (backend tests, frontend build, Hosting deploy) passed. Hosting serves `assets/index-IpDGtLLu.js`.
+- **Emulator gating.** The production build contains no `connectAuthEmulator` and no emulator host strings. `VITE_USE_AUTH_EMULATOR` appears in no committed env file.
+- **Pre-push checks.** Backend 145 passed, Firestore rules 32 passed, frontend build passed.
+
+**Approval record entry (C5a).** The live OpenAPI schema for `POST /parcels/requests/{request_id}/approve` accepts an `ApprovalRecordEntry` body with `owner_name`, `zoning`, `tax_value` and `encumbrance_status`. The enforcement itself (422 naming missing fields, `officer_provided` labels) is covered by the backend suite that CI ran on this commit. It was not exercised against the live database, because no live state-admin account is available to this session.
+
+**Confidence badges on the live site.** The live bundle rendered TN-CHN-0042-1187's record with each state injected into the API response. Each rendered with its own label:
+
+| State | Label |
+|---|---|
+| `verified` | Verified |
+| `stale` | Out of date |
+| `officer_provided` | Provided by reviewing officer |
+| `corrected_by_officer` | Corrected by officer |
+| `self_declared` | Self-declared |
+| `unverified` | Not confirmed |
+
+With the API blocked, the bundled offline sample record rendered every layer as `unverified_placeholder` (**Sample value**). Missing and unrecognised values: see C5b.
+
+#### C12. Stale browser-written Firestore data removed (26 September 2026)
+
+**What was there.** Documents written by browsers before the rules lockdown (C4). From `b37b649` onward the map ignores them, but they were still stored:
+
+| Collection | Documents | Written | Effect while the map applied them |
+|---|---|---|---|
+| `custom_parcels` | 17: eight Chandigarh and five Tamil Nadu copies of real parcels, plus four parcels that exist only here (`ULPIN-MA-0463`, `MH-MANUAL-5234`, `ULPIN-MA-9777`, `ULPIN-TE-9673`) | 2026-09-12 03:54 UTC to 2026-09-24 21:59 UTC | Replaced the records service's copies on the map. Drew four Maharashtra parcels as "Approved" with owners such as "New Land Owner" and every layer labelled `verified`. |
+| `deleted_parcels` | 5: `TN-CHN-0042-1188`, `1190`, `1191`, `1192` and `MH-PUNE-712-4491` | 2026-09-12 05:22 to 06:13 UTC | Hid four real Tamil Nadu parcels from every signed-in user, with no error or notice. |
+
+**Exposure.** For signed-in users, the parcels were hidden from about 2026-09-12 05:22 UTC until the `b37b649` frontend was deployed on 2026-09-26, which is about 14 days. Signed-out visitors were not affected, because they cannot read these collections.
+
+**Export before deletion.** `docs/firestore-export-20260926.json`:
+- gitignored and kept locally as evidence;
+- sha256 `f4af728d9cb4e41ed47efb8592d7c3931772fb2f30b4f0133f9757433661b8c7`;
+- 22 documents with every field, the raw typed values, and Firestore's create and update times;
+- produced by `scripts/export_firestore_collections.cjs`, which is read-only and refuses to write to a path that is not gitignored.
+
+**Deletion.** On 2026-09-26, `ULPIN-MA-0463` was deleted at about 09:53 UTC and the other 21 between 09:54:16 and 09:55:28 UTC.
+- **Tool.** `firebase firestore:delete <collection>/<id> --project landsetu-e4e5e --force`, one exact document path at a time, never a recursive collection delete.
+- **Why not the Admin SDK.** No service-account key is on this machine. The CLI deletes server-side under the account's IAM identity and bypasses the security rules, the same trust path as the Admin SDK, never a client write.
+- **Result.** A read-only listing afterwards shows `custom_parcels: 0` and `deleted_parcels: 0`.
+
+**Live map after deletion (signed out, `https://landsetu-e4e5e.web.app`):**
+
+| State | API parcels | Shapes drawn | Notes |
+|---|---|---|---|
+| Tamil Nadu | 38 | 39 (38 parcels + 1 protected zone) | `TN-CHN-0042-1188`, `1190`, `1191`, `1192` are drawn and open their records. Every parcel opened is in the API's list. |
+| Chandigarh | 8 | 9 (8 + 1 zone) | All 8 open, all in the API's list. |
+| Maharashtra | 0 | 0 | Shows the "No parcel records…" note. The four phantom parcels are gone. |
+| Rajasthan | 0 | 0 | Shows the "No parcel records…" note. |
+
+No page errors.
+
+**Before and after, for signed-in users:**
+
+| State | Before (pre-`b37b649` build, with these documents) | After |
+|---|---|---|
+| Tamil Nadu | 34 parcels drawn. Four real parcels hidden, and five drawn from browser copies instead of the records service. | 38 parcels, all from the records service |
+| Chandigarh | 8 parcels, all drawn from browser copies | 8 parcels from the records service |
+| Maharashtra | 4 phantom "Approved" parcels | none, with a no-records note |
+
+The "before" row is computed from the exported documents and the old frontend code. It was not observed live, because no signed-in live session was available.
+
 ### C6. Any role other than citizen can file boundary requests, including `bank`
 
 **Status: Open. Low to medium risk.**
@@ -541,6 +624,8 @@ By 08:27 UTC the Render API served the new schema: `CreateCustomParcelRequest` r
 - Officers appending deed blocks through Firestore, and the browser-assembled ledger (C4, `02ecf1b`), deployed 2026-09-26.
 - Officer corrections inheriting a `verified` label (C5, `ce99672`).
 - Refused Firestore writes failing silently (C10, `f25fe4d`), deployed to Hosting 2026-09-26.
+- A missing or unrecognised confidence shown as "Verified" (C5b, `94360b0`), live since 2026-09-26.
+- Stale browser-written parcels and deletion markers in Firestore, deleted after export (C12), 2026-09-26.
 - Approval inventing "verified" departmental records (C5, `94360b0`).
 - Client-supplied area and state stored as authoritative (B2 part 3 and B3 persisted state, `05bc7b3`).
 - No check between recorded extent and boundary area (B2 part 2, `62c3c3e`).
