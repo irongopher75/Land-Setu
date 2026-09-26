@@ -141,7 +141,7 @@ The API tells three cases apart:
 
 ### A4. Split brain from SQLite fallback with multiple replicas
 
-**Status: Partially mitigated. The fallback is opt-in and off in every committed deployment configuration. The planned production refusal has not been added.**
+**Status: Fixed. The production refusal is code-enforced as of 2026-09-26 (record below), not just configured.**
 
 - **Opt-in.** `backend/app/db.py:11` defaults `ALLOW_SQLITE_FALLBACK` to `false`. `db.py:23-32` raises instead of falling back unless the flag is `true`.
 - **Deploy configs.** `docker-compose.yml` and `render.yaml` both set `ALLOW_SQLITE_FALLBACK=false`.
@@ -152,6 +152,28 @@ The API tells three cases apart:
 **Live check:** Render dashboard, `landsetu-api`, Environment. Confirm `ALLOW_SQLITE_FALLBACK=false` and `ENVIRONMENT=production`.
 
 ---
+
+#### A4 code-enforced, 26 September 2026
+
+`backend/app/db.py` now refuses to start whenever `ENVIRONMENT=production` (trimmed, any case) and SQLite would be used, whatever `ALLOW_SQLITE_FALLBACK` says. That covers two cases:
+
+- `DATABASE_URL` points at SQLite;
+- PostgreSQL is unreachable, so the fallback would be taken.
+
+The check runs before the flag is read. The error names `ENVIRONMENT`, `ALLOW_SQLITE_FALLBACK` (with its current value) and `DATABASE_URL`.
+
+**Tests.** `backend/tests/test_production_db_guard.py` imports `app.db` in a fresh interpreter per case:
+- a production SQLite URL is refused;
+- a production unreachable-Postgres URL with `ALLOW_SQLITE_FALLBACK=true` is refused;
+- `" Production "` is refused;
+- development opt-in still works;
+- without the flag, an unreachable database still fails.
+
+**Adjusted test.** `test_security.py::test_docs_ui_is_off_in_production` now loads `app.db` before switching to production mode, because its test database is SQLite.
+
+**Render is unaffected.** It sets `ENVIRONMENT=production` and a PostgreSQL `DATABASE_URL`. If that database is unreachable at boot, the service already failed to start before this change.
+
+**Not built: an emulator production guard.** The planned check that stops the API starting when `FIREBASE_AUTH_EMULATOR_HOST` is set with `ENVIRONMENT=production` was proposed but never implemented. It remains an open item.
 
 ## B. Findings re-checked in this pass
 
@@ -670,7 +692,7 @@ This ranking judges impact on a land registry, not how serious each item sounded
 5. **No refused write has been checked through the live UI with an officer account (C10).** Local and live checks cover the code path and the banner.
 6. **The frontend state detection is bounding-box based (B3 remainder).** It now only decides which state the map shows. Official boundary data is still needed.
 7. **Anonymous owner-name enumeration (C7).** Needs a policy decision.
-8. **Production refusal for the SQLite fallback is not implemented (A4).** Configuration currently prevents it. Only a mistaken flag would re-open it.
+8. ~~Production refusal for the SQLite fallback is not implemented (A4).~~ Code-enforced 2026-09-26. Still open in the same family: no startup refusal of `FIREBASE_AUTH_EMULATOR_HOST` in production.
 9. **`bank` and `officer` downgraded to the citizen UI (C3).** A functional gap; it fails closed.
 10. **`bank` can file boundary requests (C6).** Mitigated by the approval chain.
 11. **Bulk flag recompute runs inside GET handlers, and `layers` is `JSON` (A3 remainder, C2).** A performance issue that becomes a correctness issue (timeouts) at pilot data volumes.

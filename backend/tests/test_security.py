@@ -162,7 +162,9 @@ def test_citizen_history_hides_other_peoples_request_text(client):
 
 def test_docs_ui_is_off_in_production():
     import subprocess, sys
-    code = ("import os; os.environ['ENVIRONMENT']='production'\n"
+    # The test database is SQLite, which app.db refuses under ENVIRONMENT=production (test_production_db_guard.py).
+    # Load app.db first so this test checks only the docs switch in app.main.
+    code = ("import os\nimport app.db\nos.environ['ENVIRONMENT']='production'\n"
             "from fastapi.testclient import TestClient\nfrom app.main import app\n"
             "c=TestClient(app); print(c.get('/docs').status_code, c.get('/openapi.json').status_code)")
     r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env={**os.environ, "RATE_LIMIT_DISABLED": "true"},

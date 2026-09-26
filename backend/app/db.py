@@ -9,9 +9,23 @@ DATABASE_URL = os.getenv(
 )
 
 ALLOW_SQLITE_FALLBACK = os.getenv("ALLOW_SQLITE_FALLBACK", "false").lower() == "true"
+IS_PRODUCTION = os.getenv("ENVIRONMENT", "").strip().lower() == "production"
 IS_SQLITE = False
 
+
+def _refuse_sqlite_in_production(reason: str) -> None:
+    """Production never runs on SQLite, whatever ALLOW_SQLITE_FALLBACK says: each replica would keep its own
+    file and accept writes the others never see (split brain in land records)."""
+    if IS_PRODUCTION:
+        raise RuntimeError(
+            f"Refusing to start: {reason} while ENVIRONMENT=production. SQLite is never used in production, "
+            f"regardless of ALLOW_SQLITE_FALLBACK (currently {os.getenv('ALLOW_SQLITE_FALLBACK', 'unset')!r}). "
+            "Set DATABASE_URL to the shared PostgreSQL/PostGIS database, or unset ENVIRONMENT=production for local work."
+        )
+
+
 if "sqlite" in DATABASE_URL:
+    _refuse_sqlite_in_production("DATABASE_URL points at SQLite")
     IS_SQLITE = True
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 else:
@@ -20,6 +34,8 @@ else:
         with engine.connect() as conn:
             pass
     except Exception as e:
+        # Checked before ALLOW_SQLITE_FALLBACK, so a misset flag cannot enable the fallback in production.
+        _refuse_sqlite_in_production(f"PostgreSQL is unreachable ({type(e).__name__}) and the SQLite fallback would be taken")
         if ALLOW_SQLITE_FALLBACK:
             print(f"Notice: PostgreSQL unavailable ({type(e).__name__}). Falling back to local SQLite database (sqlite:///./landsetu.db).")
             IS_SQLITE = True
