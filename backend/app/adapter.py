@@ -101,55 +101,59 @@ class SchemaAdapter:
     def _enrich_layers(self, layers: dict, raw_record: dict, default_dept_sources: dict):
         current_year = datetime.now().year
 
-        # Helper to compute confidence
-        def compute_confidence(last_verified_str, source_type, is_citizen=False):
-            if is_citizen:
-                return "self_declared"
-
+        # Confidence says what the source record supports, nothing more:
+        #   unverified  the source record did not supply this layer's value (nothing to attest)
+        #   stale       supplied, but last dated more than 3 years ago, or a dated kind of record with no date
+        #   verified    supplied by the department's record and current (or a kind of record that carries no date)
+        # A value or date this function fills in itself is never labelled verified.
+        def compute_confidence(has_value, last_verified_str=None, dated=False):
+            if not has_value:
+                return "unverified"
             if not last_verified_str:
-                return "verified"
-
+                return "stale" if dated else "verified"
             try:
                 # Handle YYYY or YYYY-MM-DD
                 year = int(str(last_verified_str).split("-")[0])
-                age = current_year - year
-                if age > 3:
-                    return "stale"
-                return "verified"
             except (ValueError, TypeError):
-                return "verified"
+                return "unverified"
+            return "stale" if current_year - year > 3 else "verified"
 
-        # RoR Layer
-        layers["ror"]["source"] = layers["ror"].get("source", default_dept_sources.get("ror", "revenue_dept"))
-        layers["ror"]["last_verified"] = layers["ror"].get("last_verified", raw_record.get("transaction_date", "2022-01-01"))
-        layers["ror"]["confidence"] = compute_confidence(layers["ror"]["last_verified"], layers["ror"]["source"])
+        def present(layer, *keys):
+            return any(layer.get(k) not in (None, "") for k in keys)
+
+        # RoR Layer. Its verification date is the source's own, or the registered transaction date; never invented.
+        ror = layers["ror"]
+        ror["source"] = ror.get("source", default_dept_sources.get("ror", "revenue_dept"))
+        ror["last_verified"] = ror.get("last_verified") or raw_record.get("transaction_date") or None
+        ror["confidence"] = compute_confidence(present(ror, "owner_name", "khata_no"), ror["last_verified"], dated=True)
 
         # Registration Layer
-        layers["registration"]["source"] = layers["registration"].get("source", default_dept_sources.get("registration", "sub_registrar"))
-        layers["registration"]["confidence"] = compute_confidence(layers["registration"].get("date"), layers["registration"]["source"])
+        reg = layers["registration"]
+        reg["source"] = reg.get("source", default_dept_sources.get("registration", "sub_registrar"))
+        reg["confidence"] = compute_confidence(present(reg, "last_transaction_id", "buyer_name"), reg.get("date"), dated=True)
 
         # Zoning Layer
-        layers["zoning"]["source"] = layers["zoning"].get("source", default_dept_sources.get("zoning", "master_plan"))
-        layers["zoning"]["confidence"] = "verified"
+        zoning = layers["zoning"]
+        zoning["source"] = zoning.get("source", default_dept_sources.get("zoning", "master_plan"))
+        zoning["confidence"] = compute_confidence(present(zoning, "land_use", "permitted_fsi"))
 
         # Building Permit Layer
-        layers["building_permit"]["source"] = layers["building_permit"].get("source", default_dept_sources.get("building_permit", "municipal_corp"))
-        # Building permit status can be self-declared if pending or citizen request
-        layers["building_permit"]["confidence"] = compute_confidence(None, layers["building_permit"]["source"], is_citizen=False)
+        permit = layers["building_permit"]
+        permit["source"] = permit.get("source", default_dept_sources.get("building_permit", "municipal_corp"))
+        permit["confidence"] = compute_confidence(present(permit, "permit_id", "status"))
 
         # Tax Layer
-        layers["tax"]["source"] = layers["tax"].get("source", default_dept_sources.get("tax", "revenue_dept"))
-        layers["tax"]["confidence"] = compute_confidence(layers["tax"].get("last_verified"), layers["tax"]["source"])
+        tax = layers["tax"]
+        tax["source"] = tax.get("source", default_dept_sources.get("tax", "revenue_dept"))
+        tax["confidence"] = compute_confidence(present(tax, "annual_value"), tax.get("last_verified"), dated=True)
 
-        # Encumbrance Layer
-        layers["encumbrance"]["source"] = layers["encumbrance"].get("source", default_dept_sources.get("encumbrance", "sub_registrar"))
-        # Parse boolean active status if passed as string
-        if "active" in layers["encumbrance"]:
-            active_val = layers["encumbrance"]["active"]
-            if isinstance(active_val, str):
-                layers["encumbrance"]["active"] = active_val.lower() in ("true", "1", "yes", "y")
-        else:
-            layers["encumbrance"]["active"] = False
-        layers["encumbrance"]["confidence"] = "verified"
+        # Encumbrance Layer. An absent status stays unknown (None): "no encumbrance" is a claim only the
+        # sub-registrar's record can make.
+        enc = layers["encumbrance"]
+        enc["source"] = enc.get("source", default_dept_sources.get("encumbrance", "sub_registrar"))
+        if "active" in enc and isinstance(enc["active"], str):
+            enc["active"] = enc["active"].lower() in ("true", "1", "yes", "y")
+        enc.setdefault("active", None)
+        enc["confidence"] = compute_confidence(enc["active"] is not None)
 
 adapter_engine = SchemaAdapter()

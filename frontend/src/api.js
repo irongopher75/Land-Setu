@@ -12,6 +12,10 @@ import {
 import { getDeedBlockchain } from './blockchain';
 import { auth } from './firebase';
 
+// Confidence for values this browser made up or copied from bundled samples. Only the records service,
+// importing from a department's own record, may label a value 'verified'.
+export const UNVERIFIED_PLACEHOLDER = 'unverified_placeholder';
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' && window.location.protocol === 'https:' ? '/api' : 'http://localhost:8000');
 
 const client = axios.create({
@@ -245,14 +249,15 @@ export const getParcelDetail = async (ulpin) => {
       geometry: seedFeature.geometry,
       area_sqm: 452.3,
       layers: {
-        ror: { owner_name: seedFeature.properties.owner_name, owner_share: '1/1', khata_no: 'KH-1187', source: 'registration_dept', last_verified: '2023-03-14', confidence: 'verified' },
-        registration: { last_transaction_id: 'REG-2023-88213', transaction_type: 'sale', date: '2023-03-14', source: 'sub_registrar', confidence: 'verified' },
-        zoning: { land_use: seedFeature.properties.land_use || 'residential', permitted_fsi: 1.5, eco_sensitive: false, source: 'master_plan_2023', confidence: 'verified' },
-        building_permit: { status: 'approved', permit_id: 'BP-2023-441', approved_fsi: 1.5, source: 'municipal_corp', confidence: 'verified' },
-        tax: { annual_value: 42000, source: 'revenue_dept', confidence: 'verified', last_verified: '2023-01-01' },
-        encumbrance: { active: false, type: null, source: 'sub_registrar', confidence: 'verified' }
+        ror: { owner_name: seedFeature.properties.owner_name, owner_share: '1/1', khata_no: 'KH-1187', source: 'registration_dept', last_verified: '2023-03-14', confidence: UNVERIFIED_PLACEHOLDER },
+        registration: { last_transaction_id: 'REG-2023-88213', transaction_type: 'sale', date: '2023-03-14', source: 'sub_registrar', confidence: UNVERIFIED_PLACEHOLDER },
+        zoning: { land_use: seedFeature.properties.land_use || 'residential', permitted_fsi: 1.5, eco_sensitive: false, source: 'master_plan_2023', confidence: UNVERIFIED_PLACEHOLDER },
+        building_permit: { status: 'approved', permit_id: 'BP-2023-441', approved_fsi: 1.5, source: 'municipal_corp', confidence: UNVERIFIED_PLACEHOLDER },
+        tax: { annual_value: 42000, source: 'revenue_dept', confidence: UNVERIFIED_PLACEHOLDER, last_verified: '2023-01-01' },
+        encumbrance: { active: false, type: null, source: 'sub_registrar', confidence: UNVERIFIED_PLACEHOLDER }
       },
-      flags: []
+      flags: [],
+      offline_sample: true
     };
   }
 
@@ -272,14 +277,15 @@ export const getParcelDetail = async (ulpin) => {
     geometry: synth?.geometry || null,
     area_sqm: 500,
     layers: {
-      ror: { owner_name: synth?.properties.owner_name || 'Land Owner', owner_share: '1/1', khata_no: 'KH-712', source: 'revenue_dept', last_verified: '2024-01-01', confidence: 'verified' },
-      registration: { last_transaction_id: 'REG-2024-001', transaction_type: 'sale', date: '2024-01-01', source: 'sub_registrar', confidence: 'verified' },
-      zoning: { land_use: synth?.properties.land_use || 'residential', permitted_fsi: 1.5, eco_sensitive: false, source: 'master_plan', confidence: 'verified' },
-      building_permit: { status: 'approved', permit_id: 'BP-2024-101', approved_fsi: 1.5, source: 'municipal_corp', confidence: 'verified' },
-      tax: { annual_value: 48000, source: 'revenue_dept', confidence: 'verified', last_verified: '2024-01-01' },
-      encumbrance: { active: false, type: null, source: 'sub_registrar', confidence: 'verified' }
+      ror: { owner_name: synth?.properties.owner_name || 'Land Owner', owner_share: '1/1', khata_no: 'KH-712', source: 'revenue_dept', last_verified: '2024-01-01', confidence: UNVERIFIED_PLACEHOLDER },
+      registration: { last_transaction_id: 'REG-2024-001', transaction_type: 'sale', date: '2024-01-01', source: 'sub_registrar', confidence: UNVERIFIED_PLACEHOLDER },
+      zoning: { land_use: synth?.properties.land_use || 'residential', permitted_fsi: 1.5, eco_sensitive: false, source: 'master_plan', confidence: UNVERIFIED_PLACEHOLDER },
+      building_permit: { status: 'approved', permit_id: 'BP-2024-101', approved_fsi: 1.5, source: 'municipal_corp', confidence: UNVERIFIED_PLACEHOLDER },
+      tax: { annual_value: 48000, source: 'revenue_dept', confidence: UNVERIFIED_PLACEHOLDER, last_verified: '2024-01-01' },
+      encumbrance: { active: false, type: null, source: 'sub_registrar', confidence: UNVERIFIED_PLACEHOLDER }
     },
-    flags: []
+    flags: [],
+    offline_sample: true
   };
 };
 
@@ -807,40 +813,40 @@ export const previewAdapter = async (state, rawRecord) => {
             khata_no: khataNo,
             source: "revenue_department",
             last_verified: txnDate,
-            confidence: "verified"
+            confidence: UNVERIFIED_PLACEHOLDER
           },
           registration: {
             last_transaction_id: txnId,
             transaction_type: "sale_deed",
             date: txnDate,
             source: "sub_registrar_office",
-            confidence: "verified"
+            confidence: UNVERIFIED_PLACEHOLDER
           },
           zoning: {
             land_use: landUse,
             permitted_fsi: permFsi,
             eco_sensitive: false,
             source: "town_country_planning",
-            confidence: "verified"
+            confidence: UNVERIFIED_PLACEHOLDER
           },
           building_permit: {
             status: permitStatus,
             permit_id: permitId,
             approved_fsi: approvedFsi,
             source: "municipal_corporation",
-            confidence: "verified"
+            confidence: UNVERIFIED_PLACEHOLDER
           },
           tax: {
             annual_value: taxVal,
             source: "municipal_tax_dept",
-            confidence: taxDate.includes('2016') ? "stale" : "verified",
+            confidence: UNVERIFIED_PLACEHOLDER,
             last_verified: taxDate
           },
           encumbrance: {
             active: false,
             type: null,
             source: "sub_registrar_office",
-            confidence: "verified"
+            confidence: UNVERIFIED_PLACEHOLDER
           }
         },
         flags: []

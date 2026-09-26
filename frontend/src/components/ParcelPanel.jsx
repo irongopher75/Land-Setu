@@ -162,6 +162,7 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, o
 
                   <Layer title="Record of Rights" layer={L.ror}>
                     <Field label="Owner name" value={L.ror?.owner_name || NA} />
+                    <Field label="Owner named on the boundary request (not verified)" value={L.ror?.claimed_owner_name} />
                     <Field label="Khata or patta no." value={L.ror?.khata_no || NA} mono />
                     <Field label="Ownership share" value={L.ror?.owner_share} />
                     <Field label="Source" value={L.ror?.source && String(L.ror.source).replace(/_/g, ' ')} />
@@ -193,8 +194,8 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, o
                   <Layer title="Financial encumbrances" layer={L.encumbrance}>
                     <Field
                       label="Active mortgage or lien"
-                      value={L.encumbrance?.active ? 'Yes, active' : 'None on record'}
-                      tone={L.encumbrance?.active ? 'alert' : 'verified'}
+                      value={L.encumbrance?.active === true ? 'Yes, active' : L.encumbrance?.active === false ? 'None on record' : 'Not known: no sub-registrar record'}
+                      tone={L.encumbrance?.active === true ? 'alert' : L.encumbrance?.active === false ? 'verified' : undefined}
                     />
                   </Layer>
 

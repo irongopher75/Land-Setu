@@ -594,13 +594,16 @@ def approve_boundary_request(request_id: int, role: str = Depends(get_current_ro
         existing.area_sqm = req.area_sqm
         existing.state = req.state
     else:
+        # A new parcel starts with no departmental record. Approving a boundary attests the boundary, not the
+        # owner, zoning, tax or encumbrance: those stay empty and unverified until a department's own record is
+        # imported through the adapter. The name typed on the request is kept only as the requester's claim.
         layers = {
-            "ror": {"owner_name": req.requested_by, "khata_no": f"KH-MANUAL-{req.ulpin[-4:]}", "source": "village_office_approval", "last_verified": datetime.utcnow().strftime("%Y-%m-%d"), "confidence": "verified"},
-            "registration": {"last_transaction_id": f"REG-MANUAL-{req.ulpin[-4:]}", "date": datetime.utcnow().strftime("%Y-%m-%d"), "buyer_name": req.requested_by, "source": "sub_registrar", "confidence": "verified"},
-            "zoning": {"land_use": "residential", "permitted_fsi": 1.5, "source": "master_plan_2021", "confidence": "verified"},
-            "building_permit": {"status": "approved", "approved_fsi": 1.5, "source": "municipal_corp", "confidence": "self_declared"},
-            "tax": {"annual_value": 45000, "source": "revenue_dept", "confidence": "verified"},
-            "encumbrance": {"active": False, "source": "sub_registrar", "confidence": "verified"}
+            "ror": {"owner_name": None, "claimed_owner_name": req.requested_by, "source": None, "confidence": "unverified"},
+            "registration": {"source": None, "confidence": "unverified"},
+            "zoning": {"land_use": None, "source": None, "confidence": "unverified"},
+            "building_permit": {"status": None, "source": None, "confidence": "unverified"},
+            "tax": {"annual_value": None, "source": None, "confidence": "unverified"},
+            "encumbrance": {"active": None, "source": None, "confidence": "unverified"},
         }
         existing = Parcel(ulpin=req.ulpin, state=req.state, area_sqm=req.area_sqm, geometry=geom_val, layers=layers,
                           created_at=datetime.utcnow().isoformat() + "+00:00")
