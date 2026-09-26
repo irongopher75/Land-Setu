@@ -8,16 +8,17 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionMsg, setActionMsg] = useState('');
+  const [limit, setLimit] = useState(50);   // requests loaded so far; Load more adds 50
   const { isSuper } = useAuthInfo();
 
   useEffect(() => {
     fetchRequests();
-  }, []);
+  }, [limit]);
 
   const fetchRequests = async () => {
     setLoading(true);
     try {
-      const data = await getPendingRequests();
+      const data = await getPendingRequests(limit);
       setRequests(data);
     } catch (err) {
       console.error('Failed to fetch pending requests:', err);
@@ -189,6 +190,14 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
           ) : requests.length === 0 ? (
             <div className="note">No open requests. Every boundary change, split, merge, correction and deletion has been processed.</div>
           ) : (
+            <>{requests.total > requests.length && (
+              <div className="btn-row">
+                <span className="subtle">Showing {requests.length} of {requests.total} open requests.</span>
+                <button className="btn" onClick={() => setLimit(limit + 50)} disabled={loading}>Load more</button>
+              </div>
+            )}</>
+          )}
+          {!loading && requests.length > 0 && (
             requests.map((req) => (
               req.permissions ? (
                 <WorkflowRequestCard key={req.id} req={req} on={cardHandlers(req)} />

@@ -4,7 +4,7 @@ import jwt
 from datetime import datetime, timedelta
 from typing import List, Optional
 from pydantic import BaseModel, Field
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -423,15 +423,19 @@ def list_my_requests(offset: int = Query(0, ge=0), limit: int = Query(20, ge=1, 
 
 
 @router.get("/requests/pending")
-def list_pending_requests(role: str = Depends(require_roles("officer", "auditor", "state_admin", "village_officer")),
+def list_pending_requests(response: Response, offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200),
+                          role: str = Depends(require_roles("officer", "auditor", "state_admin", "village_officer")),
                           actor: dict = Depends(get_current_payload), db: Session = Depends(get_db)):
-    """Lists all boundary change and deletion requests in the multi-stage governance pipeline."""
-    reqs = db.query(BoundaryChangeRequest).filter(
+    """Open requests in the approval pipeline, newest first. Paginated: offset and limit select a page;
+    X-Total-Count gives the number of open requests."""
+    q = db.query(BoundaryChangeRequest).filter(
         BoundaryChangeRequest.status.in_([
             "PENDING_AUDITOR_REVIEW", "PENDING_STATE_ADMIN", "PENDING_APPROVAL",
             "PENDING_DELETION_VILLAGE", "PENDING_DELETION_AUDITOR", "PENDING_VILLAGE_REVIEW", FAST_STATUS
         ])
-    ).order_by(BoundaryChangeRequest.id.desc()).all()
+    )
+    response.headers["X-Total-Count"] = str(q.count())
+    reqs = q.order_by(BoundaryChangeRequest.id.desc()).offset(offset).limit(limit).all()
 
     ulpins = {r.ulpin for r in reqs}
     existing_ulpins = {u for (u,) in db.query(Parcel.ulpin).filter(Parcel.ulpin.in_(ulpins)).all()} if ulpins else set()

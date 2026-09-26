@@ -858,7 +858,8 @@ export const getAllStates = async () => {
   return LOCAL_STATES;
 };
 
-export const getPendingRequests = async () => {
+// Open requests; `limit` pages the records service's list. The returned array carries `.total`.
+export const getPendingRequests = async (limit = 50) => {
   const local = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]')
     .filter((r) => OPEN_REQUEST_STATUSES.includes(r.status));
 
@@ -872,13 +873,15 @@ export const getPendingRequests = async () => {
   let backend = [];
   if (!isLocalhostBackendForbidden()) {
     try {
-      const res = await client.get('/parcels/requests/pending');
+      const res = await client.get('/parcels/requests/pending', { params: { limit } });
       backend = Array.isArray(res.data) ? res.data : [];
+      backend.total = Number(res.headers?.['x-total-count']) || backend.length;
     } catch (err) {
       backend = [];
     }
   }
 
+  const serviceTotal = backend.total;
   const byId = new Map();
   for (const r of [...local, ...remote, ...backend]) {
     if (!r || r.id == null) continue;
@@ -888,7 +891,9 @@ export const getPendingRequests = async () => {
       type: requestTypeFromStatus(r.status, r.type)
     });
   }
-  return Array.from(byId.values());
+  const all = Array.from(byId.values());
+  all.total = Math.max(serviceTotal || 0, all.length);
+  return all;
 };
 
 export const auditorPassRequest = async (requestId, request = null) => {
@@ -1169,6 +1174,12 @@ export const getParcelHistory = async (ulpin) => {
   }
   const parcel = await getParcelDetail(ulpin);
   return { events: historyFromLayers(parcel), source: 'offline' };
+};
+
+// One page of search results from the records service: { items, total }.
+export const searchParcelsPage = async (q, offset = 0, limit = 20) => {
+  const res = await client.get('/parcels/search', { params: { q: String(q || '').trim(), offset, limit } });
+  return { items: Array.isArray(res.data) ? res.data : [], total: Number(res.headers?.['x-total-count']) || 0 };
 };
 
 export const searchParcels = async (q, state) => {

@@ -33,6 +33,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+    expose_headers=["X-Total-Count"],   # paginated lists report their full size here
 )
 
 # Added last so it runs first: rate limit and size cap before any handler, headers on every response.

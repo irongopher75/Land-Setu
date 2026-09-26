@@ -385,3 +385,14 @@ def test_a_lender_cannot_file_boundary_or_correction_requests(client):
     r = client.post("/parcels/TN-CHN-0042-1187/correction-request", headers=hdr("bank", "bank-f"),
                     json={"layer": "ror", "field": "owner_name", "requested_value": "Someone", "requested_by": "Bank"})
     assert r.status_code == 403
+
+
+def test_search_and_queue_are_paginated_with_a_total(client):
+    first = client.get("/parcels/search?q=TN-KPM&limit=10")
+    second = client.get("/parcels/search?q=TN-KPM&limit=10&offset=10")
+    assert first.headers["x-total-count"] == "25" and len(first.json()) == 10
+    assert {r["ulpin"] for r in first.json()}.isdisjoint({r["ulpin"] for r in second.json()})
+    for i in range(3):
+        file_boundary(client, f"TB-PAGE-{i}", square(77.80 + i * 0.01, 11.00))
+    page = client.get("/parcels/requests/pending?limit=2", headers=hdr("state_admin", "sa-page"))
+    assert len(page.json()) == 2 and int(page.headers["x-total-count"]) >= 3

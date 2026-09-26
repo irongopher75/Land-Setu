@@ -5,7 +5,7 @@ Included BEFORE routes.parcels in main.py so /parcels/search is not captured by 
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from shapely.geometry import mapping
 from sqlalchemy.orm import Session
@@ -196,10 +196,11 @@ def _like(q: str) -> str:
 
 
 @router.get("/search")
-def search_parcels(q: str = Query(..., min_length=2, max_length=80), state: Optional[str] = Query(None),
-                   limit: int = Query(20, ge=1, le=50),
+def search_parcels(response: Response, q: str = Query(..., min_length=2, max_length=80), state: Optional[str] = Query(None),
+                   offset: int = Query(0, ge=0), limit: int = Query(20, ge=1, le=50),
                    db: Session = Depends(get_db)):
-    """Find parcels by ULPIN, owner name or khata number. Public: it returns only the public record fields."""
+    """Find parcels by ULPIN, owner name or khata number. Public: it returns only the public record fields.
+    Paginated: offset and limit select a page; X-Total-Count gives the number of matches."""
     like = _like(q.strip())
     owner = Parcel.layers["ror"]["owner_name"].as_string()
     khata = Parcel.layers["ror"]["khata_no"].as_string()
@@ -209,9 +210,10 @@ def search_parcels(q: str = Query(..., min_length=2, max_length=80), state: Opti
     )
     if state:
         query = query.filter(Parcel.state == state)
+    response.headers["X-Total-Count"] = str(query.count())
     out = []
     ql = q.strip().lower()
-    for p in query.order_by(Parcel.ulpin).limit(limit).all():
+    for p in query.order_by(Parcel.ulpin).offset(offset).limit(limit).all():
         ror = (p.layers or {}).get("ror") or {}
         shp = parse_geometry_shape(p.geometry)
         c = shp.centroid if shp is not None and not shp.is_empty else None
