@@ -1,11 +1,17 @@
-import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, where, updateDoc, deleteDoc } from 'firebase/firestore';
-import { app, auth } from './firebase';
+import { getFirestore, connectFirestoreEmulator, doc, setDoc, getDoc, collection, getDocs, query, where, updateDoc, deleteDoc } from 'firebase/firestore';
+import { app, auth, USE_EMULATORS } from './firebase';
 import { describeFirestoreError } from './syncNotice';
 
 let db = null;
+let firestoreEmulatorConnected = false;
 try {
   if (app) {
     db = getFirestore(app);
+    // Same dev-only flag as Auth: emulated users must not read the real Firestore.
+    if (USE_EMULATORS && !firestoreEmulatorConnected) {
+      connectFirestoreEmulator(db, '127.0.0.1', 8088);
+      firestoreEmulatorConnected = true;
+    }
   }
 } catch (err) {
   console.warn("Firestore initialization notice:", err.message);

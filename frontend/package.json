@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
+    "dev:emulator": "VITE_USE_AUTH_EMULATOR=true vite --host",
     "build": "vite build",
     "preview": "vite preview"
   },

@@ -110,6 +110,27 @@ npm install
 npm run dev
 ```
 
+### Signing in as each role locally (Firebase emulators, dev only)
+
+This path is opt-in. It is active only when `VITE_USE_AUTH_EMULATOR=true`, which no committed env file sets, and production builds contain none of it.
+
+```bash
+# Terminal 1: Auth and Firestore emulators, with the repo's firestore.rules (UI at http://127.0.0.1:4000)
+firebase emulators:start --only auth,firestore
+
+# Terminal 2: one test user per role, in the emulator only (prints the emails and a password)
+FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 ./venv/bin/python backend/scripts/seed_emulator_users.py
+
+# Terminal 3: backend that accepts emulator tokens
+cd backend && FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GOOGLE_CLOUD_PROJECT=landsetu-e4e5e \
+  JWT_SECRET=$(openssl rand -hex 32) ALLOW_SQLITE_FALLBACK=true uvicorn app.main:app --port 8000
+
+# Terminal 4: frontend wired to the emulators
+cd frontend && npm run dev:emulator
+```
+
+**Never set `FIREBASE_AUTH_EMULATOR_HOST` outside local development.** With it set, the Firebase Admin SDK accepts unsigned tokens, so anyone could sign in as any role.
+
 ---
 
 ## 🔄 Data Synchronization & Persistence Architecture
