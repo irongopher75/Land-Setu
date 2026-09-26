@@ -294,7 +294,7 @@ The public search (`routes/workflow.py:198-207`) filters with `ilike` on `layers
 
 ### C4. Firestore rules let officers bypass the backend approval workflow
 
-**Status: Fixed in `247446d` for every path that sets a parcel's live state, and deployed to `landsetu-e4e5e` on 2026-09-26 (A1). One sub-item (`deed_blockchain`) remains open.**
+**Status: Fixed. Parcel-state paths were fixed in `247446d` and deployed on 2026-09-26 (A1). The `deed_blockchain` sub-item was fixed in `02ecf1b` and deployed on 2026-09-26 (C4a).**
 
 `247446d`: `custom_parcels` is read-only for every client role, and deletion markers need a boundary request that reached `DELETED` for the same ULPIN. Requests are filed only at their first stage and move one stage at a time, by that stage's reviewer, never by the filer. Only `state_admin` and `super_admin` can finalise. Proven by 30 emulator tests in `tests/firestore-rules/rules.test.mjs` (`62c3c3e`).
 
@@ -308,7 +308,10 @@ What changed, item by item:
   - The filer cannot decide. `isAllowedTransition()` mirrors `STAGE_REVIEWERS` in `backend/app/permissions.py`.
   - `delete` is `false`.
 - **`protected_zones`:** edits by state admin only.
-- **Still open:** in `deed_blockchain`, any officer can still append a block with arbitrary hashes. It does not change a parcel's live record, but it weakens the "tamper-evident" display. Target: make it Admin-SDK-only like `custom_parcels`.
+- **`deed_blockchain` (fixed in `02ecf1b`):** `allow create, update, delete: if false` for every client role, proven by two rules tests.
+  - The browser code that assembled "blocks" was deleted: `frontend/src/blockchain.js`, with fixed timestamps, invented owners and fake `ECDSA_SECP256K1_VERIFIED_…` signature strings.
+  - The ledger the app shows is now only the records service's append-only audit log. Its hashes are recomputed and checked on the server at `GET /parcels/{ulpin}/audit-chain`.
+  - Passports take their block hash and height from that log only. No invented fallback hash or token remains.
 - **Side effect:** the Firestore seed scripts (`frontend/src/seedCloudFirestore.mjs`, `seedAllLegacyDataToFirestore.mjs`) use the client SDK. Under the new rules they can only write through the Admin SDK or the emulator.
 
 Original finding, for the record. The rules checked roles, but they did not enforce the workflow the backend enforces:
@@ -324,6 +327,35 @@ Original finding, for the record. The rules checked roles, but they did not enfo
 **Targets (as written before the fix):**
 - Preferred: make Firestore read-only for these collections. Set `allow write: if false`, and have the backend (Admin SDK) be the only writer, matching the main document's statement that PostgreSQL is authoritative. *Done for `custom_parcels`.*
 - Otherwise: add previous-status checks (`resource.data.status`), immutability of identity fields, and a requester-not-approver check. *Done for `boundary_requests` and `deleted_parcels`.*
+
+#### C4a. Deployment record for the `deed_blockchain` lock, 26 September 2026
+
+Checked with `node scripts/show_live_firestore_rules.cjs landsetu-e4e5e`, same method as A1.
+
+**Before deploying** (checked 2026-09-26T08:11:06Z):
+```
+release projects/landsetu-e4e5e/releases/cloud.firestore -> projects/landsetu-e4e5e/rulesets/ff87e911-3bda-4062-9661-96fdb09cb637 (updated 2026-09-26T08:03:36.403156Z)
+live ruleset: sha256 8ac48876eb39e9d4e0b5624994299937cde36b66a449dce7b5beb130a536adfc  (= repo at 2414d28, the A1 deploy)
+repo firestore.rules at 02ecf1b: sha256 929af87de22e561e1dd9b11bbd3e3057ae0a2c06db165562adf25c2e15ae14ee  -> differs
+```
+
+**Deploy** (`firebase deploy --only firestore:rules --project landsetu-e4e5e`):
+```
+⚠  [W] 128:14 - Unused function: isValidCustomParcel.
+⚠  [W] 210:14 - Unused function: isValidDeedBlock.
+✔  cloud.firestore: rules file firestore.rules compiled successfully
+✔  firestore: released rules firestore.rules to cloud.firestore
+✔  Deploy complete!
+```
+Both warnings are expected. Each unused validator documents the shape of a collection that no client may write.
+
+**After deploying** (checked 2026-09-26T08:11:21Z):
+```
+release projects/landsetu-e4e5e/releases/cloud.firestore -> projects/landsetu-e4e5e/rulesets/770aee2d-4f08-4484-b2dd-5d76a66bd3c4 (updated 2026-09-26T08:11:20.979529Z)
+live ruleset: sha256 929af87de22e561e1dd9b11bbd3e3057ae0a2c06db165562adf25c2e15ae14ee  -> IDENTICAL to repo at 02ecf1b
+```
+
+**Live probe.** An unauthenticated REST create on `deed_blockchain` returns `403 PERMISSION_DENIED`.
 
 ### C5. Approving a new parcel invents "verified" departmental records
 
@@ -346,7 +378,11 @@ Tested in `backend/tests/test_trust_boundary.py` (`62c3c3e`).
 - CSS tone classes.
 - The Firestore seed scripts, which carry sample source records.
 
-**Not changed:** an approved correction request (`workflow.py`, CORRECTION) writes the corrected field but leaves that layer's earlier confidence label. Whether an officer-approved correction counts as "verified" is a policy decision.
+**Officer corrections (fixed in `ce99672`).** An approved correction (`workflow.py`, CORRECTION) now sets the layer's confidence to `corrected_by_officer`. It also records `corrected_fields`, `corrected_at` and `corrected_by_request`, and keeps the department's `last_verified` date instead of resetting it to today.
+
+- Only an adapter import of the department's own record can label a layer `verified` again. Tests cover both the HIGH and the FAST correction tracks.
+- The badge reads "Corrected by officer, not independently confirmed", with a pencil icon and its own style, distinct from verified, self-declared and sample values.
+- Citizens can see which fields were corrected, and when.
 
 Original finding, for the record. `backend/app/routes/parcels.py:597-604`. When a boundary request for a *new* ULPIN is approved, the handler writes placeholder layers and marks them `"confidence": "verified"`:
 
@@ -395,6 +431,31 @@ Whether owner names should be public is a policy question. Some states publish R
 
 ---
 
+### C10. Refused Firestore writes failed silently in the frontend
+
+**Status: Fixed in `f25fe4d` and `9212ba2`, and deployed to Firebase Hosting on 2026-09-26.**
+
+Before the fix, every browser write to Firestore caught its error and only logged it. Once the rules started refusing writes, a user's action could appear to succeed and do nothing.
+
+- **The helpers now throw.** The write helpers in `frontend/src/firebaseFirestore.js` throw a plain-language error: permission refused, no such document, or store unreachable.
+- **`writeSharedCopy()` in `api.js` decides what the user sees:**
+  - If the records service already accepted the action, a banner stays up until dismissed: "<action>: the shared copy was not updated. <reason>".
+  - If the shared copy was the only record of the action, the action fails with an error the UI shows.
+- **Covered paths:** filing a deletion, village and auditor deletion approvals, the audit pass, and rejection.
+- **Profile sync fix.** The sign-in profile write sent `photoURL: null`, which the rules reject, so every sign-in's profile write had been failing silently. It now omits the field, and any failure raises the banner.
+- **No workaround writes.** No client-side write was added to get around the rules.
+
+**Compatibility fix (`9212ba2`).** The API on Render predates `05bc7b3`, and its `POST /parcels/custom` still requires `area_sqm`. The frontend therefore still sends its area estimate, which current API versions ignore. It does not send state, so the server detects state in every API version.
+
+**Hosting redeploy, 2026-09-26.** I built the frontend at `9212ba2` and ran `firebase deploy --only hosting --project landsetu-e4e5e`. The release completed and 17 files were served. The bundle changed from `assets/index-BgCio-3Z.js` to `assets/index-DgYslzle.js`, and the live bundle contains the new banner text.
+
+**Checks:**
+- **Local, full path, against the live rules.** Signed out, the app's own `saveBoundaryRequestToFirestore` and `markParcelDeletedInFirestore` threw `The shared record store refused it: your role, or the request's current stage, does not allow this change. [permission-denied]`. The banner rendered with a visible Dismiss button.
+- **Live site.** `https://landsetu-e4e5e.web.app/#/map` loaded with no console errors. The deployed banner renders when its event fires.
+- **Not checked live.** No officer account was available, so no refused write was triggered through the live UI.
+
+**Not yet live: the records service (API).** The Render service still runs the code from before `05bc7b3`. The server-computed area and state, the approval that invents no records, the `corrected_by_officer` label and the `area_mismatch` rule are all in the repository but not deployed. They go live when the API is redeployed.
+
 ## D. Remaining items from the original `audit.md`
 
 | Original finding | Status | Evidence |
@@ -430,7 +491,10 @@ Whether owner names should be public is a policy question. Some states publish R
 - Silent SQLite fallback (A4, opt-in only).
 - Flat-degree area maths (B2). The formula was never the cause of the live symptom.
 - Missing geometry and size validation (D).
-- Officers writing live parcel state through Firestore (C4, `247446d`). The `deed_blockchain` sub-item is still open.
+- Officers writing live parcel state through Firestore (C4, `247446d`), deployed 2026-09-26.
+- Officers appending deed blocks through Firestore, and the browser-assembled ledger (C4, `02ecf1b`), deployed 2026-09-26.
+- Officer corrections inheriting a `verified` label (C5, `ce99672`).
+- Refused Firestore writes failing silently (C10, `f25fe4d`), deployed to Hosting 2026-09-26.
 - Approval inventing "verified" departmental records (C5, `94360b0`).
 - Client-supplied area and state stored as authoritative (B2 part 3 and B3 persisted state, `05bc7b3`).
 - No check between recorded extent and boundary area (B2 part 2, `62c3c3e`).
@@ -443,9 +507,9 @@ This ranking judges impact on a land registry, not how serious each item sounded
 
 1. **The map shows the wrong set of parcels (C1).** This is the most serious open item even though no original audit raised it. It silently shows an incomplete map with no warning, and officers act on what the map shows. Every other safeguard (overlap flags, approvals) is only as good as the parcels actually drawn.
 2. **The old JWT secret is in public git history (A2).** High if any live environment ever used it, none otherwise. Resolved by one dashboard check or a rotation.
-3. **The deployed frontend predates the rules change (A1 deployment record).** Its browser-side Firestore writes are refused (logged as warnings). Redeploy the frontend.
+3. **The live API predates every backend fix in this document (C10).** Server-computed area and state, the approval that invents no records, correction labels and the area rule go live only when Render redeploys from the repository.
 4. **The seed geometry is out of scale (B2 part 1).** Every seeded parcel now carries an `area_mismatch` flag, so the demo map shows all parcels as flagged until `mock_data/*_geometries.geojson` is regenerated. The list is from `scripts/validate_seed_geometry.py`.
-5. **`deed_blockchain` appends are unrestricted for officers (C4 sub-item).** This affects the tamper-evident display, not the live parcel record.
+5. **No refused write has been checked through the live UI with an officer account (C10).** Local and live checks cover the code path and the banner.
 6. **The frontend state detection is bounding-box based (B3 remainder).** It now only decides which state the map shows. Official boundary data is still needed.
 7. **Anonymous owner-name enumeration (C7).** Needs a policy decision.
 8. **Production refusal for the SQLite fallback is not implemented (A4).** Configuration currently prevents it. Only a mistaken flag would re-open it.
