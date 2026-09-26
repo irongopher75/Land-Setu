@@ -16,16 +16,24 @@ In one transaction, and only for rows that need it:
   3. then clear every parcel's cached flags (what Alembic revision 0007 does), so no flag computed from the old
      polygons survives. Clearing happens after the geometry change, never before.
 Idempotent: once corrected, a parcel is within tolerance and is left alone.
+
+Safe with several replicas starting at once: on PostgreSQL the work runs under a transaction-level advisory lock
+(pg_try_advisory_xact_lock). An instance that cannot take the lock skips the correction; the lock holder does it,
+and the lock is released when its transaction commits. Only ULPINs in the seed set are ever considered.
+
+Temporary: CORRECT_SEED_GEOMETRY_ON_STARTUP (default true) switches it off. Once every deployed database has been
+corrected, turn it off and delete this module (docs/security-posture.md, B2 part 1).
 """
 import json
 import os
 from typing import Dict, List
 
 from shapely.geometry import shape
-from sqlalchemy import update
+from sqlalchemy import text, update
 from sqlalchemy.orm import Session
 
 from app import audit
+from app.db import IS_SQLITE
 from app.intelligence.seed_history import fixture_polygons
 from app.models import BoundaryChangeRequest, Parcel
 from app.rules import AREA_MISMATCH_TOLERANCE, area_discrepancy, compute_geodesic_area_sqm, parse_geometry_shape, recorded_extent_sqm
@@ -33,6 +41,12 @@ from app.rules import AREA_MISMATCH_TOLERANCE, area_discrepancy, compute_geodesi
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SEED_GEOJSON = ("tamilnadu_geometries.geojson", "chandigarh_geometries.geojson")
 BOUNDARY_CHANGING_TYPES = ("BOUNDARY", "SPLIT", "MERGE")
+# Fixed advisory-lock key for this correction ("LSGC"), so every replica contends for the same lock.
+SEED_CORRECTION_LOCK_KEY = 0x4C534743
+
+
+def startup_correction_enabled() -> bool:
+    return os.getenv("CORRECT_SEED_GEOMETRY_ON_STARTUP", "true").strip().lower() not in ("false", "0", "no", "off")
 
 
 def corrected_seed_polygons() -> Dict[str, object]:
@@ -52,14 +66,22 @@ def correct_seed_geometry(db: Session) -> List[str]:
     """Correct out-of-tolerance seed polygons in place. Returns the ULPINs changed (empty when nothing was due)."""
     from app.workflow import geom_column_value
 
+    if not IS_SQLITE:
+        # Held until this transaction ends. A replica that cannot take it skips; the holder does the work.
+        if not db.execute(text("SELECT pg_try_advisory_xact_lock(:key)"), {"key": SEED_CORRECTION_LOCK_KEY}).scalar():
+            db.rollback()
+            print("Seed geometry correction skipped: another instance holds the lock.")
+            return []
+
     targets = corrected_seed_polygons()
+    seed_ulpins = frozenset(targets)
     officer_changed = {u for (u,) in db.query(BoundaryChangeRequest.ulpin).filter(
         BoundaryChangeRequest.status == "APPROVED",
         BoundaryChangeRequest.type.in_(BOUNDARY_CHANGING_TYPES)).all()}
 
     changed = []
-    for p in db.query(Parcel).filter(Parcel.ulpin.in_(list(targets))).all():
-        if p.ulpin in officer_changed:
+    for p in db.query(Parcel).filter(Parcel.ulpin.in_(sorted(seed_ulpins))).all():
+        if p.ulpin not in seed_ulpins or p.ulpin in officer_changed:   # seed set only; approved boundaries stand
             continue
         current = parse_geometry_shape(p.geometry)
         recorded = recorded_extent_sqm(p)
