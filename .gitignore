@@ -34,3 +34,7 @@ SKILLS.md
 **/.DS_Store
 venv/
 .venv/
+
+# Local tool output
+secrets-report.json
+skills-lock.json
