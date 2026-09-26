@@ -39,3 +39,6 @@ venv/
 secrets-report.json
 skills-lock.json
 tests/firestore-rules/node_modules/
+
+# Exports of live Firestore data (may contain fabricated owner names; kept locally as evidence, never committed)
+docs/firestore-export-*.json
