@@ -4,7 +4,6 @@ import {
   updateBoundaryRequestInFirestore,
   getFirestorePendingRequests,
   getFirestoreCustomParcels,
-  getFirestoreCustomParcel,
   getFirestoreBoundaryRequest,
   markParcelDeletedInFirestore,
   getFirestoreDeletedUlpins
@@ -153,31 +152,24 @@ export const listParcels = async (state) => {
   return res.data;
 };
 
+// The records service is the only source of parcels on the map. Its answer is used even when it is empty: a
+// state with no records shows no parcels, rather than parcels made up in this browser. The bundled sample is
+// used only when the service cannot be reached, and is marked `source: 'offline_sample'`.
+// Parcels and deletion markers written by browsers to Firestore or localStorage before the rules were locked
+// (see docs/security-posture.md, C4) are not applied: the service already leaves archived parcels out.
 export const getParcelsGeoJSON = async (state) => {
-  const localDeleted = JSON.parse(localStorage.getItem('landsetu_deleted_parcels') || '[]');
-  const fsDeleted = await getFirestoreDeletedUlpins().catch(() => []);
-  const allDeleted = Array.from(new Set([...localDeleted, ...fsDeleted]));
-
-  let geojson = getFallbackSeedParcelsGeoJSON(state || 'TamilNadu');
   if (!isLocalhostBackendForbidden()) {
     const params = state ? { state } : {};
     try {
       const res = await client.get('/parcels/geojson/all', { params });
-      if (res.data && res.data.features && res.data.features.length > 0) {
-        geojson = res.data;
+      if (res.data && Array.isArray(res.data.features)) {
+        return { ...res.data, source: 'service' };
       }
     } catch (err) {
       noticeOnce('LandSetu: records service not reachable, showing the bundled sample parcels.');
     }
   }
-
-  if (geojson && geojson.features) {
-    geojson = {
-      ...geojson,
-      features: geojson.features.filter(f => !allDeleted.includes(f.properties?.ulpin))
-    };
-  }
-  return geojson;
+  return { ...getFallbackSeedParcelsGeoJSON(state || 'TamilNadu'), source: 'offline_sample' };
 };
 
 export const getProtectedZonesGeoJSON = async (state) => {
@@ -185,7 +177,8 @@ export const getProtectedZonesGeoJSON = async (state) => {
     const params = state ? { state } : {};
     try {
       const res = await client.get('/parcels/protected-zones/geojson', { params });
-      if (res.data && res.data.features && res.data.features.length > 0) {
+      // The service's answer stands even when empty; no zone is made up for a state it holds none for.
+      if (res.data && Array.isArray(res.data.features)) {
         return res.data;
       }
     } catch (err) {
@@ -195,46 +188,27 @@ export const getProtectedZonesGeoJSON = async (state) => {
   return getFallbackProtectedZonesGeoJSON(state || 'TamilNadu');
 };
 
+// Browser-written parcel copies are no longer shown: none of them went through the records service, and
+// the rules now refuse new ones. The local cache of them is cleared.
 export const getApprovedCustomParcels = async () => {
-  const localDeleted = JSON.parse(localStorage.getItem('landsetu_deleted_parcels') || '[]');
-  const fsDeleted = await getFirestoreDeletedUlpins().catch(() => []);
-  const allDeleted = Array.from(new Set([...localDeleted, ...fsDeleted]));
-
-  const localCustom = JSON.parse(localStorage.getItem('landsetu_custom_parcels') || '{}');
-  let merged = { ...localCustom };
-  try {
-    const fsCustom = await getFirestoreCustomParcels();
-    merged = { ...localCustom, ...fsCustom };
-    localStorage.setItem('landsetu_custom_parcels', JSON.stringify(merged));
-  } catch (err) {
-    console.warn('Firestore custom parcel fetch notice:', err.message);
-  }
-
-  allDeleted.forEach(ulpin => {
-    delete merged[ulpin];
-  });
-
-  return merged;
+  try { localStorage.removeItem('landsetu_custom_parcels'); } catch (e) { /* storage unavailable */ }
+  return {};
 };
 
+// From the records service. A parcel the service does not hold is reported as not found; the bundled sample
+// record is shown only when the service cannot be reached.
 export const getParcelDetail = async (ulpin) => {
   if (!isLocalhostBackendForbidden()) {
     try {
-      const res = await client.get(`/parcels/${ulpin}`);
+      const res = await client.get(`/parcels/${encodeURIComponent(ulpin)}`);
       return res.data;
     } catch (err) {
-      // Fallback below
+      if (err.response?.status === 404) {
+        throw new Error(`Parcel ${ulpin} is not in the land records service.`);
+      }
+      if (err.response) throw restError(err, 'Loading the parcel record');
+      // No response: the service is unreachable, so fall back to the bundled sample below.
     }
-  }
-  const customParcels = JSON.parse(localStorage.getItem('landsetu_custom_parcels') || '{}');
-  if (customParcels[ulpin]) {
-    return customParcels[ulpin];
-  }
-  const fsParcel = await getFirestoreCustomParcel(ulpin).catch(() => null);
-  if (fsParcel) {
-    customParcels[ulpin] = fsParcel;
-    localStorage.setItem('landsetu_custom_parcels', JSON.stringify(customParcels));
-    return fsParcel;
   }
 
   // Look up in static seed parcels fallback
@@ -398,8 +372,7 @@ export const requestParcelDeletion = async (ulpin, reason = "State Admin request
     throw new Error(`A deletion request for ULPIN '${ulpin}' is already pending (${alreadyOpen.status}).`);
   }
 
-  const customParcels = JSON.parse(localStorage.getItem('landsetu_custom_parcels') || '{}');
-  const targetP = customParcels[ulpin] || await getFirestoreCustomParcel(ulpin).catch(() => ({})) || {};
+  const targetP = await getParcelDetail(ulpin).catch(() => ({})) || {};
 
   let backendId = null;
   let backendMessage = null;

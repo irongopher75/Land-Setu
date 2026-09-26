@@ -156,6 +156,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
   const [userLocation, setUserLocation] = useState(null);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState('');
+  const [noRecordsForState, setNoRecordsForState] = useState(false);
 
   // Approval Workflow Queue state
   const [showApprovalModal, setShowApprovalModal] = useState(false);
@@ -553,7 +554,11 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
         getDeletedUlpins()
       ]);
 
-      const deletedSet = new Set(deletedUlpins || []);
+      // The records service already leaves archived parcels out. Deletion markers are applied only to the
+      // offline sample, never to the service's answer.
+      const fromService = parcelsData?.source === 'service';
+      setNoRecordsForState(fromService && (parcelsData.features || []).length === 0);
+      const deletedSet = new Set(fromService ? [] : (deletedUlpins || []));
       const normalizeStateKey = (s) => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
 
       const customFeatures = Object.values(customParcels || {})
@@ -746,6 +751,11 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
 
         {role === 'citizen' && <div className="map-readonly-note"><Lock size={14} aria-hidden="true" /> {signedIn ? 'Your account has no officer role, so the map is read only.' : 'Read-only view. Sign in as an officer to edit boundaries.'}</div>}
         {locationError && <div className="callout callout--alert" role="alert">{locationError}</div>}
+        {noRecordsForState && (
+          <div className="map-readonly-note" role="status">
+            No parcel records for {detectedStateInfo.label || detectedStateInfo.name} in the records service yet. This prototype holds records for Tamil Nadu and Chandigarh.
+          </div>
+        )}
       </div>
 
       {!isDrawingMode && !restructure && (

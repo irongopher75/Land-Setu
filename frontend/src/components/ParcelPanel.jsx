@@ -38,6 +38,7 @@ const NA = 'Not recorded';
 export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, onDeletionRequested, onStartRestructure, onRequestCorrection }) {
   const [parcel, setParcel] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [passportData, setPassportData] = useState(null);
   const [showQR, setShowQR] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -49,9 +50,11 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, o
     if (!ulpin) return;
     setTab('record');
     setLoading(true);
+    setLoadError(null);
+    setParcel(null);
     getParcelDetail(ulpin)
       .then(setParcel)
-      .catch((err) => console.error('Failed to fetch parcel detail:', err))
+      .catch((err) => setLoadError(err.message || `The record for ${ulpin} could not be loaded.`))
       .finally(() => setLoading(false));
   }, [ulpin, role]);
 
@@ -100,6 +103,8 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, o
         <div className="drawer-body">
           {loading ? (
             <div className="drawer-loading">Loading the record for {ulpin}</div>
+          ) : loadError ? (
+            <div className="callout callout--alert" role="alert">{loadError}</div>
           ) : (
             <>
               {inactive && (
