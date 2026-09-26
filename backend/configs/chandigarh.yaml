@@ -45,3 +45,29 @@ terminology_map:
   "jamabandi": "record_of_rights"
   "khasra": "parcel_identifier"
   "intequal": "mutation_record"
+
+# Cross-department chain for a land transaction (app/transactions.py). Departments run in this order.
+# `auto: true` departments start on their own once the department before them finishes.
+# `when` names a condition checked once, when the transaction is opened: leasehold, land_use_change, ri_required.
+# DISPUTE is not part of the chain. A Revenue objection opens a case and a handoff escalates it.
+transaction_workflow:
+  departments:
+    - department: REGISTRATION
+      stages:
+        - {name: "Sub-Registrar deed verification", role: officer}
+    - department: REVENUE
+      stages:
+        - {name: "Patwari field verification", role: village_officer}
+        - {name: "Kanungo / Circle Officer review", role: auditor}
+        - {name: "Tehsildar approval", role: state_admin}
+    - department: ESTATE_OFFICE
+      when: leasehold
+      stages:
+        - {name: "Estate Office transfer permission", role: state_admin}
+    - department: MUNICIPAL
+      auto: true
+      stages:
+        - {name: "Property tax re-keyed to new owner", role: state_admin}
+  dispute:
+    stages:
+      - {name: "SDM / District Collector hearing", role: state_admin}

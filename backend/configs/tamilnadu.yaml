@@ -45,3 +45,26 @@ terminology_map:
   "patta": "record_of_rights"
   "adangal": "land_use_register"
   "chitta": "ownership_extract"
+
+# Cross-department chain for a land transaction (app/transactions.py). See chandigarh.yaml for the keys.
+transaction_workflow:
+  departments:
+    - department: REGISTRATION
+      stages:
+        - {name: "Sub-Registrar deed verification", role: officer}
+    - department: REVENUE
+      stages:
+        - {name: "VAO field verification", role: village_officer}
+        - {name: "Revenue Inspector review", role: auditor, when: ri_required}
+        - {name: "Tahsildar approval", role: state_admin}
+    - department: MUNICIPAL
+      auto: true
+      stages:
+        - {name: "Property tax re-keyed to new owner", role: state_admin}
+    - department: PLANNING
+      when: land_use_change
+      stages:
+        - {name: "Town and Country Planning clearance", role: state_admin}
+  dispute:
+    stages:
+      - {name: "RDO / District Collector hearing", role: state_admin}

@@ -4,6 +4,7 @@ import ConfidenceBadge from './ConfidenceBadge';
 import { can } from '../roles';
 import FlagDiff from './FlagDiff';
 import ParcelTimeline from './ParcelTimeline';
+import TransactionTimeline from './TransactionTimeline';
 import IntelligencePanel from './IntelligencePanel';
 import { getParcelDetail, getParcelPassport, requestParcelDeletion } from '../api';
 
@@ -146,7 +147,10 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, o
               </div>
 
               {tab === 'history' ? (
-                <ParcelTimeline ulpin={ulpin} />
+                <>
+                  <TransactionTimeline ulpin={ulpin} />
+                  <ParcelTimeline ulpin={ulpin} />
+                </>
               ) : (
                 <>
                   <div className="ledger-block">

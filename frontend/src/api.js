@@ -1238,3 +1238,10 @@ export const resolveConcern = (flagId, note) => restPost(`/parcels/flags/${flagI
 // Statistical signals (officers only) and their state-wide summary (state admin).
 export const getParcelIntelligence = (ulpin) => restCall('get', `/parcels/${encodeURIComponent(ulpin)}/intelligence`, 'Statistical signals');
 export const getIntelligenceSummary = () => restCall('get', '/parcels/analytics/intelligence', 'Statistical summary');
+
+// Cross-department land transactions (Registration, Revenue, Estate Office, Municipal, Planning, Dispute).
+export const getParcelTransactions = (ulpin) => restCall('get', `/parcels/${encodeURIComponent(ulpin)}/transactions`, 'Loading transactions');
+export const getTransaction = (id) => restCall('get', `/transactions/${id}`, 'Loading the transaction');
+export const openTransaction = (body) => restPost('/transactions', 'Opening the transaction', body);
+export const actOnTransactionStage = (id, action, remarks = '') => restCall('patch', `/transactions/${id}/stage`, 'Recording the stage decision', { action, remarks });
+export const handoffTransaction = (id, toDepartment, reason) => restPost(`/transactions/${id}/handoff`, 'Handing the transaction off', { to_department: toDepartment, reason });

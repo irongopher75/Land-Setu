@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from sqlalchemy import text
 from app.db import engine, Base, IS_SQLITE
-from app.routes import auth, adapter, parcels, workflow, admin, flags, intelligence
+from app.routes import auth, adapter, parcels, workflow, admin, flags, intelligence, transactions
 from app.seed import seed_database
 from app.schema_upgrade import upgrade_schema
 from app.security import SecurityMiddleware
@@ -46,6 +46,7 @@ app.include_router(adapter.router)
 app.include_router(flags.router)
 app.include_router(intelligence.router)  # before parcels: /parcels/analytics/... and /{ulpin}/intelligence
 app.include_router(workflow.router)  # before parcels: /parcels/search must win over /parcels/{ulpin}
+app.include_router(transactions.router)  # /parcels/{ulpin}/transactions
 app.include_router(parcels.router)
 
 @app.on_event("startup")

@@ -106,3 +106,45 @@
 .concerns--open > strong { color: var(--accent-seal); }
 .concern { background: var(--surface); border: var(--line) solid var(--rule-strong); padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
 .concern--resolved { background: transparent; border-style: dashed; }
+
+/* Land transaction timeline: departments on the outer track, officer stages nested under each.
+   State is always written out; colour and border style only reinforce it. */
+.tx-list { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-3); }
+.tx-card { border: 1px solid var(--rule-strong); background: var(--surface); padding: 12px; }
+.tx-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.tx-title { font-weight: 600; color: var(--ink-navy); text-transform: capitalize; font-size: 0.9rem; }
+.tx-sub, .tx-stage-meta { font-size: 0.76rem; color: var(--ink-muted); }
+.tx-status { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px; border: 1px solid var(--ink-navy); color: var(--ink-navy); white-space: nowrap; }
+.tx-status--approved { background: var(--verified-tint); color: var(--verified-ink); border-color: var(--verified-ink); }
+.tx-status--rejected, .tx-status--objected { background: var(--accent-seal-tint); color: var(--accent-seal-deep); border-color: var(--accent-seal); border-style: dashed; }
+.tx-now { font-size: 0.82rem; margin-top: 8px; }
+.tx-note { font-size: 0.78rem; margin-top: 8px; padding: 6px 8px; background: var(--surface-sunk); }
+.tx-depts { list-style: none; margin: 12px 0 0; padding: 0 0 0 14px; border-left: 2px solid var(--ink-navy); }
+.tx-dept { position: relative; padding: 0 0 14px 12px; }
+.tx-dept::before { content: ''; position: absolute; left: -22px; top: 11px; width: 14px; height: 2px; background: var(--ink-navy); }
+.tx-dept--upcoming { color: var(--ink-faint); }
+.tx-dept--upcoming::before { background: var(--rule-strong); }
+.tx-dept--rejected .tx-dept-state { color: var(--accent-seal-deep); }
+.tx-dept--complete .tx-dept-state { color: var(--verified-ink); }
+.tx-dept-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.tx-dept-num { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 700; border: 1px solid var(--ink-navy); color: var(--ink-navy); }
+.tx-dept--active .tx-dept-num { background: var(--ink-navy); color: var(--ink-on-navy); }
+.tx-dept--paused .tx-dept-num { border-style: dashed; }
+.tx-dept-name { font-weight: 600; font-size: 0.86rem; color: var(--ink-navy); }
+.tx-dept--upcoming .tx-dept-name { color: var(--ink-faint); }
+.tx-dept-state { margin-left: auto; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-muted); }
+.tx-tag { font-size: 0.68rem; padding: 1px 6px; border: 1px solid var(--rule-strong); color: var(--ink-muted); }
+.tx-handoff { font-size: 0.76rem; color: var(--ink-muted); margin: 0 0 8px; padding: 4px 8px; border: 1px dashed var(--rule-strong); }
+.tx-handoff-reason { color: var(--ink-navy); }
+.tx-stages { list-style: none; margin: 8px 0 0 10px; padding: 0 0 0 10px; border-left: 1px solid var(--rule-strong); }
+.tx-stage { padding: 4px 0; }
+.tx-stage-name { font-size: 0.82rem; color: var(--ink-navy); }
+.tx-stage--upcoming .tx-stage-name { color: var(--ink-faint); }
+.tx-stage--objected .tx-stage-name, .tx-stage--rejected .tx-stage-name { text-decoration: underline wavy var(--accent-seal); }
+.tx-stage--waiting .tx-stage-meta { font-weight: 700; color: var(--ink-navy); }
+.tx-stage-remarks { font-size: 0.76rem; font-style: italic; }
+.tx-dispute { margin-top: 8px; padding: 8px; border: 2px dashed var(--accent-seal); font-size: 0.8rem; }
+.tx-notices { margin-top: 10px; font-size: 0.78rem; }
+.tx-notices summary { cursor: pointer; font-weight: 600; }
+.tx-notices ul { padding-left: 16px; margin: 6px 0 0; }
+.tx-notices summary:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }

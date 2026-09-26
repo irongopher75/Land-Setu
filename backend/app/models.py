@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Integer, String, Float, JSON, UniqueConstraint
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Float, JSON, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from app.db import Base, IS_SQLITE
 
@@ -191,3 +191,82 @@ class ParcelIntelligence(Base):
     zoning_explanation = Column(String, nullable=True)
     computed_at = Column(String, nullable=True)
     stale = Column(Boolean, nullable=False, default=True, index=True)
+
+
+class LandTransaction(Base):
+    """One ownership change (sale, gift, inheritance, partition) moving through several departments.
+
+    `details` (JSONB) holds the layered part: the department plan for this parcel's state, the parties taken from
+    the registration record, the auto-mutation classifier result and the municipal re-key result.
+    """
+    __tablename__ = "land_transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ulpin = Column(String, ForeignKey("parcels.ulpin"), index=True, nullable=False)
+    state = Column(String, index=True, nullable=False)
+    transaction_type = Column(String, nullable=False)   # sale | gift | inheritance | partition
+    deed_reference = Column(String, nullable=False)     # resolves to registration_transactions.transaction_id
+    initiated_at = Column(String, nullable=False)
+    initiated_by_ref = Column(String, nullable=True)    # audit.actor_ref of the Sub-Registrar; never the raw account id
+    current_department = Column(String, nullable=False)
+    current_stage = Column(String, nullable=True)
+    status = Column(String, nullable=False, default="pending", index=True)  # pending | in_review | objected | approved | rejected
+    details = Column(FlagsType, nullable=True)
+
+
+class MutationStage(Base):
+    """One officer-level step inside one department. Rows are created when the department becomes active."""
+    __tablename__ = "mutation_stages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    transaction_id = Column(Integer, ForeignKey("land_transactions.id"), index=True, nullable=False)
+    department = Column(String, nullable=False)
+    stage_name = Column(String, nullable=False)
+    stage_order = Column(Integer, nullable=False)       # 1-based across the whole transaction
+    role_required = Column(String, nullable=False)
+    officer_id = Column(String, nullable=True)          # audit.actor_ref of the acting officer; "system" for automatic steps
+    action = Column(String, nullable=True)              # approved | objected | rejected | auto_verified | auto_rekeyed | NULL while pending
+    remarks = Column(String, nullable=True)
+    acted_at = Column(String, nullable=True)
+
+
+class DepartmentHandoff(Base):
+    """A move of the transaction from one department to another. Shown as its own step in the audit trail."""
+    __tablename__ = "department_handoffs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    transaction_id = Column(Integer, ForeignKey("land_transactions.id"), index=True, nullable=False)
+    from_department = Column(String, nullable=True)     # NULL for the opening entry
+    to_department = Column(String, nullable=False)
+    handoff_reason = Column(String, nullable=False)
+    handoff_at = Column(String, nullable=False)
+    actor_ref = Column(String, nullable=True)
+
+
+class DisputeCase(Base):
+    """Opened when a Revenue stage objects. Escalated to the SDM / RDO / District Collector by a handoff."""
+    __tablename__ = "dispute_cases"
+
+    id = Column(Integer, primary_key=True, index=True)
+    transaction_id = Column(Integer, ForeignKey("land_transactions.id"), index=True, nullable=False)
+    ulpin = Column(String, index=True, nullable=False)
+    objection_reason = Column(String, nullable=False)
+    objected_at = Column(String, nullable=False)
+    escalated_at = Column(String, nullable=True)
+    resolved_at = Column(String, nullable=True)
+    resolution = Column(String, nullable=True)          # dismissed (mutation resumes) | upheld (transaction rejected)
+    resolution_remarks = Column(String, nullable=True)
+
+
+class TransactionNotification(Base):
+    """Message to the next holder of a transaction, or to a downstream department system."""
+    __tablename__ = "transaction_notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    transaction_id = Column(Integer, ForeignKey("land_transactions.id"), index=True, nullable=False)
+    ulpin = Column(String, index=True, nullable=False)
+    event = Column(String, nullable=False)              # stage_completed | department_handoff | municipal_push | ...
+    recipient_department = Column(String, nullable=False)
+    recipient_role = Column(String, nullable=True)
+    message = Column(String, nullable=False)
+    created_at = Column(String, nullable=False)
