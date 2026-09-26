@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import L from 'leaflet';
 import * as turf from '@turf/turf';
 import { PlusCircle, Edit3, Check, X, MapPin, Sparkles, Search, Lock, Navigation, Target, ClipboardList, AlertTriangle } from 'lucide-react';
-import { getParcelsGeoJSON, getProtectedZonesGeoJSON, createCustomParcel, identifyStateByCoords, getPendingRequests, getApprovedCustomParcels, requestParcelDeletion, deleteParcelDirectly, getDeletedUlpins } from '../api';
+import { getParcelsGeoJSON, getProtectedZonesGeoJSON, createCustomParcel, identifyStateByCoords, getPendingRequests, getApprovedCustomParcels, requestParcelDeletion, getDeletedUlpins } from '../api';
 import ApprovalQueueModal from './ApprovalQueueModal';
 import RestructurePanel from './RestructurePanel';
 import { colors, landUseColor } from '../palette';

@@ -1,5 +1,5 @@
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, where, updateDoc, deleteDoc } from 'firebase/firestore';
-import { app } from './firebase';
+import { app, auth } from './firebase';
 
 let db = null;
 try {
@@ -31,27 +31,9 @@ const parseFirestoreData = (data) => {
   return clone;
 };
 
-export const saveCustomParcelToFirestore = async (parcelData) => {
-  try {
-    const docData = prepareFirestoreData(parcelData);
-    const pRef = doc(db, 'custom_parcels', parcelData.ulpin);
-    await setDoc(pRef, {
-      ...docData,
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
-  } catch (err) {
-    console.warn('Firestore custom parcel sync notice:', err.message);
-  }
-};
-
-export const deleteCustomParcelFromFirestore = async (ulpin) => {
-  try {
-    const pRef = doc(db, 'custom_parcels', ulpin);
-    await deleteDoc(pRef);
-  } catch (err) {
-    console.warn('Firestore delete parcel notice:', err.message);
-  }
-};
+// custom_parcels is read-only for browsers (firestore.rules). A parcel's live record is written only by the
+// records service, which computes area and state itself and is the only party that can attest a
+// departmental record.
 
 export const saveBoundaryRequestToFirestore = async (reqData) => {
   try {
@@ -59,9 +41,10 @@ export const saveBoundaryRequestToFirestore = async (reqData) => {
     const reqRef = doc(db, 'boundary_requests', reqData.id);
     await setDoc(reqRef, {
       ...docData,
-      status: reqData.status || 'PENDING',
+      status: reqData.status,
+      requesterUid: auth?.currentUser?.uid || '',
       createdAt: new Date().toISOString()
-    }, { merge: true });
+    });
   } catch (err) {
     console.warn('Firestore boundary request sync notice:', err.message);
   }
@@ -126,13 +109,15 @@ export const getFirestorePendingRequests = async () => {
   }
 };
 
-export const markParcelDeletedInFirestore = async (ulpin) => {
+// The marker must name the deletion request that completed every stage (firestore.rules).
+export const markParcelDeletedInFirestore = async (ulpin, requestId) => {
   try {
     const pRef = doc(db, 'deleted_parcels', ulpin);
     await setDoc(pRef, {
       ulpin,
+      requestId: String(requestId),
       deletedAt: new Date().toISOString()
-    }, { merge: true });
+    });
   } catch (err) {
     console.warn('Firestore deleted parcel sync notice:', err.message);
   }

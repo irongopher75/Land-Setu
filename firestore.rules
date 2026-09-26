@@ -33,14 +33,16 @@ rules_version = '2';
 //   - status: string (required, max 50 chars)
 //   - requestedBy: string (optional, max 100 chars)
 //   - createdAt: string (optional, max 50 chars)
-//   - approverRole: string (optional, max 100 chars)
+//   - approverRole: string (optional, max 100 chars; on a decision, the actor's role claim)
 //   - approvedAt: string (optional, max 50 chars)
+//   - requesterUid: string (required on create, the filer's Firebase UID)
 //
 // Collection: deleted_parcels
 // Document ID: {ulpin}
 // Fields:
 //   - ulpin: string (required, max 100 chars)
 //   - deletedAt: string (required, max 50 chars)
+//   - requestId: string (required, id of the boundary_requests document that reached DELETED)
 //
 // Collection: deed_blockchain
 // Document ID: {docId}
@@ -146,22 +148,57 @@ service cloud.firestore {
         isValidOptionalString(data, 'approvedAt', 0, 50);
     }
 
+    // A request enters the pipeline only at its first stage, filed by the signed-in account, with no decision
+    // recorded yet. Mirrors backend/app/routes/parcels.py (create_custom_parcel, request_parcel_deletion).
     function isValidBoundaryRequestCreate(data) {
-      return isValidBoundaryRequest(data) && (
-        (data.status in ['PENDING', 'PENDING_APPROVAL', 'PENDING_AUDITOR_REVIEW'] && isGovernanceOfficer()) ||
-        (data.status == 'PENDING_DELETION_VILLAGE' && isAdminOrAuditor())
+      return isValidBoundaryRequest(data) &&
+        data.requesterUid == request.auth.uid &&
+        !('approverRole' in data) && !('approvedAt' in data) && (
+          (data.status == 'PENDING_VILLAGE_REVIEW' && isGovernanceOfficer()) ||
+          (data.status == 'PENDING_APPROVAL' && hasRole(['village_officer', 'super_admin'])) ||
+          (data.status == 'PENDING_DELETION_VILLAGE' && isStateAdmin())
+        );
+    }
+
+    // Who reviews each open stage. Mirrors STAGE_REVIEWERS in backend/app/permissions.py.
+    // A super administrator may act at any stage.
+    function isStageReviewer(status) {
+      return (status in ['PENDING_VILLAGE_REVIEW', 'PENDING_DELETION_VILLAGE'] && hasRole(['village_officer', 'super_admin'])) ||
+        (status in ['PENDING_APPROVAL', 'PENDING_AUDITOR_REVIEW', 'PENDING', 'PENDING_DELETION_AUDITOR'] && hasRole(['auditor', 'super_admin'])) ||
+        (status == 'PENDING_STATE_ADMIN' && isStateAdmin());
+    }
+
+    // The only moves a request can make: forward one stage, or rejection by the current stage's reviewer.
+    // Nothing skips a stage, and only a state administrator (or super administrator) finalises an approval.
+    function isAllowedTransition(prev, next) {
+      return isStageReviewer(prev) && (
+        (prev == 'PENDING_VILLAGE_REVIEW' && next == 'PENDING_APPROVAL') ||
+        (prev in ['PENDING_APPROVAL', 'PENDING_AUDITOR_REVIEW', 'PENDING'] && next == 'PENDING_STATE_ADMIN') ||
+        (prev == 'PENDING_STATE_ADMIN' && next == 'APPROVED') ||
+        (prev == 'PENDING_DELETION_VILLAGE' && next == 'PENDING_DELETION_AUDITOR') ||
+        (prev == 'PENDING_DELETION_AUDITOR' && next == 'DELETED') ||
+        next == 'REJECTED'
       );
     }
 
+    // An update records a decision and nothing else: the parcel, geometry, requester and other fields
+    // are fixed once filed. The decision is labelled with the actor's real role, and nobody decides on
+    // a request they filed.
     function isValidBoundaryRequestUpdate(data, prev) {
-      return isValidBoundaryRequest(data) && (
-        (data.status == 'APPROVED' && isStateAdmin()) ||
-        (data.status == 'PENDING_STATE_ADMIN' && isAdminOrAuditor()) ||
-        (data.status == 'PENDING_DELETION_AUDITOR' && hasRole(['village_officer', 'auditor', 'state_admin', 'super_admin'])) ||
-        (data.status == 'DELETED' && isAdminOrAuditor()) ||
-        (data.status == 'REJECTED' && isGovernanceOfficer()) ||
-        (data.status == prev.status && isGovernanceOfficer())
-      );
+      return isValidBoundaryRequest(data) &&
+        data.diff(prev).affectedKeys().hasOnly(['status', 'approverRole', 'approvedAt']) &&
+        data.approverRole == request.auth.token.role &&
+        request.auth.uid != prev.get('requesterUid', '') &&
+        isAllowedTransition(prev.status, data.status);
+    }
+
+    // A deletion marker must point at a request that completed the deletion pipeline for the same parcel.
+    function isPipelineDeletion(data, ulpin) {
+      return data.ulpin == ulpin &&
+        data.requestId is string &&
+        exists(/databases/$(database)/documents/boundary_requests/$(data.requestId)) &&
+        get(/databases/$(database)/documents/boundary_requests/$(data.requestId)).data.status == 'DELETED' &&
+        get(/databases/$(database)/documents/boundary_requests/$(data.requestId)).data.ulpin == ulpin;
     }
 
     function isValidDeletedParcel(data) {
@@ -199,27 +236,33 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Custom parcels collection - read authenticated, writes restricted to governance officers
+    // Custom parcels collection - read-only for every client.
+    // A parcel's live record (geometry, area, state, departmental layers and their confidence) is written
+    // only by the records service through the Admin SDK, which bypasses these rules. No browser can compute
+    // area or state on the server or attest a departmental record, so no browser may write one here,
+    // whatever its role. isValidCustomParcel documents the shape the service writes.
     match /custom_parcels/{ulpin} {
       allow read: if isAuthenticated();
-      allow create: if isGovernanceOfficer() && isValidCustomParcel(request.resource.data);
-      allow update: if isGovernanceOfficer() && isValidCustomParcel(request.resource.data);
-      allow delete: if isAdminOrAuditor();
+      allow create, update, delete: if false;
     }
 
-    // Boundary requests collection - role-gated state transition pipeline
+    // Boundary requests collection - role-gated state transition pipeline.
+    // Requests are proposals: filing one changes no parcel. Requests are never deleted, so the history stays.
     match /boundary_requests/{reqId} {
       allow read: if isGovernanceOfficer();
-      allow create: if isAuthenticated() && isValidBoundaryRequestCreate(request.resource.data);
+      allow create: if isAuthenticated() && request.resource.data.id == reqId && isValidBoundaryRequestCreate(request.resource.data);
       allow update: if isAuthenticated() && isValidBoundaryRequestUpdate(request.resource.data, resource.data);
-      allow delete: if isStateAdmin();
+      allow delete: if false;
     }
 
-    // Deleted parcels collection - auditor/admin authorized deletions only
+    // Deleted parcels collection - a marker is written only for a deletion request that has passed every
+    // stage (village officer, then auditor). The marker is permanent; restoring a parcel is a records
+    // service action.
     match /deleted_parcels/{ulpin} {
       allow read: if isAuthenticated();
-      allow create: if isAdminOrAuditor() && isValidDeletedParcel(request.resource.data);
-      allow update, delete: if isStateAdmin();
+      allow create: if isAdminOrAuditor() && isValidDeletedParcel(request.resource.data) &&
+        isPipelineDeletion(request.resource.data, ulpin);
+      allow update, delete: if false;
     }
 
     // Deed Blockchain: Append-only ledger restricted to governance officers
@@ -229,12 +272,12 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // Protected zones collection - governance officer access
+    // Protected zones collection - notified zones change parcel flags, so only a state administrator
+    // may edit them. (The records service reads zones from PostgreSQL; this copy is informational.)
     match /protected_zones/{zoneId} {
       allow read: if isAuthenticated();
-      allow create: if isGovernanceOfficer() && isValidProtectedZone(request.resource.data);
-      allow update: if isGovernanceOfficer() && isValidProtectedZone(request.resource.data);
-      allow delete: if isAdminOrAuditor();
+      allow create, update: if isStateAdmin() && isValidProtectedZone(request.resource.data);
+      allow delete: if isStateAdmin();
     }
 
     // Default deny for all other paths

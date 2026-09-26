@@ -1,7 +1,5 @@
 import axios from 'axios';
 import {
-  saveCustomParcelToFirestore,
-  deleteCustomParcelFromFirestore,
   saveBoundaryRequestToFirestore,
   updateBoundaryRequestInFirestore,
   getFirestorePendingRequests,
@@ -378,14 +376,14 @@ const requestTypeFromStatus = (status, fallbackType) => {
   return String(status || '').includes('DELETION') ? 'DELETION' : 'BOUNDARY';
 };
 
-export const recordDeletedUlpin = async (ulpin) => {
+export const recordDeletedUlpin = async (ulpin, requestId) => {
   if (!ulpin) return;
   const local = JSON.parse(localStorage.getItem(DELETED_ULPINS_KEY) || '[]');
   if (!local.includes(ulpin)) {
     local.push(ulpin);
     localStorage.setItem(DELETED_ULPINS_KEY, JSON.stringify(local));
   }
-  await markParcelDeletedInFirestore(ulpin);
+  await markParcelDeletedInFirestore(ulpin, requestId);
 };
 
 export const getDeletedUlpins = async () => {
@@ -455,30 +453,6 @@ export const requestParcelDeletion = async (ulpin, reason = "State Admin request
   };
 };
 
-export const deleteParcelDirectly = async (ulpin) => {
-  await markParcelDeletedInFirestore(ulpin).catch(() => {});
-  await deleteCustomParcelFromFirestore(ulpin).catch(() => {});
-
-  const customParcels = JSON.parse(localStorage.getItem('landsetu_custom_parcels') || '{}');
-  delete customParcels[ulpin];
-  localStorage.setItem('landsetu_custom_parcels', JSON.stringify(customParcels));
-
-  const deletedUlpins = JSON.parse(localStorage.getItem('landsetu_deleted_parcels') || '[]');
-  if (!deletedUlpins.includes(ulpin)) {
-    deletedUlpins.push(ulpin);
-    localStorage.setItem('landsetu_deleted_parcels', JSON.stringify(deletedUlpins));
-  }
-
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new Event('landsetu-pipeline-updated'));
-  }
-
-  return {
-    status: 'DELETED',
-    message: `Land parcel ULPIN '${ulpin}' deleted successfully and removed from GIS master map!`
-  };
-};
-
 export const villageApproveDeletion = async (requestId) => {
   const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
   if (currentRole !== 'village_officer' && currentRole !== 'super_admin') {
@@ -496,7 +470,7 @@ export const villageApproveDeletion = async (requestId) => {
     }
   }
 
-  await updateBoundaryRequestInFirestore(requestId, 'PENDING_DELETION_AUDITOR', 'village_officer');
+  await updateBoundaryRequestInFirestore(requestId, 'PENDING_DELETION_AUDITOR', currentRole);
 
   const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
   const req = reqs.find(r => String(r.id) === String(requestId));
@@ -531,11 +505,10 @@ export const auditorApproveDeletion = async (requestId) => {
     }
   }
 
-  await updateBoundaryRequestInFirestore(requestId, 'DELETED', 'auditor');
+  await updateBoundaryRequestInFirestore(requestId, 'DELETED', currentRole);
 
   if (req && req.ulpin) {
-    await deleteCustomParcelFromFirestore(req.ulpin);
-    await recordDeletedUlpin(req.ulpin);
+    await recordDeletedUlpin(req.ulpin, requestId);
 
     const customParcels = JSON.parse(localStorage.getItem('landsetu_custom_parcels') || '{}');
     delete customParcels[req.ulpin];
@@ -936,14 +909,14 @@ export const getPendingRequests = async () => {
 
 export const auditorPassRequest = async (requestId, request = null) => {
   const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
-  if (currentRole !== 'auditor' && currentRole !== 'state_admin' && currentRole !== 'super_admin') {
+  if (currentRole !== 'auditor' && currentRole !== 'super_admin') {
     throw new Error('Permission Denied: Only Compliance Auditors can pass compliance audit.');
   }
   if (isRestOnlyRequest(request)) {
     return restPost(`/parcels/requests/${requestId}/auditor-pass`, 'Auditor review');
   }
 
-  await updateBoundaryRequestInFirestore(requestId, 'PENDING_STATE_ADMIN', 'auditor');
+  await updateBoundaryRequestInFirestore(requestId, 'PENDING_STATE_ADMIN', currentRole);
 
   const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
   const req = reqs.find(r => r.id === requestId);
@@ -964,43 +937,10 @@ export const approveBoundaryRequest = async (requestId, request = null) => {
     return restPost(`/parcels/requests/${requestId}/approve`, 'Final approval');
   }
 
-  const fsReq = await getFirestoreBoundaryRequest(requestId).catch(() => null);
-  const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
-  const req = fsReq || reqs.find(r => r.id === requestId);
-
-  await updateBoundaryRequestInFirestore(requestId, 'APPROVED', 'state_admin');
-
-  if (req && req.ulpin) {
-    const pObj = {
-      ulpin: req.ulpin,
-      state: req.state || 'TamilNadu',
-      area_sqm: req.area_sqm || 500,
-      geometry: req.geometry,
-      land_use: req.land_use || 'residential',
-      layers: {
-        ror: { owner_name: req.owner_name || 'Land Owner', owner_share: '1/1', khata_no: 'KH-APPROVED', source: 'village_office', confidence: 'verified' },
-        registration: { last_transaction_id: 'REG-2026-APPROVED', transaction_type: 'boundary_reshaped', date: new Date().toISOString().split('T')[0], source: 'sub_registrar', confidence: 'verified' },
-        zoning: { land_use: req.land_use || 'residential', permitted_fsi: 1.5, eco_sensitive: false, source: 'master_plan_2026', confidence: 'verified' },
-        building_permit: { status: 'approved', permit_id: 'BP-2026-APPROVED', approved_fsi: 1.5, source: 'municipal_corp', confidence: 'verified' },
-        tax: { annual_value: 48000, source: 'revenue_dept', confidence: 'verified', last_verified: new Date().toISOString().split('T')[0] },
-        encumbrance: { active: false, type: null, source: 'sub_registrar', confidence: 'verified' }
-      },
-      flags: []
-    };
-    await saveCustomParcelToFirestore(pObj);
-
-    const customParcels = JSON.parse(localStorage.getItem('landsetu_custom_parcels') || '{}');
-    customParcels[req.ulpin] = pObj;
-    localStorage.setItem('landsetu_custom_parcels', JSON.stringify(customParcels));
-  }
-
-  if (reqs.length > 0) {
-    const localReq = reqs.find(r => r.id === requestId);
-    if (localReq) localReq.status = 'APPROVED';
-    localStorage.setItem('landsetu_pending_reqs', JSON.stringify(reqs));
-  }
-
-  return { status: 'APPROVED', message: `Request ${requestId} approved successfully!`, ulpin: req?.ulpin };
+  // A request held only in the browser copy (Firestore or this device) never reached the records service.
+  // Approving it here could not compute the parcel's area or state on the server or attest any departmental
+  // record, so it cannot change a parcel. It can still be rejected.
+  throw new Error(`Request ${requestId} exists only in the browser copy of the queue, so it cannot be applied to a parcel. Reject it and file the boundary again; it will then go through the records service.`);
 };
 
 export const rejectBoundaryRequest = async (requestId, request = null) => {
