@@ -392,6 +392,32 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get
     }
 
 
+STATUS_TEXT = {
+    "PENDING_VILLAGE_REVIEW": "With the village land officer", "PENDING_APPROVAL": "With the auditor",
+    "PENDING_AUDITOR_REVIEW": "With the auditor", "PENDING": "With the auditor",
+    "PENDING_STATE_ADMIN": "With the state administrator", "PENDING_FAST_REVIEW": "With the auditor (fast track)",
+    "PENDING_DELETION_VILLAGE": "With the village land officer", "PENDING_DELETION_AUDITOR": "With the auditor",
+    "APPROVED": "Approved and applied", "REJECTED": "Rejected", "WITHDRAWN": "Withdrawn", "ARCHIVED": "Archived",
+}
+
+
+@router.get("/requests/mine")
+def list_my_requests(offset: int = Query(0, ge=0), limit: int = Query(20, ge=1, le=100),
+                     actor: dict = Depends(get_current_payload), db: Session = Depends(get_db)):
+    """Requests filed by the signed-in account, newest first, with where each one is and any rejection remarks."""
+    q = db.query(BoundaryChangeRequest).filter(BoundaryChangeRequest.requester_uid == actor.get("sub"))
+    total = q.count()
+    rows = q.order_by(BoundaryChangeRequest.id.desc()).offset(offset).limit(limit).all()
+    items = []
+    for r in rows:
+        history = [{k: v for k, v in h.items() if k != "uid"} for h in (r.history or [])]
+        remarks = next((h.get("remarks") for h in reversed(history) if h.get("remarks")), None)
+        items.append({"id": r.id, "ulpin": r.ulpin, "type": r.type or "BOUNDARY", "status": r.status,
+                      "status_text": STATUS_TEXT.get(r.status, r.status.replace("_", " ").title()),
+                      "reason": r.reason, "created_at": r.created_at, "remarks": remarks, "history": history})
+    return {"total": total, "offset": offset, "limit": limit, "items": items}
+
+
 @router.get("/requests/pending")
 def list_pending_requests(role: str = Depends(require_roles("officer", "auditor", "state_admin", "village_officer")),
                           actor: dict = Depends(get_current_payload), db: Session = Depends(get_db)):
@@ -753,16 +779,25 @@ def approve_boundary_request(request_id: int, record: Optional[ApprovalRecordEnt
 
     return {"status": "APPROVED", "message": f"Boundary change request #{request_id} for ULPIN '{req.ulpin}' approved and committed!"}
 
+class RejectRequest(BaseModel):
+    # Shown to the person who filed the request, so they know what to fix. Kept on the request, not in the public
+    # audit log, because it can name people or documents.
+    remarks: str = Field(min_length=5, max_length=500)
+
+
 @router.post("/requests/{request_id}/reject")
-def reject_boundary_request(request_id: int, role: str = Depends(get_current_role), actor: dict = Depends(get_current_payload), db: Session = Depends(get_db)):
-    """Rejection / withdrawal for boundary-change and deletion requests."""
+def reject_boundary_request(request_id: int, body: RejectRequest, role: str = Depends(get_current_role),
+                            actor: dict = Depends(get_current_payload), db: Session = Depends(get_db)):
+    """Reject a request with remarks for the requester."""
     req = db.query(BoundaryChangeRequest).filter(BoundaryChangeRequest.id == request_id).first()
     if not req:
         raise HTTPException(status_code=404, detail="Boundary change request not found")
 
     permissions.require(req, actor.get("sub"), role, "reject", _unresolved_flags(db, req))
 
-    advance_request(req, "REJECTED", role, "Rejected", db=db, actor_uid=actor.get("sub"))
+    advance_request(req, "REJECTED", role, "Rejected with remarks to the requester", db=db, actor_uid=actor.get("sub"))
+    # Reassign rather than edit in place: the JSON column only tracks assignment, and the audit write has flushed.
+    req.history = req.history[:-1] + [{**req.history[-1], "remarks": body.remarks.strip()}]
     req.approved_by = f"Rejected by {role}"
     req.approver_role = role
     db.commit()

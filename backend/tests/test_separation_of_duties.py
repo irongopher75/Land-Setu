@@ -44,6 +44,8 @@ def high_request(c, ulpin, filer="cit-1"):
 
 
 def post(c, path, role, uid, **kw):
+    if path.endswith("/reject") and "json" not in kw:
+        kw["json"] = {"remarks": "Test rejection remarks"}
     return c.post(path, headers=hdr(role, uid), **kw)
 
 

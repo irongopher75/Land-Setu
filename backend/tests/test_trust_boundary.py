@@ -343,3 +343,23 @@ def test_only_a_department_record_restores_verified():
     layers = _normalize({"transaction_date": "2025-06-01"})
     assert layers["ror"]["confidence"] == "verified"
     assert all(layer["confidence"] != "corrected_by_officer" for layer in layers.values())
+
+
+# --- Requesters track their requests; rejections carry remarks ----------------------------------------------
+
+def test_requester_sees_own_requests_with_status_and_rejection_remarks(client):
+    insert_parcel("TB-TRACK-1", square(77.70, 11.00), owner="Asha Rao")
+    filed = client.post("/parcels/TB-TRACK-1/correction-request", headers=hdr("citizen", "cit-track"),
+                        json={"layer": "ror", "field": "owner_name", "requested_value": "Zubin Shah", "requested_by": "Asha"}).json()
+    mine = client.get("/parcels/requests/mine", headers=hdr("citizen", "cit-track")).json()
+    assert mine["total"] == 1 and mine["items"][0]["id"] == filed["request_id"]
+    assert mine["items"][0]["status_text"] == "With the village land officer"
+    assert client.get("/parcels/requests/mine", headers=hdr("citizen", "someone-else")).json()["total"] == 0
+
+    assert client.post(f"/parcels/requests/{filed['request_id']}/reject", headers=hdr("village_officer", "vo-track")).status_code == 422
+    assert client.post(f"/parcels/requests/{filed['request_id']}/reject", headers=hdr("village_officer", "vo-track"),
+                       json={"remarks": "Sale deed not attached"}).status_code == 200
+    item = client.get("/parcels/requests/mine", headers=hdr("citizen", "cit-track")).json()["items"][0]
+    assert item["status"] == "REJECTED" and item["remarks"] == "Sale deed not attached"
+    chain = client.get("/parcels/TB-TRACK-1/audit-chain").json()["entries"]
+    assert "Sale deed" not in str(chain)   # remarks stay off the public audit log

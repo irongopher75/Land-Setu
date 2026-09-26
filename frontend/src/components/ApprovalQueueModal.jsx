@@ -46,7 +46,7 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
     auditorDelete: () => run(() => auditorApproveArchival(req.id), `Parcel ${req.ulpin} archived. Its record and history stay on file.`, req.ulpin),
     approve: (record) => run(() => approveBoundaryRequest(req.id, req, record), `Request #${req.id} approved and applied.`, req.ulpin),
     fastApprove: () => run(() => fastApproveRequest(req.id), `Correction #${req.id} approved and applied.`, req.ulpin),
-    reject: () => run(() => rejectBoundaryRequest(req.id, req), `Request #${req.id} rejected.`, req.ulpin),
+    reject: (remarks) => run(() => rejectBoundaryRequest(req.id, req, remarks), `Request #${req.id} rejected. The requester sees your remarks.`, req.ulpin),
     withdraw: () => run(() => withdrawRequest(req.id), `Request #${req.id} withdrawn.`, req.ulpin),
     raise: (reason) => run(() => raiseConcern(req.id, reason), 'Concern recorded. It is now with the reviewer who holds the request.', req.ulpin),
     acknowledge: (flagId) => run(() => acknowledgeConcern(flagId), 'Concern acknowledged. It still blocks approval until resolved.', req.ulpin),
@@ -115,17 +115,6 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
       await fetchRequests();
     } catch (err) {
       alert(err.message);
-    }
-  };
-
-  const handleReject = async (id, ulpin, req) => {
-    try {
-      await rejectBoundaryRequest(id, req);
-      setActionMsg(`Request #${id} for ULPIN '${ulpin}' rejected.`);
-      await fetchRequests();
-      if (onRequestProcessed) onRequestProcessed();
-    } catch (err) {
-      alert(err.response?.data?.detail || err.message);
     }
   };
 

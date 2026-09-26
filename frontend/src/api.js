@@ -284,6 +284,10 @@ export const getAuditChain = async (ulpin) => {
 };
 
 // Single-approver track for spelling-level corrections.
+// Requests filed by the signed-in account, newest first: { total, offset, limit, items }.
+export const getMyRequests = (offset = 0, limit = 20) =>
+  restCall('get', `/parcels/requests/mine?offset=${offset}&limit=${limit}`, 'Loading your requests');
+
 export const fastApproveRequest = (requestId) => restPost(`/parcels/requests/${requestId}/fast-approve`, 'Fast-track approval');
 
 // The passport and its ledger reference come only from the records service: the block hash is the head of the
@@ -918,19 +922,20 @@ export const approveBoundaryRequest = async (requestId, request = null, record =
   throw new Error(`Request ${requestId} exists only in the browser copy of the queue, so it cannot be applied to a parcel. Reject it and file the boundary again; it will then go through the records service.`);
 };
 
-export const rejectBoundaryRequest = async (requestId, request = null) => {
+// Rejecting needs remarks (at least 5 characters). The requester sees them with the request's status.
+export const rejectBoundaryRequest = async (requestId, request = null, remarks = '') => {
   const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
   if (!['auditor', 'state_admin', 'village_officer', 'super_admin'].includes(currentRole)) {
     throw new Error('Permission Denied: Only Village Officers, Auditors, or State Administration Officers can reject requests.');
   }
   if (isRestOnlyRequest(request)) {
-    return restPost(`/parcels/requests/${requestId}/reject`, 'Rejection');
+    return restPost(`/parcels/requests/${requestId}/reject`, 'Rejection', { remarks });
   }
 
   let accepted = false;
   if (!isLocalhostBackendForbidden()) {
     try {
-      await client.post(`/parcels/requests/${requestId}/reject`);
+      await client.post(`/parcels/requests/${requestId}/reject`, { remarks });
       accepted = true;
     } catch (err) {
       if (err.response?.status === 403) {

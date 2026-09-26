@@ -208,6 +208,8 @@ export default function WorkflowRequestCard({ req, on }) {
   const [raising, setRaising] = useState(false);
   const [reason, setReason] = useState('');
   const [enteringRecord, setEnteringRecord] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+  const [remarks, setRemarks] = useState('');
   const set = STAGE_SETS[stageSet(req)];
   const status = LEGACY_AUDITOR.includes(req.status) ? 'PENDING_APPROVAL' : req.status;
   const activeIdx = set.findIndex(([st]) => st === status);
@@ -251,7 +253,7 @@ export default function WorkflowRequestCard({ req, on }) {
             {needsRecord ? 'Enter record and approve' : (PASS_LABEL[status] || 'Approve')}
           </button>
         )}
-        {perms.can_reject && <button className="btn btn--seal" onClick={on.reject}>Reject</button>}
+        {perms.can_reject && !rejecting && <button className="btn btn--seal" onClick={() => setRejecting(true)}>Reject</button>}
         {perms.can_withdraw && <button className="btn" onClick={on.withdraw}>Withdraw</button>}
         {perms.can_flag && !raising && <button className="btn" onClick={() => setRaising(true)}>Raise a concern</button>}
         {!holder && !perms.can_withdraw && !perms.can_flag && (
@@ -264,6 +266,20 @@ export default function WorkflowRequestCard({ req, on }) {
       {enteringRecord && needsRecord && perms.can_approve && (
         <RecordEntryForm ulpin={req.ulpin} onCancel={() => setEnteringRecord(false)}
           onSubmit={async (record) => { await on.approve(record); setEnteringRecord(false); }} />
+      )}
+
+      {rejecting && perms.can_reject && (
+        <div className="stack stack--tight">
+          <label className="field">Remarks for the requester
+            <textarea className="input" rows={3} maxLength={500} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+          </label>
+          <p className="wf-request-meta">Say what is wrong or missing, so they can fix it and file again. At least 5 characters.</p>
+          <div className="btn-row">
+            <button className="btn btn--seal" disabled={remarks.trim().length < 5}
+              onClick={async () => { await on.reject(remarks.trim()); setRejecting(false); setRemarks(''); }}>Reject with remarks</button>
+            <button className="btn" onClick={() => { setRejecting(false); setRemarks(''); }}>Cancel</button>
+          </div>
+        </div>
       )}
 
       {raising && (

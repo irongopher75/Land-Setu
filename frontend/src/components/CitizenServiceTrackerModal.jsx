@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
-import { getParcelDetail, getParcelHistory, requestCorrection } from '../api';
+import { getParcelDetail, getParcelHistory, requestCorrection, getMyRequests } from '../api';
+import { auth } from '../firebase';
 
 // Mirrors CORRECTABLE_FIELDS in backend/app/workflow.py.
 const FIELDS = [
@@ -33,7 +34,20 @@ export default function CitizenServiceTrackerModal({ initialUlpin, onClose }) {
   const [trail, setTrail] = useState([]);
   const [refId, setRefId] = useState('');
 
+  const [mine, setMine] = useState(null);   // { items, total } for the signed-in account, or null when signed out
+  const [mineError, setMineError] = useState(null);
+
   const chosen = FIELDS.find((f) => f.key === fieldKey);
+
+  // The signed-in account's own requests, refreshed after each filing.
+  useEffect(() => {
+    if (!auth?.currentUser) { setMine(null); return undefined; }
+    let live = true;
+    getMyRequests(0, 20)
+      .then((d) => live && (setMine(d), setMineError(null)))
+      .catch((err) => live && setMineError(err.message));
+    return () => { live = false; };
+  }, [result]);
 
   // Requests already decided on this parcel. A new report can point at one; the old request is not reopened.
   const decided = Object.values(trail.reduce((acc, e) => {
@@ -124,6 +138,27 @@ export default function CitizenServiceTrackerModal({ initialUlpin, onClose }) {
           )}
           <button className="btn btn--primary" disabled={busy}>{busy ? 'Submitting' : 'Submit correction request'}</button>
         </form>
+
+        <div className="wf-trail">
+          <h4>Your requests</h4>
+          {!auth?.currentUser && <p className="subtle">Sign in to see the status of requests you have filed.</p>}
+          {mineError && <p className="note note--alert" role="alert">{mineError}</p>}
+          {mine && mine.items.length === 0 && <p className="subtle">You have not filed any requests yet.</p>}
+          {mine && mine.items.length > 0 && (
+            <ul>
+              {mine.items.map((r) => (
+                <li key={r.id}>
+                  <span className="tabular">{r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN') : ''}</span>
+                  <span>
+                    <strong>#{r.id}</strong> <span className="data-id">{r.ulpin}</span>: {r.status_text}
+                    {r.remarks && <><br /><span className="subtle">Reviewer's remarks: {r.remarks}</span></>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {mine && mine.total > mine.items.length && <p className="subtle">Showing the latest {mine.items.length} of {mine.total}.</p>}
+        </div>
 
         {trail.length > 0 && (
           <div className="wf-trail">
