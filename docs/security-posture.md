@@ -395,6 +395,48 @@ None of these values came from the department they are attributed to. This contr
 
 **Target:** create new parcels with those layers empty and `confidence: "self_declared"`, or pending. Only an adapter import from the source department may set `verified`.
 
+#### C5a. Officers enter the record when approval creates a parcel (workflow decision, 26 September 2026)
+
+**Status: Deliberate change to the approval workflow.** It replaces the empty layers that `94360b0` left on new parcels.
+
+**What changed.** When a state administrator approves a boundary request for a ULPIN that has no parcel yet, approval now requires four fields:
+
+| Field | What is accepted |
+|---|---|
+| `owner_name` | 2 to 160 characters. Placeholders such as "TBD", "N/A", "unknown" or "New Land Owner" are refused. |
+| `zoning` | One of: residential, commercial, industrial, agricultural, institutional, mixed_use, ecological. |
+| `tax_value` | Annual property tax in rupees, from 1 to 1,00,00,000. Zero, negative and larger values are refused as typing errors. |
+| `encumbrance_status` | `none` or `active`. |
+
+**How it behaves:**
+- **Missing or invalid values:** the approval is refused with `422`, the message names every missing or invalid field, and nothing changes. The request stays at `PENDING_STATE_ADMIN` and no parcel is created.
+- **Where the rules live:** `validate_record_entry` in `backend/app/routes/parcels.py`. The request body is optional on `POST /parcels/requests/{id}/approve`.
+- **Parcels that already exist:** approval does not accept these fields and returns `422`. The existing department record stays untouched, and changes to it go through a correction request.
+- **Split, merge and correction** approvals are unchanged.
+- **Approval queue:** the pending list includes `needs_record_entry`. The approval form shows only for those requests. Every field starts empty with no pre-filled value, and the approve button stays disabled until all four are valid.
+
+**How it is labelled.** Every field entered this way is stored with:
+- `confidence: "officer_provided"`,
+- `source: "reviewing_officer"`,
+- the department that would normally attest it (`department`),
+- and `provided_by_role`, `provided_at` and `provided_by_request`.
+
+Registration and building-permit layers stay empty and `unverified`. The requester's typed name is kept separately as `ror.claimed_owner_name`. The public badge reads "Provided by reviewing officer, not independently confirmed by <department>", with its own style (double outline). That style is distinct from the verified badge (tinted) and the `corrected_by_officer` badge (sunk surface), which is still used only for corrections after approval (`ce99672`).
+
+**Why this does not reopen `94360b0`.** The problem fixed in `94360b0` was code inventing values (owner "Land Owner", tax 45000, "no encumbrance") and labelling them `verified` with no source. Here, a named reviewer types every value, each value is checked, and each is disclosed as officer-provided. Nothing is defaulted, nothing is invented, and nothing is labelled `verified`. `verified` is still reserved for a department record imported through the adapter.
+
+**Tests.** `backend/tests/test_trust_boundary.py` covers:
+- approval with no entry is refused, naming all four fields, with nothing created;
+- 12 blank or implausible entries, each refused by name;
+- the entry is stored, trimmed and normalised, and labelled `officer_provided`, never `verified`;
+- citizens see the entry and its label;
+- fields are refused for an existing parcel;
+- `needs_record_entry` in the pending list.
+
+The full backend suite is 145 passed.
+
+**Not live yet.** This is not pushed. The API and site deploy on the next push to `main`.
+
 ### C6. Any role other than citizen can file boundary requests, including `bank`
 
 **Status: Open. Low to medium risk.**
