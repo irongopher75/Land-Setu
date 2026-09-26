@@ -901,13 +901,15 @@ export const auditorPassRequest = async (requestId, request = null) => {
   return { status: 'PENDING_STATE_ADMIN', message: `Request #${requestId} passed compliance audit and forwarded to State Admin!`, ulpin: req?.ulpin };
 };
 
-export const approveBoundaryRequest = async (requestId, request = null) => {
+// `record` is required when approval creates a new parcel (request.needs_record_entry): the approving officer's
+// entry of owner, zoning, tax_value and encumbrance_status, stored as officer_provided.
+export const approveBoundaryRequest = async (requestId, request = null, record = null) => {
   const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
   if (currentRole !== 'state_admin' && currentRole !== 'super_admin') {
     throw new Error('Permission Denied: Only State Administration Officers (state_admin) have final approval authority.');
   }
   if (isRestOnlyRequest(request)) {
-    return restPost(`/parcels/requests/${requestId}/approve`, 'Final approval');
+    return restPost(`/parcels/requests/${requestId}/approve`, 'Final approval', record || undefined);
   }
 
   // A request held only in the browser copy (Firestore or this device) never reached the records service.

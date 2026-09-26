@@ -1,9 +1,10 @@
 import json
+import math
 import jwt
 from datetime import datetime, timedelta
 from typing import List, Optional
 from pydantic import BaseModel, Field
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -15,6 +16,7 @@ from app.states import INDIAN_STATES, detect_state_from_coords
 from app.workflow import (advance_request, apply_request, archive_parcel, NEW_TYPES,
                           FAST_STATUS)
 from app import audit
+from app.adapter import OFFICER_PROVIDED
 from app import permissions
 from app.flags import flag_views, flag_rows_for
 from app.models import RequestFlag
@@ -401,6 +403,8 @@ def list_pending_requests(role: str = Depends(require_roles("officer", "auditor"
         ])
     ).order_by(BoundaryChangeRequest.id.desc()).all()
 
+    ulpins = {r.ulpin for r in reqs}
+    existing_ulpins = {u for (u,) in db.query(Parcel.ulpin).filter(Parcel.ulpin.in_(ulpins)).all()} if ulpins else set()
     result = []
     for r in reqs:
         is_deletion = str(r.status or "").startswith("PENDING_DELETION")
@@ -419,6 +423,8 @@ def list_pending_requests(role: str = Depends(require_roles("officer", "auditor"
             "created_at": r.created_at,
             "geometry": r.geometry,
             "track": r.track or "HIGH",
+            # Final approval of this request creates a parcel, so the approver must enter its record.
+            "needs_record_entry": (not is_deletion and (r.type or "BOUNDARY") == "BOUNDARY" and r.ulpin not in existing_ulpins),
             "filed_by_you": bool(r.requester_uid and r.requester_uid == actor.get("sub")),
             "flags": flag_views(db, r.id, actor.get("sub")),
             "permissions": permissions.decide(r, actor.get("sub"), role, sum(1 for f in flag_rows_for(db, r.id) if f.status in permissions.UNRESOLVED)).as_dict(),
@@ -567,8 +573,98 @@ def auditor_pass_request(request_id: int, role: str = Depends(get_current_role),
 
     return {"status": "PENDING_STATE_ADMIN", "message": f"Boundary change request #{request_id} passed auditor review and forwarded to State Admin!"}
 
+# --- Record entry at approval --------------------------------------------------------------------------------
+# Approving a boundary for a ULPIN with no parcel yet creates a parcel with no department record. The approving
+# officer must enter owner, zoning, annual tax value and encumbrance status. Each is labelled officer_provided,
+# never verified: only a department record imported through the adapter is verified.
+
+ZONING_CHOICES = ("residential", "commercial", "industrial", "agricultural", "institutional", "mixed_use", "ecological")
+ENCUMBRANCE_CHOICES = ("none", "active")
+# Annual property tax, in rupees. Below 1 is not a tax; above 1 crore for one parcel is taken as a typing error.
+TAX_VALUE_MIN, TAX_VALUE_MAX = 1, 10_000_000
+# Values that mean "not known" and must not be stored as an owner.
+OWNER_PLACEHOLDERS = {"tbd", "na", "n/a", "none", "null", "unknown", "nil", "-", "--", "0", "test", "xxx",
+                      "owner", "land owner", "new land owner", "citizen / custom owner"}
+# Which department would normally attest each field. Shown with the officer_provided label.
+RECORD_DEPARTMENTS = {"ror": "Revenue Department", "zoning": "Town and Country Planning",
+                      "tax": "Local body tax office", "encumbrance": "Sub-Registrar"}
+
+
+class ApprovalRecordEntry(BaseModel):
+    # Optional here so the endpoint can name every missing field in one plain message.
+    owner_name: Optional[str] = None
+    zoning: Optional[str] = None
+    tax_value: Optional[float] = None
+    encumbrance_status: Optional[str] = None
+
+    def provided(self) -> bool:
+        return any(v is not None for v in (self.owner_name, self.zoning, self.tax_value, self.encumbrance_status))
+
+
+def validate_record_entry(entry: Optional[ApprovalRecordEntry]) -> dict:
+    """Return the cleaned record, or raise 422 naming every missing or invalid field."""
+    entry = entry or ApprovalRecordEntry()
+    missing, invalid = [], []
+
+    owner = (entry.owner_name or "").strip()
+    if not owner:
+        missing.append("owner_name")
+    elif len(owner) < 2 or len(owner) > 160 or owner.lower() in OWNER_PLACEHOLDERS:
+        invalid.append("owner_name (give the owner's actual name, 2 to 160 characters, not a placeholder)")
+
+    zoning = (entry.zoning or "").strip().lower()
+    if not zoning:
+        missing.append("zoning")
+    elif zoning not in ZONING_CHOICES:
+        invalid.append(f"zoning (one of: {', '.join(ZONING_CHOICES)})")
+
+    tax = entry.tax_value
+    if tax is None:
+        missing.append("tax_value")
+    elif not math.isfinite(tax) or not TAX_VALUE_MIN <= tax <= TAX_VALUE_MAX:
+        invalid.append(f"tax_value (annual rupees, {TAX_VALUE_MIN} to {TAX_VALUE_MAX:,})")
+
+    enc = (entry.encumbrance_status or "").strip().lower()
+    if not enc:
+        missing.append("encumbrance_status")
+    elif enc not in ENCUMBRANCE_CHOICES:
+        invalid.append("encumbrance_status (none or active)")
+
+    if missing or invalid:
+        parts = []
+        if missing:
+            parts.append("Missing: " + ", ".join(missing) + ".")
+        if invalid:
+            parts.append("Not valid: " + "; ".join(invalid) + ".")
+        raise HTTPException(
+            status_code=422,
+            detail="This approval creates a new parcel, so its record must be entered before approving. " + " ".join(parts),
+        )
+    return {"owner_name": owner, "zoning": zoning, "tax_value": round(float(tax), 2), "encumbrance_active": enc == "active"}
+
+
+def officer_provided_layers(record: dict, claimed_owner: str, request_id: int, role: str) -> dict:
+    """Departmental layers for a new parcel, from the approving officer's entry, labelled officer_provided."""
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+
+    def meta(layer):
+        return {"source": "reviewing_officer", "confidence": OFFICER_PROVIDED, "department": RECORD_DEPARTMENTS[layer],
+                "provided_by_role": role, "provided_at": today, "provided_by_request": request_id}
+
+    return {
+        "ror": {"owner_name": record["owner_name"], "claimed_owner_name": claimed_owner, **meta("ror")},
+        "zoning": {"land_use": record["zoning"], **meta("zoning")},
+        "tax": {"annual_value": record["tax_value"], **meta("tax")},
+        "encumbrance": {"active": record["encumbrance_active"], **meta("encumbrance")},
+        # Not asked at approval; stays empty until a department record arrives.
+        "registration": {"source": None, "confidence": "unverified"},
+        "building_permit": {"status": None, "source": None, "confidence": "unverified"},
+    }
+
+
 @router.post("/requests/{request_id}/approve")
-def approve_boundary_request(request_id: int, role: str = Depends(get_current_role), actor: dict = Depends(get_current_payload), db: Session = Depends(get_db)):
+def approve_boundary_request(request_id: int, record: Optional[ApprovalRecordEntry] = Body(None),
+                             role: str = Depends(get_current_role), actor: dict = Depends(get_current_payload), db: Session = Depends(get_db)):
     """State Admin approval endpoint to commit a lower authority boundary change request."""
     if role not in ("state_admin", "super_admin"):
         raise HTTPException(
@@ -584,6 +680,15 @@ def approve_boundary_request(request_id: int, role: str = Depends(get_current_ro
         raise HTTPException(status_code=404, detail="Boundary change request not found")
 
     permissions.require(req, actor.get("sub"), role, "approve", _unresolved_flags(db, req))
+    creates_parcel = req.type not in NEW_TYPES and db.query(Parcel.id).filter(Parcel.ulpin == req.ulpin).first() is None
+    if record is not None and record.provided() and not creates_parcel:
+        raise HTTPException(
+            status_code=422,
+            detail="Record fields are entered only when approval creates a new parcel. This parcel already has a record, "
+                   "which stays as its departments supplied it; use a correction request to change it.",
+        )
+    # Validate before anything changes, so a rejected entry leaves the request untouched.
+    entered = validate_record_entry(record) if creates_parcel else None
     if req.type in NEW_TYPES:
         if req.status != "PENDING_STATE_ADMIN":
             raise HTTPException(status_code=400, detail=f"Request is not awaiting state admin approval (current: {req.status}).")
@@ -629,17 +734,9 @@ def approve_boundary_request(request_id: int, role: str = Depends(get_current_ro
         existing.geometry = geom_val
         existing.area_sqm = area_sqm
     else:
-        # A new parcel starts with no departmental record. Approving a boundary attests the boundary, not the
-        # owner, zoning, tax or encumbrance: those stay empty and unverified until a department's own record is
-        # imported through the adapter. The name typed on the request is kept only as the requester's claim.
-        layers = {
-            "ror": {"owner_name": None, "claimed_owner_name": req.requested_by, "source": None, "confidence": "unverified"},
-            "registration": {"source": None, "confidence": "unverified"},
-            "zoning": {"land_use": None, "source": None, "confidence": "unverified"},
-            "building_permit": {"status": None, "source": None, "confidence": "unverified"},
-            "tax": {"annual_value": None, "source": None, "confidence": "unverified"},
-            "encumbrance": {"active": None, "source": None, "confidence": "unverified"},
-        }
+        # A new parcel has no department record. The approving officer entered one (validated above); every value
+        # is labelled officer_provided. The name typed on the request is kept as the requester's claim.
+        layers = officer_provided_layers(entered, req.requested_by, req.id, role)
         existing = Parcel(ulpin=req.ulpin, state=state, area_sqm=area_sqm, geometry=geom_val, layers=layers,
                           created_at=datetime.utcnow().isoformat() + "+00:00")
         db.add(existing)

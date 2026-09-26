@@ -20,6 +20,9 @@ UNVERIFIED = "unverified"
 # An officer-approved correction changed this layer. The change went through review, but no department record
 # confirms it, so it is never shown as verified. Re-importing the department's record replaces it.
 CORRECTED_BY_OFFICER = "corrected_by_officer"
+# Entered by the reviewing officer when approval creates a new parcel that has no department record yet.
+# Real, disclosed data, but not a department record, so it is never shown as verified.
+OFFICER_PROVIDED = "officer_provided"
 
 
 class SchemaAdapter:

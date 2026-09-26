@@ -44,7 +44,7 @@ export default function ApprovalQueueModal({ onClose, onRequestProcessed, role }
     villageDelete: () => run(() => villageApproveArchival(req.id), `Archival #${req.id} approved and forwarded to the auditor.`, req.ulpin),
     auditorPass: () => run(() => auditorPassRequest(req.id, req), `Request #${req.id} passed audit and went to the state admin.`, req.ulpin),
     auditorDelete: () => run(() => auditorApproveArchival(req.id), `Parcel ${req.ulpin} archived. Its record and history stay on file.`, req.ulpin),
-    approve: () => run(() => approveBoundaryRequest(req.id, req), `Request #${req.id} approved and applied.`, req.ulpin),
+    approve: (record) => run(() => approveBoundaryRequest(req.id, req, record), `Request #${req.id} approved and applied.`, req.ulpin),
     fastApprove: () => run(() => fastApproveRequest(req.id), `Correction #${req.id} approved and applied.`, req.ulpin),
     reject: () => run(() => rejectBoundaryRequest(req.id, req), `Request #${req.id} rejected.`, req.ulpin),
     withdraw: () => run(() => withdrawRequest(req.id), `Request #${req.id} withdrawn.`, req.ulpin),

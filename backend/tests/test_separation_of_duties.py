@@ -282,7 +282,9 @@ def test_marking_does_not_approve_someone_elses_pending_request(client):
 def test_approved_marking_creates_the_parcel_with_an_audit_entry(client):
     rid = marking(client, "LM-12", "village_officer", "vo-c", x=77.54).json()["request_id"]
     assert post(client, f"/parcels/requests/{rid}/auditor-pass", "auditor", "a-c").status_code == 200
-    assert post(client, f"/parcels/requests/{rid}/approve", "state_admin", "sa-c").status_code == 200
+    # A new parcel: the approver enters its record (see test_trust_boundary.py for the rules on that entry).
+    record = {"owner_name": "Meena Iyer", "zoning": "residential", "tax_value": 12000, "encumbrance_status": "none"}
+    assert post(client, f"/parcels/requests/{rid}/approve", "state_admin", "sa-c", json=record).status_code == 200
     assert client.get("/parcels/LM-12").json()["status"] == "active"
     events = [e["event"] for e in client.get("/parcels/LM-12/audit-chain").json()["entries"]]
     assert "created" in events and client.get("/parcels/LM-12/audit-chain").json()["verified"] is True

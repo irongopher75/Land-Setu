@@ -1,9 +1,9 @@
 import React from 'react';
-import { CheckCircle2, AlertTriangle, Clock, HelpCircle, Pencil } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Clock, HelpCircle, Pencil, UserCheck } from 'lucide-react';
 
 // Only an explicit 'verified' from the records service shows as verified. A missing or unknown value
 // is never read as verified.
-export default function ConfidenceBadge({ confidence }) {
+export default function ConfidenceBadge({ confidence, department }) {
   const value = String(confidence || 'unverified').toLowerCase();
 
   if (value === 'verified') {
@@ -26,6 +26,16 @@ export default function ConfidenceBadge({ confidence }) {
     return (
       <span className="badge stale">
         <Clock size={12} /> Stale Data
+      </span>
+    );
+  }
+
+  // Entered by the officer who approved a new parcel. Real, disclosed data, not a department record.
+  if (value === 'officer_provided') {
+    const dept = department || 'the department';
+    return (
+      <span className="badge officer" title={`Entered by the officer who approved this parcel. ${dept} has not confirmed it.`}>
+        <UserCheck size={12} /> Provided by reviewing officer, not independently confirmed by {dept}
       </span>
     );
   }

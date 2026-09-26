@@ -178,6 +178,13 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; line-height
 .badge.stale { color: var(--accent-seal); background: var(--accent-seal-tint); }
 /* Officer correction: solid navy outline on a sunk surface, distinct from verified (tinted), self-declared (dashed) and sample/unverified (seal). */
 .badge.corrected { color: var(--ink-navy); background: var(--surface-sunk); }
+/* Officer-provided at approval: navy on the page surface with a double outline, distinct from verified (tinted), corrected (sunk surface), self-declared (dashed) and sample/unverified (seal). */
+.badge.officer { color: var(--ink-navy); background: transparent; border-style: double; border-width: 3px; white-space: normal; }
+.record-entry fieldset { border: 0; padding: 0; margin: 0; }
+.record-entry legend { font-weight: 600; margin-bottom: var(--space-1); }
+.record-entry fieldset label { display: flex; gap: var(--space-2); align-items: center; justify-content: flex-start; font-weight: 400; width: auto; }
+.record-entry fieldset input[type="radio"] { width: auto; flex: none; margin: 0; }
+.field-error { color: var(--accent-seal); font-size: var(--text-sm); }
 
 /* ------------------------------------------------------------------- Flags */
 .flags-card { border: var(--line) solid var(--accent-seal); background: var(--accent-seal-tint); padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3); }

@@ -1,7 +1,8 @@
 """The approval workflow stores only values the server computed or a source record supplied.
 
 - Area and state come from the approved polygon, whatever the browser sent or the request holds.
-- Approving a boundary never invents owner, zoning, tax or encumbrance records, and never labels them verified.
+- Approving a new parcel requires the officer to enter owner, zoning, tax and encumbrance; nothing is invented,
+  and the entry is labelled officer_provided, never verified.
 - The adapter labels a layer verified only when the source record supplied it.
 - A recorded extent far from the boundary's area is flagged for review.
 """
@@ -46,11 +47,19 @@ def file_boundary(c, ulpin, geometry, **forged):
     return c.post("/parcels/custom", headers=hdr("village_officer", "vo-tb"), json=body)
 
 
-def walk_to_approval(c, request_id):
-    """Auditor passes, then the state administrator approves. Returns the approval response."""
+RECORD = {"owner_name": "Lakshmi Narayanan", "zoning": "residential", "tax_value": 18500, "encumbrance_status": "none"}
+
+
+def walk_to_approval(c, request_id, record=None):
+    """Auditor passes, then the state administrator approves (with a record entry, if given)."""
     r = c.post(f"/parcels/requests/{request_id}/auditor-pass", headers=hdr("auditor", "au-tb"))
     assert r.status_code == 200, r.text
-    return c.post(f"/parcels/requests/{request_id}/approve", headers=hdr("state_admin", "sa-tb"))
+    return approve(c, request_id, record)
+
+
+def approve(c, request_id, record=None):
+    kwargs = {"json": record} if record is not None else {}
+    return c.post(f"/parcels/requests/{request_id}/approve", headers=hdr("state_admin", "sa-tb"), **kwargs)
 
 
 def parcel(ulpin):
@@ -75,7 +84,7 @@ def test_forged_area_and_state_at_filing_are_ignored(client):
         assert req.state == "TamilNadu"
         assert req.area_sqm == pytest.approx(compute_geodesic_area_sqm(shape(TN_GEOM)), abs=0.01)  # stored to the centimetre
 
-    assert walk_to_approval(client, body["request_id"]).status_code == 200
+    assert walk_to_approval(client, body["request_id"], RECORD).status_code == 200
     p = parcel("TB-FORGE-1")
     assert p.state == "TamilNadu"
     assert p.area_sqm == pytest.approx(compute_geodesic_area_sqm(shape(TN_GEOM)), abs=0.01)  # stored to the centimetre
@@ -91,7 +100,7 @@ def test_values_stored_on_a_request_are_recomputed_at_approval(client):
         req.area_sqm, req.state = 1.0, "Karnataka"   # as an older client could have stored them
         db.commit()
 
-    assert walk_to_approval(client, rid).status_code == 200
+    assert walk_to_approval(client, rid, RECORD).status_code == 200
     p = parcel("TB-FORGE-2")
     assert p.state == "TamilNadu"
     assert p.area_sqm == pytest.approx(compute_geodesic_area_sqm(shape(square(77.42, 11.00))), abs=0.01)  # stored to the centimetre
@@ -124,25 +133,84 @@ def test_reshaping_keeps_the_recorded_extent(client):
 
 # --- Approval invents nothing -----------------------------------------------------------------------------
 
-def test_approving_a_new_parcel_invents_no_departmental_record(client):
+def test_approving_a_new_parcel_without_a_record_is_refused_and_changes_nothing(client):
     r = file_boundary(client, "TB-NEW-1", square(77.48, 11.00))
-    assert walk_to_approval(client, r.json()["request_id"]).status_code == 200
-    layers = parcel("TB-NEW-1").layers
+    rid = r.json()["request_id"]
+    res = walk_to_approval(client, rid)
+    assert res.status_code == 422
+    detail = res.json()["detail"]
+    for field in ("owner_name", "zoning", "tax_value", "encumbrance_status"):
+        assert field in detail
+    assert parcel("TB-NEW-1") is None
+    with SessionLocal() as db:
+        assert db.get(BoundaryChangeRequest, rid).status == "PENDING_STATE_ADMIN"
 
-    assert layers["ror"]["owner_name"] is None
+
+BAD_ENTRIES = [
+    ("owner_name", "   "), ("owner_name", "TBD"), ("owner_name", "N/A"), ("owner_name", "New Land Owner"),
+    ("zoning", ""), ("zoning", "downtown"),
+    ("tax_value", None), ("tax_value", 0), ("tax_value", -500), ("tax_value", 50_000_000),
+    ("encumbrance_status", ""), ("encumbrance_status", "maybe"),
+]
+
+
+@pytest.mark.parametrize("i,field,value", [(i, f, v) for i, (f, v) in enumerate(BAD_ENTRIES)])
+def test_each_blank_or_implausible_field_is_refused_by_name(client, i, field, value):
+    r = file_boundary(client, f"TB-BAD-{i:02d}", square(77.60, 11.00, size=0.0003))
+    rid = r.json()["request_id"]
+    assert client.post(f"/parcels/requests/{rid}/auditor-pass", headers=hdr("auditor", "au-tb")).status_code == 200
+    res = approve(client, rid, {**RECORD, field: value})
+    assert res.status_code == 422, res.text
+    assert field in res.json()["detail"]
+
+
+def test_the_officers_entry_is_stored_labelled_officer_provided_never_verified(client):
+    r = file_boundary(client, "TB-NEW-3", square(77.62, 11.00))
+    entry = {"owner_name": "  Kavitha Subramanian ", "zoning": "Commercial", "tax_value": 42000.5, "encumbrance_status": "active"}
+    assert walk_to_approval(client, r.json()["request_id"], entry).status_code == 200
+    layers = parcel("TB-NEW-3").layers
+
+    assert layers["ror"]["owner_name"] == "Kavitha Subramanian"
     assert layers["ror"]["claimed_owner_name"] == "Typed By Officer"
-    assert layers["zoning"]["land_use"] is None
-    assert layers["tax"]["annual_value"] is None
-    assert layers["building_permit"]["status"] is None
-    assert layers["encumbrance"]["active"] is None
-    for name, layer in layers.items():
-        assert layer["confidence"] == "unverified", name
+    assert layers["zoning"]["land_use"] == "commercial"
+    assert layers["tax"]["annual_value"] == 42000.5
+    assert layers["encumbrance"]["active"] is True
+    for name in ("ror", "zoning", "tax", "encumbrance"):
+        assert layers[name]["confidence"] == "officer_provided", name
+        assert layers[name]["source"] == "reviewing_officer"
+        assert layers[name]["department"]
+    for name in ("registration", "building_permit"):
+        assert layers[name]["confidence"] == "unverified", name
     assert "verified" not in {layer["confidence"] for layer in layers.values()}
+
+
+def test_citizens_see_the_officer_entry_and_its_label(client):
+    detail = client.get("/parcels/TB-NEW-3").json()
+    assert detail["layers"]["ror"]["owner_name"] == "Kavitha Subramanian"
+    assert detail["layers"]["ror"]["confidence"] == "officer_provided"
+    assert detail["layers"]["encumbrance"]["active"] is True
+
+
+def test_record_fields_are_refused_when_the_parcel_already_has_a_record(client):
+    insert_parcel("TB-EXIST-1", square(77.64, 11.00), state="TamilNadu", area_sqm=12_000.0)
+    r = file_boundary(client, "TB-EXIST-1", square(77.64, 11.00, size=0.0009))
+    res = walk_to_approval(client, r.json()["request_id"], RECORD)
+    assert res.status_code == 422
+    assert parcel("TB-EXIST-1").layers["ror"]["confidence"] == "verified"   # the department record is untouched
+
+
+def test_pending_list_says_which_approvals_need_a_record(client):
+    file_boundary(client, "TB-NEED-1", square(77.66, 11.00))
+    insert_parcel("TB-NEED-2", square(77.68, 11.00), state="TamilNadu", area_sqm=12_000.0)
+    file_boundary(client, "TB-NEED-2", square(77.68, 11.00, size=0.0009))
+    rows = {r["ulpin"]: r for r in client.get("/parcels/requests/pending", headers=hdr("state_admin", "sa-list")).json()}
+    assert rows["TB-NEED-1"]["needs_record_entry"] is True
+    assert rows["TB-NEED-2"]["needs_record_entry"] is False
 
 
 def test_citizens_do_not_see_the_unverified_owner_claim(client):
     r = file_boundary(client, "TB-NEW-2", square(77.50, 11.00))
-    assert walk_to_approval(client, r.json()["request_id"]).status_code == 200
+    assert walk_to_approval(client, r.json()["request_id"], RECORD).status_code == 200
     detail = client.get("/parcels/TB-NEW-2").json()
     assert "claimed_owner_name" not in detail["layers"].get("ror", {})
 

@@ -26,7 +26,7 @@ function Layer({ title, layer, children }) {
     <section className="layer-section">
       <div className="layer-section-title">
         <span>{title}</span>
-        <ConfidenceBadge confidence={layer?.confidence} />
+        <ConfidenceBadge confidence={layer?.confidence} department={layer?.department} />
       </div>
       <div className="field-grid">{children}</div>
     </section>

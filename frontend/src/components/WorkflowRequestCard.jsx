@@ -120,12 +120,94 @@ function Concerns({ req, perms, on }) {
   );
 }
 
+// Same limits the API enforces (backend/app/routes/parcels.py, validate_record_entry).
+const ZONING_CHOICES = [
+  ['residential', 'Residential'], ['commercial', 'Commercial'], ['industrial', 'Industrial'], ['agricultural', 'Agricultural'],
+  ['institutional', 'Institutional'], ['mixed_use', 'Mixed use'], ['ecological', 'Ecological or forest'],
+];
+const TAX_MIN = 1;
+const TAX_MAX = 10000000;
+const OWNER_PLACEHOLDERS = ['tbd', 'na', 'n/a', 'none', 'null', 'unknown', 'nil', '-', '--', '0', 'test', 'xxx',
+  'owner', 'land owner', 'new land owner', 'citizen / custom owner'];
+
+function recordProblems(r) {
+  const problems = {};
+  const owner = r.owner_name.trim();
+  if (!owner) problems.owner_name = 'Enter the owner\'s name.';
+  else if (owner.length < 2 || owner.length > 160 || OWNER_PLACEHOLDERS.includes(owner.toLowerCase())) problems.owner_name = 'Enter the owner\'s actual name, not a placeholder.';
+  if (!r.zoning) problems.zoning = 'Choose the zone.';
+  const tax = r.tax_value === '' ? NaN : Number(r.tax_value);
+  if (r.tax_value === '') problems.tax_value = 'Enter the annual tax value.';
+  else if (!Number.isFinite(tax) || tax < TAX_MIN || tax > TAX_MAX) problems.tax_value = `Annual tax must be between Rs ${TAX_MIN} and Rs ${TAX_MAX.toLocaleString('en-IN')}.`;
+  if (!r.encumbrance_status) problems.encumbrance_status = 'Choose the encumbrance status.';
+  return problems;
+}
+
+// Approving a boundary for a ULPIN with no parcel creates the parcel. It has no department record, so the
+// approving officer enters one. Every field starts empty: nothing can be submitted unedited.
+function RecordEntryForm({ ulpin, onSubmit, onCancel }) {
+  const [r, setR] = useState({ owner_name: '', zoning: '', tax_value: '', encumbrance_status: '' });
+  const [touched, setTouched] = useState({});
+  const [busy, setBusy] = useState(false);
+  const problems = recordProblems(r);
+  const ready = Object.keys(problems).length === 0;
+  const set = (k) => (e) => { setR({ ...r, [k]: e.target.value }); setTouched({ ...touched, [k]: true }); };
+  const err = (k) => touched[k] && problems[k] ? <span className="field-error" role="alert">{problems[k]}</span> : null;
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!ready || busy) return;
+    setBusy(true);
+    try {
+      await onSubmit({ owner_name: r.owner_name.trim(), zoning: r.zoning, tax_value: Number(r.tax_value), encumbrance_status: r.encumbrance_status });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form className="stack stack--tight record-entry" onSubmit={submit} noValidate>
+      <p className="wf-request-meta">
+        Approving creates parcel <span className="data-id">{ulpin}</span>, which has no department record yet. Enter its record.
+        Each value is shown to the public as provided by the reviewing officer, not confirmed by the department.
+      </p>
+      <label className="field">Owner name
+        <input className="input" type="text" autoComplete="off" maxLength={160} value={r.owner_name} onChange={set('owner_name')} aria-invalid={!!(touched.owner_name && problems.owner_name)} />
+        {err('owner_name')}
+      </label>
+      <label className="field">Zone
+        <select className="input" value={r.zoning} onChange={set('zoning')} aria-invalid={!!(touched.zoning && problems.zoning)}>
+          <option value="" disabled>Choose</option>
+          {ZONING_CHOICES.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+        </select>
+        {err('zoning')}
+      </label>
+      <label className="field">Annual property tax (Rs)
+        <input className="input tabular" type="number" inputMode="decimal" min={TAX_MIN} max={TAX_MAX} step="0.01" value={r.tax_value} onChange={set('tax_value')} aria-invalid={!!(touched.tax_value && problems.tax_value)} />
+        {err('tax_value')}
+      </label>
+      <fieldset className="field">
+        <legend>Encumbrance</legend>
+        <label><input type="radio" name={`enc-${ulpin}`} value="none" checked={r.encumbrance_status === 'none'} onChange={set('encumbrance_status')} /> None on record</label>
+        <label><input type="radio" name={`enc-${ulpin}`} value="active" checked={r.encumbrance_status === 'active'} onChange={set('encumbrance_status')} /> Active mortgage or lien</label>
+        {err('encumbrance_status')}
+      </fieldset>
+      <div className="btn-row">
+        <button type="submit" className="btn btn--primary" disabled={!ready || busy}>{busy ? 'Approving' : 'Approve and create parcel'}</button>
+        <button type="button" className="btn" onClick={onCancel} disabled={busy}>Cancel</button>
+      </div>
+      {!ready && <p className="wf-request-meta">All four fields are required.</p>}
+    </form>
+  );
+}
+
 // Every button follows req.permissions, which the API computes with the same rules it enforces.
 export default function WorkflowRequestCard({ req, on }) {
   const perms = req.permissions || {};
   const reasons = perms.reasons || {};
   const [raising, setRaising] = useState(false);
   const [reason, setReason] = useState('');
+  const [enteringRecord, setEnteringRecord] = useState(false);
   const set = STAGE_SETS[stageSet(req)];
   const status = LEGACY_AUDITOR.includes(req.status) ? 'PENDING_APPROVAL' : req.status;
   const activeIdx = set.findIndex(([st]) => st === status);
@@ -135,6 +217,8 @@ export default function WorkflowRequestCard({ req, on }) {
     PENDING_DELETION_AUDITOR: on.auditorDelete, PENDING_STATE_ADMIN: on.approve, PENDING_FAST_REVIEW: on.fastApprove,
   }[status];
   const waitingOn = set[activeIdx]?.[1]?.toLowerCase() || 'a reviewer';
+  // Final approval that creates a parcel first asks for its record.
+  const needsRecord = status === 'PENDING_STATE_ADMIN' && req.needs_record_entry;
 
   return (
     <article className="wf-request">
@@ -162,8 +246,9 @@ export default function WorkflowRequestCard({ req, on }) {
 
       <div className="wf-actions">
         {holder && (
-          <button className="btn btn--primary" disabled={!perms.can_approve} title={!perms.can_approve ? reasons.approve : undefined} onClick={passHandler}>
-            {PASS_LABEL[status] || 'Approve'}
+          <button className="btn btn--primary" disabled={!perms.can_approve || enteringRecord} title={!perms.can_approve ? reasons.approve : undefined}
+            onClick={needsRecord ? () => setEnteringRecord(true) : () => passHandler()}>
+            {needsRecord ? 'Enter record and approve' : (PASS_LABEL[status] || 'Approve')}
           </button>
         )}
         {perms.can_reject && <button className="btn btn--seal" onClick={on.reject}>Reject</button>}
@@ -175,6 +260,11 @@ export default function WorkflowRequestCard({ req, on }) {
       </div>
       {holder && !perms.can_approve && reasons.approve && <p className="wf-request-meta">{reasons.approve}</p>}
       {!holder && perms.can_flag && <p className="wf-request-meta">{reasons.approve} With the {waitingOn} now.</p>}
+
+      {enteringRecord && needsRecord && perms.can_approve && (
+        <RecordEntryForm ulpin={req.ulpin} onCancel={() => setEnteringRecord(false)}
+          onSubmit={async (record) => { await on.approve(record); setEnteringRecord(false); }} />
+      )}
 
       {raising && (
         <div className="stack stack--tight">
