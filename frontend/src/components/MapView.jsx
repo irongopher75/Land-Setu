@@ -696,27 +696,16 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
       coordinates: [geojsonCoordinates]
     };
 
-    const areaSqm = calculatePolygonAreaSqm(vertices);
-    const sumLat = vertices.reduce((acc, v) => acc + v[0], 0);
-    const sumLng = vertices.reduce((acc, v) => acc + v[1], 0);
-    const cLat = sumLat / vertices.length;
-    const cLng = sumLng / vertices.length;
-
-    const detected = await identifyStateByCoords(cLat, cLng);
-    const targetState = detected?.name || selectedState;
-
     try {
       const result = await createCustomParcel({
         ulpin: customUlpin,
-        state: targetState,
         owner_name: customOwner,
-        land_use: selectedLandUse,
         geometry: geojsonPolygon,
-        area_sqm: areaSqm
       });
 
       alert(result.message);
-      if (onAutoDetectState && targetState !== selectedState) onAutoDetectState(targetState);
+      // The state is the one the service computed from the boundary.
+      if (onAutoDetectState && result.state && result.state !== selectedState) onAutoDetectState(result.state);
       setIsDrawingMode(false);
       setVertices([]);
       setReshapeError('');

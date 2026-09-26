@@ -867,13 +867,12 @@ export const getRawSamples = async () => {
 
 // A boundary marking is always a request decided by the records service, for every role. There is no offline
 // path: an approval step that ran only in this browser would skip every review rule.
+// The service computes the parcel's area and state from the geometry; the browser's estimates are for display only.
 export const createCustomParcel = (parcelData) =>
   restPost('/parcels/custom', 'Filing a boundary request', {
     ulpin: parcelData.ulpin,
-    state: parcelData.state,
     owner_name: parcelData.owner_name,
     geometry: parcelData.geometry,
-    area_sqm: parcelData.area_sqm,
   });
 
 export const getAllStates = async () => {

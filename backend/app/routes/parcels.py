@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import Parcel, ProtectedZone, BoundaryChangeRequest
 from app.schemas import ParcelListItem, CanonicalParcelResponse, FlagItem
-from app.rules import RuleEngine, parse_geometry_shape, invalidate_neighbor_flags
+from app.rules import RuleEngine, parse_geometry_shape, invalidate_neighbor_flags, compute_geodesic_area_sqm
 from app.routes.auth import get_current_role, get_current_payload, get_optional_role, require_roles, SECRET_KEY, ALGORITHM
 from app.states import INDIAN_STATES, detect_state_from_coords
 from app.workflow import (advance_request, apply_request, archive_parcel, NEW_TYPES,
@@ -43,6 +43,28 @@ def get_all_states():
 def identify_state_by_coords(lat: float = Query(...), lng: float = Query(...)):
     """Automatically identifies the exact Indian state from pointer latitude and longitude coordinates."""
     return detect_state_from_coords(lat, lng)
+
+STATE_CODES = {s["code"]: s["name"] for s in INDIAN_STATES}
+
+
+def server_area_and_state(s_shape, ulpin: str) -> tuple:
+    """Area and state of a boundary as the records service computes them from the polygon.
+
+    Whatever a browser sends for area or state is never stored: area is the geodesic area of the polygon
+    (the same spherical formula Turf.js uses), and state is point-in-polygon on the centroid. A ULPIN whose
+    state code names a different state than the one the boundary lies in is refused rather than guessed.
+    """
+    area = round(compute_geodesic_area_sqm(s_shape), 2)
+    centroid = s_shape.centroid
+    detected = detect_state_from_coords(centroid.y, centroid.x)
+    prefix = ulpin.split("-", 1)[0].upper()
+    if prefix in STATE_CODES and prefix != detected["code"]:
+        raise HTTPException(
+            status_code=409,
+            detail=f"ULPIN '{ulpin}' belongs to {STATE_CODES[prefix]}, but this boundary lies in {detected['name']}.",
+        )
+    return area, detected["name"]
+
 
 def filter_fields_by_role(parcel_dict: dict, role: str) -> dict:
     if role == "bank":
@@ -282,10 +304,11 @@ def get_parcel_passport(ulpin: str, role: str = Depends(require_roles("officer",
 
 class CreateCustomParcelRequest(BaseModel):
     ulpin: str = Field(min_length=4, max_length=80, pattern=r"^[A-Za-z0-9-]+$")
-    state: Optional[str] = Field(default=None, max_length=80)
     owner_name: str = Field(min_length=1, max_length=160)
     geometry: dict
-    area_sqm: float = Field(gt=0, le=100_000_000)
+    # Accepted for older clients and ignored: the service computes both from the geometry.
+    state: Optional[str] = Field(default=None, max_length=80)
+    area_sqm: Optional[float] = None
 
 @router.post("/custom")
 def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get_current_role),
@@ -317,12 +340,8 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get
                 detail="Land allocation is strictly restricted within the territory of India (Lat: 6.5°N-35.7°N, Lng: 68.1°E-97.4°E)."
             )
 
-    # Auto-detect state if state is not specified or set to auto
-    target_state = req.state
-    if not target_state or target_state.lower() in ("auto", "unknown"):
-        centroid = s_shape.centroid
-        detected = detect_state_from_coords(centroid.y, centroid.x)
-        target_state = detected["name"]
+    # Area and state come from the polygon, computed here. req.area_sqm and req.state are ignored.
+    area_sqm, target_state = server_area_and_state(s_shape, req.ulpin)
 
     # Every boundary marking is a request. Nobody, whatever their role, saves a boundary directly, and a new
     # marking never approves someone else's pending request. A village officer's marking counts as the village
@@ -345,7 +364,7 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get
         requester_role=role,
         requested_by=req.owner_name,
         geometry=req.geometry,
-        area_sqm=req.area_sqm,
+        area_sqm=area_sqm,
         reason=("Boundary change for an existing parcel" if existing else "New parcel boundary"),
         status=first,
         type="BOUNDARY",
@@ -586,13 +605,29 @@ def approve_boundary_request(request_id: int, role: str = Depends(get_current_ro
     else:
         geom_val = req.geometry
 
+    # Recompute at approval from the geometry being approved. The area and state stored on the request are
+    # not trusted either: requests filed before this check carried the browser's values.
+    area_sqm, state = server_area_and_state(s_shape, req.ulpin)
+
     existing = db.query(Parcel).filter(Parcel.ulpin == req.ulpin).first()
     old_geom, old_state = None, None
     if existing:
+        if existing.state != state:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Parcel '{req.ulpin}' is recorded in {existing.state}, but the approved boundary lies in {state}. "
+                       "A boundary change cannot move a parcel to another state.",
+            )
         old_geom, old_state = existing.geometry, existing.state
+        # Keep the extent from the source record, so the area check can still compare it with the new survey.
+        layers = dict(existing.layers or {})
+        ror = dict(layers.get("ror") or {})
+        if ror.get("recorded_extent_sqm") is None and existing.area_sqm is not None:
+            ror["recorded_extent_sqm"] = existing.area_sqm
+            layers["ror"] = ror
+            existing.layers = layers
         existing.geometry = geom_val
-        existing.area_sqm = req.area_sqm
-        existing.state = req.state
+        existing.area_sqm = area_sqm
     else:
         # A new parcel starts with no departmental record. Approving a boundary attests the boundary, not the
         # owner, zoning, tax or encumbrance: those stay empty and unverified until a department's own record is
@@ -605,13 +640,14 @@ def approve_boundary_request(request_id: int, role: str = Depends(get_current_ro
             "tax": {"annual_value": None, "source": None, "confidence": "unverified"},
             "encumbrance": {"active": None, "source": None, "confidence": "unverified"},
         }
-        existing = Parcel(ulpin=req.ulpin, state=req.state, area_sqm=req.area_sqm, geometry=geom_val, layers=layers,
+        existing = Parcel(ulpin=req.ulpin, state=state, area_sqm=area_sqm, geometry=geom_val, layers=layers,
                           created_at=datetime.utcnow().isoformat() + "+00:00")
         db.add(existing)
         db.flush()
         audit.append(db, req.ulpin, "created", role, request_id=req.id, to_status="active",
                      note="Created by an approved boundary request", actor_uid=actor.get("sub"))
 
+    req.area_sqm, req.state = area_sqm, state
     _refresh_flags_after_change(db, existing, old_geom, old_state)
     advance_request(req, "APPROVED", role, "Boundary change applied", db=db, actor_uid=actor.get("sub"))
     req.approved_by = "State Administration Officer"
