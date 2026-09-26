@@ -88,6 +88,9 @@ def health_check():
     return {
         "status": "healthy",
         "service": "landsetu-backend",
-        "node_id": os.getenv("NODE_ID", "backend-node-primary")
+        "node_id": os.getenv("NODE_ID", "backend-node-primary"),
+        # Deployed commit, so a release can be checked against the repository. Render sets RENDER_GIT_COMMIT;
+        # GIT_COMMIT can be set by any other host. The repository is public, so this reveals nothing new.
+        "commit": (os.getenv("RENDER_GIT_COMMIT") or os.getenv("GIT_COMMIT") or "unknown")[:7],
     }
 
