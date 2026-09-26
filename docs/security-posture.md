@@ -454,7 +454,11 @@ Before the fix, every browser write to Firestore caught its error and only logge
 - **Live site.** `https://landsetu-e4e5e.web.app/#/map` loaded with no console errors. The deployed banner renders when its event fires.
 - **Not checked live.** No officer account was available, so no refused write was triggered through the live UI.
 
-**Not yet live: the records service (API).** The Render service still runs the code from before `05bc7b3`. The server-computed area and state, the approval that invents no records, the `corrected_by_officer` label and the `area_mismatch` rule are all in the repository but not deployed. They go live when the API is redeployed.
+**API redeploy, 2026-09-26.** `main` was pushed at `b47321f`. The GitHub Actions run "CI & Deploy to Firebase Hosting on Merge" completed successfully, including backend tests and the frontend build.
+
+By 08:27 UTC the Render API served the new schema: `CreateCustomParcelRequest` requires only `ulpin`, `owner_name` and `geometry`. `/health` answers `healthy`, and `/auth/mock-login` still returns 404.
+
+**Remaining step on the live database.** Its cached rule flags predate the `area_mismatch` rule. For example, `GET /parcels/TN-CHN-0042-1187/flags` returns only `boundary_overlap`. Render runs `create_all` at startup, not Alembic, so migration `0007` has not been applied. Run `alembic upgrade head` against the Render database, or clear `parcels.flags`, to have every parcel re-evaluated. The live database was also seeded once and is not re-seeded, so corrected seed geometry (B2 part 1) will not reach it without a deliberate re-seed.
 
 ## D. Remaining items from the original `audit.md`
 
@@ -507,7 +511,7 @@ This ranking judges impact on a land registry, not how serious each item sounded
 
 1. **The map shows the wrong set of parcels (C1).** This is the most serious open item even though no original audit raised it. It silently shows an incomplete map with no warning, and officers act on what the map shows. Every other safeguard (overlap flags, approvals) is only as good as the parcels actually drawn.
 2. **The old JWT secret is in public git history (A2).** High if any live environment ever used it, none otherwise. Resolved by one dashboard check or a rotation.
-3. **The live API predates every backend fix in this document (C10).** Server-computed area and state, the approval that invents no records, correction labels and the area rule go live only when Render redeploys from the repository.
+3. **The live database's cached flags predate the area rule (C10).** The API is redeployed, but migration `0007` has not been applied to the Render database, so `area_mismatch` does not appear on existing parcels yet.
 4. **The seed geometry is out of scale (B2 part 1).** Every seeded parcel now carries an `area_mismatch` flag, so the demo map shows all parcels as flagged until `mock_data/*_geometries.geojson` is regenerated. The list is from `scripts/validate_seed_geometry.py`.
 5. **No refused write has been checked through the live UI with an officer account (C10).** Local and live checks cover the code path and the banner.
 6. **The frontend state detection is bounding-box based (B3 remainder).** It now only decides which state the map shows. Official boundary data is still needed.
