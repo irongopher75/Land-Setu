@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import L from 'leaflet';
 import * as turf from '@turf/turf';
 import { PlusCircle, Edit3, Check, X, MapPin, Sparkles, Search, Lock, Navigation, Target, ClipboardList, AlertTriangle } from 'lucide-react';
-import { getParcelsGeoJSON, getProtectedZonesGeoJSON, createCustomParcel, identifyStateByCoords, getPendingRequests, getApprovedCustomParcels, requestParcelDeletion, getDeletedUlpins } from '../api';
+import { getParcelsGeoJSON, getProtectedZonesGeoJSON, createCustomParcel, identifyStateByCoords, getPendingRequests, requestParcelDeletion } from '../api';
 import ApprovalQueueModal from './ApprovalQueueModal';
 import RestructurePanel from './RestructurePanel';
 import { colors, landUseColor } from '../palette';
@@ -158,6 +158,7 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState('');
   const [noRecordsForState, setNoRecordsForState] = useState(false);
+  const [mapLoadError, setMapLoadError] = useState(null);
 
   // Approval Workflow Queue state
   const [showApprovalModal, setShowApprovalModal] = useState(false);
@@ -548,71 +549,28 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
     return () => window.removeEventListener('landsetu-pipeline-updated', onPipeline);
   }, [role]);
 
+  // Parcels and zones come only from the records service. An empty answer is a state with no records yet; a
+  // failed request is shown as an error, never replaced with sample parcels.
   const loadMapData = async () => {
+    setMapLoadError(null);
     try {
-      const [parcelsData, zonesData, customParcels, deletedUlpins] = await Promise.all([
+      const [parcelsData, zonesData] = await Promise.all([
         getParcelsGeoJSON(selectedState),
         getProtectedZonesGeoJSON(selectedState),
-        getApprovedCustomParcels(),
-        getDeletedUlpins()
       ]);
-
-      // The records service already leaves archived parcels out. Deletion markers are applied only to the
-      // offline sample, never to the service's answer.
-      const fromService = parcelsData?.source === 'service';
-      setNoRecordsForState(fromService && (parcelsData.features || []).length === 0);
-      const deletedSet = new Set(fromService ? [] : (deletedUlpins || []));
-      const normalizeStateKey = (s) => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
-
-      const customFeatures = Object.values(customParcels || {})
-        .filter(p => {
-          if (!p || !p.geometry) return false;
-          if (deletedSet.has(p.ulpin)) return false;
-          if (!p.state) return true;
-          return normalizeStateKey(p.state) === normalizeStateKey(selectedState);
-        })
-        .map(p => ({
-          type: 'Feature',
-          properties: {
-            ulpin: p.ulpin,
-            state: p.state || selectedState,
-            area_sqm: p.area_sqm,
-            owner_name: p.layers?.ror?.owner_name || 'Land Owner',
-            land_use: p.land_use || p.layers?.zoning?.land_use || 'residential',
-            is_approved: true,
-            status: 'APPROVED',
-            has_flags: p.flags && p.flags.length > 0
-          },
-          geometry: p.geometry
-        }));
-
-      let mergedParcels = parcelsData || { type: 'FeatureCollection', features: [] };
-      mergedParcels = {
-        ...mergedParcels,
-        features: (mergedParcels.features || []).filter((f) => !deletedSet.has(f.properties?.ulpin))
-      };
-      if (customFeatures.length > 0) {
-        const existingUlpins = new Set(customFeatures.map(cf => cf.properties.ulpin));
-        const filteredBackend = (mergedParcels.features || []).filter(f => !existingUlpins.has(f.properties?.ulpin));
-
-        mergedParcels = {
-          ...mergedParcels,
-          features: [...filteredBackend, ...customFeatures]
-        };
-      }
-
-      const enrichedParcels = evaluateParcelsOverlap(mergedParcels, zonesData);
-      setParcelsGeoJSON(enrichedParcels);
+      setNoRecordsForState(parcelsData.features.length === 0);
+      setParcelsGeoJSON(evaluateParcelsOverlap(parcelsData, zonesData));
       setProtectedGeoJSON(zonesData);
     } catch (err) {
-      console.error('Failed to load map GeoJSON layers:', err);
+      setNoRecordsForState(false);
+      setParcelsGeoJSON({ type: 'FeatureCollection', features: [] });
+      setProtectedGeoJSON({ type: 'FeatureCollection', features: [] });
+      setMapLoadError(err.message);
     }
   };
 
-  useEffect(() => {
-    loadMapData();
-    fetchPendingCount();
-  }, [selectedState, role]);
+  useEffect(() => { loadMapData(); }, [selectedState]);
+  useEffect(() => { fetchPendingCount(); }, [role]);
 
   useEffect(() => {
     if (editingParcel && editingParcel.geometry && editingParcel.geometry.coordinates) {
@@ -754,6 +712,11 @@ export default function MapView({ selectedState, onSelectParcel, selectedUlpin, 
 
         {!can(role, 'fileBoundary') && <div className="map-readonly-note"><Lock size={14} aria-hidden="true" /> {signedIn ? 'Your account has no officer role, so the map is read only.' : 'Read-only view. Sign in as an officer to edit boundaries.'}</div>}
         {locationError && <div className="callout callout--alert" role="alert">{locationError}</div>}
+        {mapLoadError && (
+          <div className="callout callout--alert" role="alert">
+            Parcels could not be loaded. {mapLoadError} <button className="btn" onClick={loadMapData}>Try again</button>
+          </div>
+        )}
         {noRecordsForState && (
           <div className="map-readonly-note" role="status">
             No parcel records for {detectedStateInfo.label || detectedStateInfo.name} in the records service yet. This prototype holds records for Tamil Nadu and Chandigarh.

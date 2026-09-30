@@ -6,7 +6,7 @@ import FlagDiff from './FlagDiff';
 import ParcelTimeline from './ParcelTimeline';
 import TransactionTimeline from './TransactionTimeline';
 import IntelligencePanel from './IntelligencePanel';
-import { getParcelDetail, getParcelPassport, requestParcelDeletion } from '../api';
+import { getParcelDetail, getParcelPassport, requestParcelDeletion, ParcelNotFoundError } from '../api';
 
 const ParcelPassportQR = lazy(() => import('./ParcelPassportQR'));
 const BlockchainExplorerModal = lazy(() => import('./BlockchainExplorerModal'));
@@ -36,7 +36,7 @@ function Layer({ title, layer, children }) {
 
 const NA = 'Not recorded';
 
-export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, onDeletionRequested, onStartRestructure, onRequestCorrection }) {
+export default function ParcelPanel({ ulpin, onClose, onNotFound, role, onReshapeBoundary, onDeletionRequested, onStartRestructure, onRequestCorrection }) {
   const [parcel, setParcel] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -53,11 +53,19 @@ export default function ParcelPanel({ ulpin, onClose, role, onReshapeBoundary, o
     setLoading(true);
     setLoadError(null);
     setParcel(null);
+    // One request per parcel. Role changes do not refetch: the record is the same, and the API filters fields
+    // by the session. On 404 nothing else about the parcel is requested.
+    let live = true;
     getParcelDetail(ulpin)
-      .then(setParcel)
-      .catch((err) => setLoadError(err.message || `The record for ${ulpin} could not be loaded.`))
-      .finally(() => setLoading(false));
-  }, [ulpin, role]);
+      .then((p) => live && setParcel(p))
+      .catch((err) => {
+        if (!live) return;
+        if (err instanceof ParcelNotFoundError && onNotFound) onNotFound(ulpin);
+        else setLoadError(err.message || `The record for ${ulpin} could not be loaded.`);
+      })
+      .finally(() => live && setLoading(false));
+    return () => { live = false; };
+  }, [ulpin]);
 
   const handlePassportClick = async () => {
     try {
