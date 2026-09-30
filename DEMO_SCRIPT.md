@@ -34,16 +34,15 @@ Open http://localhost:5173. Do not set `ALLOW_SQLITE_FALLBACK`: with Postgres un
 
 ### Reset between takes
 
-To get the seed data back (request #2 and #3 gone, parcel 0201 back to Harpreet Singh, transaction #1 gone):
+One command, from the repo root, with Postgres (step 1) and the Auth emulator (step 2) running:
 
 ```bash
-PGPASSWORD=landsetu_pass /opt/homebrew/opt/postgresql@17/bin/psql -h localhost -p 5544 -U landsetu -d postgres \
-  -c "DROP DATABASE landsetu_db" -c "CREATE DATABASE landsetu_db OWNER landsetu"
-PGPASSWORD=landsetu_pass /opt/homebrew/opt/postgresql@17/bin/psql -h localhost -p 5544 -U landsetu -d landsetu_db \
-  -c "CREATE EXTENSION postgis"
+scripts/demo_reset.sh
 ```
 
-Stop the backend first (`DROP DATABASE` fails while it is connected). Then restart the backend (step 4). It reseeds.
+It stops the backend on port 8000, drops and recreates `landsetu_db` with PostGIS, restarts the backend (startup reseeds the 46 parcels, plants the synthetic fixtures and runs the seed geometry correction under its advisory lock), and recreates the emulator users with password `DemoPass2026x`. Everything filed since the seed is gone: correction requests (so 0201 and 0202 have no pending correction and their owners are back to Harpreet Singh and Gurpreet Kaur), approvals, transactions and audit entries. The audit log is append-only, so the whole database is recreated instead of edited. It refuses any database not named `landsetu*`. The backend it starts logs to `/tmp/backend-8000.log`. Takes about 15 seconds. Reload the browser tab afterwards and sign in again.
+
+Tested against a scratch database: 2 requests, 47 audit rows and a pending correction on 0201 went back to 1 fixture request, 46 audit rows and none pending. It has not been run against `landsetu_db` yet (your dry run was in progress).
 
 ## Credentials
 
