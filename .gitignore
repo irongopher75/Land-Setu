@@ -46,3 +46,6 @@ docs/firestore-export-*.json
 .work/
 # impeccable question-page logs
 .impeccable/questions/
+
+# Playwright MCP test artifacts (snapshots, screenshots, console logs)
+.playwright-mcp/

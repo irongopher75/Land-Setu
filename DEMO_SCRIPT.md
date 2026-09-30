@@ -42,7 +42,7 @@ scripts/demo_reset.sh
 
 It stops the backend on port 8000, drops and recreates `landsetu_db` with PostGIS, restarts the backend (startup reseeds the 46 parcels, plants the synthetic fixtures and runs the seed geometry correction under its advisory lock), and recreates the emulator users with password `DemoPass2026x`. Everything filed since the seed is gone: correction requests (so 0201 and 0202 have no pending correction and their owners are back to Harpreet Singh and Gurpreet Kaur), approvals, transactions and audit entries. The audit log is append-only, so the whole database is recreated instead of edited. It refuses any database not named `landsetu*`. The backend it starts logs to `/tmp/backend-8000.log`. Takes about 15 seconds. Reload the browser tab afterwards and sign in again.
 
-Tested against a scratch database: 2 requests, 47 audit rows and a pending correction on 0201 went back to 1 fixture request, 46 audit rows and none pending. It has not been run against `landsetu_db` yet (your dry run was in progress).
+Checked on 2026-09-30 against the live `landsetu_db`: 46 parcels, no transactions, no requests except the planted fixture #1 (TN-KPM-0107-2019), 46 audit rows, 0201/0202/0206/0207 back to their seed owners, all six roles sign in and land on `#/map`. The role label in the header can read "Citizen" for up to a second after sign-in; wait for it before the shot.
 
 ## Credentials
 
@@ -119,7 +119,7 @@ Each role needs its own sign-in (avatar > Sign out, then sign in). For each one,
 2. Click **Hand off to Revenue**. The card shows "Now: Patwari field verification" and "Waiting for Village officer".
 3. Sign out. Sign in as `village-officer@landsetu.test`. Open the same parcel > **History**. Click **Advance: approve Patwari field verification**. Now: "Kanungo / Circle Officer review", waiting for Supervisor.
 4. Sign out. Sign in as `auditor@landsetu.test`. Same parcel > **History**. Click **Advance: approve Kanungo / Circle Officer review**. Now: "Tehsildar approval", waiting for State officer.
-5. Sign out. Sign in as `state-admin@landsetu.test`. Same parcel > **History**. Click **Advance: approve Tehsildar approval**. The card turns **APPROVED**: Registration, Revenue and Municipal (property tax re-keyed automatically) are all COMPLETE, and "Notifications sent" lists the messages. Reload and open the **Record** tab to see the owner updated.
+5. Sign out. Sign in as `state-admin@landsetu.test`. Same parcel > **History**. Click **Advance: approve Tehsildar approval**. The card turns **APPROVED**: Registration, Revenue and Municipal (property tax re-keyed automatically) are all COMPLETE, and "Notifications sent" lists the messages. **Record tab: reload the page after the final approval.** The Record tab does not refresh by itself; after a reload it shows the new owner.
 
 Reject variant (shorter, good for a second take): after step 2, sign in as the village officer and click **Reject with remarks**. The **Reject transaction** button stays disabled until the remarks reach 10 characters. Type `Field visit found the plot boundary does not match the deed.` and click **Reject transaction**. The card shows REJECTED with the remarks under the Patwari stage.
 
