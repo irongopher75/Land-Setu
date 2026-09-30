@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getParcelTransactions } from '../api';
+import { getParcelTransactions, openTransaction, actOnTransactionStage, handoffTransaction } from '../api';
 
 // Two levels. The outer track is the departments the transaction passes through. Under each department that has
 // started, its officer stages. A handoff between departments is drawn as its own row, so the trail reads
@@ -36,6 +36,19 @@ const ROLE_LABEL = {
   state_admin: 'State officer',
 };
 
+// Who may start a transaction: mirrors POST /transactions (require_roles). The API refuses anyone else and
+// its message is shown as is. Handoffs and stage decisions are offered only to the role the API expects.
+const OPENERS = ['officer', 'state_admin', 'super_admin'];
+const OPEN_STATUSES = ['pending', 'in_review', 'objected'];
+
+const currentDept = (tx) => tx.departments.find((d) => d.department === tx.current_department);
+const waitingStage = (tx) => currentDept(tx)?.stages.find((s) => !s.action) || null;
+const nextHandoffDept = (tx) => {
+  const i = tx.departments.findIndex((d) => d.department === tx.current_department);
+  const nxt = tx.departments.slice(i + 1).find((d) => d.state === 'upcoming');
+  return nxt && !nxt.auto ? nxt : null;
+};
+
 const formatDate = (d) => {
   if (!d) return '';
   const parsed = new Date(d);
@@ -46,7 +59,60 @@ const formatDate = (d) => {
 const labelOf = (dept, departments) => departments.find((d) => d.department === dept)?.label
   || String(dept || '').replace(/_/g, ' ').toLowerCase();
 
-function Transaction({ tx }) {
+function TxActions({ tx, role, onDone }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [rejecting, setRejecting] = useState(false);
+  const [remarks, setRemarks] = useState('');
+  if (!OPEN_STATUSES.includes(tx.status) || tx.status === 'objected') return null;
+
+  const stage = waitingStage(tx);
+  const handoffTo = !stage ? nextHandoffDept(tx) : null;
+  const deptRoles = (currentDept(tx)?.stages || []).map((s) => s.role_required);
+  const canHandoff = handoffTo && (role === 'super_admin' || deptRoles.includes(role));
+  const canDecide = stage && (role === 'super_admin' || role === stage.role_required);
+
+  const run = async (fn) => {
+    setBusy(true); setMsg(null);
+    try { await fn(); setRejecting(false); setRemarks(''); await onDone(); } catch (err) { setMsg(err.message); } finally { setBusy(false); }
+  };
+
+  if (!canHandoff && !canDecide) {
+    return stage ? <div className="tx-note">Waiting for {ROLE_LABEL[stage.role_required] || stage.role_required}. Sign in as that role to continue.</div> : null;
+  }
+  return (
+    <div className="tx-actions" role="group" aria-label="Transaction actions">
+      {canHandoff && (
+        <button className="btn" disabled={busy}
+          onClick={() => run(() => handoffTransaction(tx.id, handoffTo.department, `Hand off to ${handoffTo.label}`))}>
+          Hand off to {handoffTo.label}
+        </button>
+      )}
+      {canDecide && !rejecting && (
+        <>
+          <button className="btn btn--seal" disabled={busy}
+            onClick={() => run(() => actOnTransactionStage(tx.id, 'approve', `${stage.stage_name} approved`))}>
+            Advance: approve {stage.stage_name}
+          </button>
+          <button className="btn" disabled={busy} onClick={() => setRejecting(true)}>Reject with remarks</button>
+        </>
+      )}
+      {canDecide && rejecting && (
+        <div>
+          <label className="field">Reasons for rejecting (at least 10 characters)
+            <textarea className="input" rows={3} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+          </label>
+          <button className="btn" disabled={busy || remarks.trim().length < 10}
+            onClick={() => run(() => actOnTransactionStage(tx.id, 'reject', remarks.trim()))}>Reject transaction</button>
+          <button className="btn" disabled={busy} onClick={() => { setRejecting(false); setRemarks(''); }}>Cancel</button>
+        </div>
+      )}
+      {msg && <div className="note note--alert" role="alert">{msg}</div>}
+    </div>
+  );
+}
+
+function Transaction({ tx, role, onDone }) {
   const handoffTo = (dept) => tx.handoffs.filter((h) => h.to_department === dept);
 
   return (
@@ -61,6 +127,7 @@ function Transaction({ tx }) {
       {tx.current_stage && tx.status !== 'approved' && (
         <div className="tx-now"><strong>Now:</strong> {tx.current_stage}</div>
       )}
+      <TxActions tx={tx} role={role} onDone={onDone} />
       {tx.auto_mutation && (
         <div className="tx-note">
           {tx.auto_mutation.eligible
@@ -138,25 +205,51 @@ function Transaction({ tx }) {
   );
 }
 
-export default function TransactionTimeline({ ulpin }) {
+export default function TransactionTimeline({ ulpin, role, deedReference }) {
   const [state, setState] = useState({ loading: true, items: [], error: null });
+  const [startMsg, setStartMsg] = useState(null);
+  const [starting, setStarting] = useState(false);
+
+  const load = () => getParcelTransactions(ulpin)
+    .then((items) => setState({ loading: false, items, error: null }))
+    .catch((err) => setState({ loading: false, items: [], error: err.message }));
 
   useEffect(() => {
     let live = true;
     setState({ loading: true, items: [], error: null });
+    setStartMsg(null);
     getParcelTransactions(ulpin)
       .then((items) => live && setState({ loading: false, items, error: null }))
       .catch((err) => live && setState({ loading: false, items: [], error: err.message }));
     return () => { live = false; };
   }, [ulpin]);
 
+  const start = async () => {
+    setStarting(true); setStartMsg(null);
+    try {
+      await openTransaction({ ulpin, transaction_type: 'sale', deed_reference: deedReference });
+      await load();
+    } catch (err) { setStartMsg(err.message); } finally { setStarting(false); }
+  };
+
   if (state.loading) return <div className="note">Loading transactions for {ulpin}</div>;
   if (state.error) return <div className="note note--alert">{state.error}</div>;
-  if (state.items.length === 0) return <div className="note">No ownership transactions on this parcel.</div>;
+
+  const deedUsed = state.items.some((t) => t.deed_reference === deedReference && t.status !== 'rejected');
+  const canStart = OPENERS.includes(role) && deedReference && !deedUsed && !state.items.some((t) => OPEN_STATUSES.includes(t.status));
 
   return (
     <section className="tx-list" aria-label="Ownership transactions">
-      {state.items.map((tx) => <Transaction key={tx.id} tx={tx} />)}
+      {state.items.length === 0 && <div className="note">No ownership transactions on this parcel.</div>}
+      {canStart && (
+        <div className="tx-actions">
+          <button className="btn btn--seal" onClick={start} disabled={starting}>
+            Start transaction for deed {deedReference}
+          </button>
+          {startMsg && <div className="note note--alert" role="alert">{startMsg}</div>}
+        </div>
+      )}
+      {state.items.map((tx) => <Transaction key={tx.id} tx={tx} role={role} onDone={load} />)}
     </section>
   );
 }

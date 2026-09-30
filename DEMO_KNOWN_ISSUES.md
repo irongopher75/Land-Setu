@@ -9,7 +9,8 @@ Found on 2026-09-30 while walking the demo flows on PostGIS with the Firebase em
 ## Differences from what the demo brief assumed
 
 - **There is no lender step in the transaction workflow.** The chain in `backend/configs/*.yaml` and `backend/app/transactions.py` is Registration, Revenue (village officer, auditor in Chandigarh, state admin), optional Estate Office, Municipal. The `bank` role appears nowhere in it. A lender can only look up parcels (Lender verification page, parcel panel, passport) and cannot file corrections (`403 Insufficient permissions`).
-- **The transaction UI is read-only.** `openTransaction`, `actOnTransactionStage` and `handoffTransaction` are defined in `frontend/src/api.js` but nothing calls them. The **History** tab of the parcel panel displays a transaction (`TransactionTimeline`), but it cannot open or advance one. Use Swagger or curl (see DEMO_SCRIPT.md, scene 7).
+- **Transactions can be started and advanced from the History tab,** but only one role at a time, so a full Chandigarh transaction needs four sign-ins (officer, village officer, auditor, state admin). The parcel record on the Record tab does not refresh by itself after the last approval; reload the page.
+- **Objecting to a transaction is not in the UI** (Revenue "object" and the escalation to the dispute authority). Advance and Reject with remarks are.
 - **The `officer` role (Revenue Officer, the Sub-Registrar) cannot approve corrections.** Corrections wait on the village officer, then the auditor, then the state admin. The officer's queue shows the requests with "It is not waiting on your role."
 - **Corrections: one pending per parcel.** A second correction on the same parcel returns 409 with a clear message. Use a different parcel for the reject case.
 

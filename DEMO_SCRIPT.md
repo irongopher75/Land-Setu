@@ -112,42 +112,23 @@ Steps 4 and 5 were verified through the API (`auditor-pass`, `approve`), not by 
 
 ### Scene 7: Cross-department transaction (Registration, Revenue, Municipal)
 
-The browser can only **display** transactions. Opening one and advancing its stages is API-only (no button exists). There is no lender stage in the chain. Do the actions in `http://localhost:8000/docs` (Swagger) or with curl, then show the result in the browser.
+Everything is done from the parcel's **History** tab. Use a parcel with a registered deed and no earlier transaction: `CHD-SEC-0017-0206` was tested (deed `DEED-2023-221`); `0203` to `0205` and `0208` are also free. Chandigarh's chain is Registration (Sub-Registrar), Revenue (village officer, auditor, state admin), Municipal (starts on its own). Actions appear only for the role the API expects; everyone else sees "Waiting for <role>. Sign in as that role to continue."
 
-Tamil Nadu chain: Sub-Registrar (`officer`) opens and verifies the deed, hands off to Revenue, village officer approves, state admin approves, Municipal re-keys the property tax on its own. (Chandigarh adds an auditor stage.)
+Each role needs its own sign-in (avatar > Sign out, then sign in). For each one, open `#/map?ulpin=CHD-SEC-0017-0206`, wait for the side panel, click the **History** tab.
 
-1. Get a session for each role. In a terminal, for each of `officer`, `village-officer`, `state-admin`:
-   ```bash
-   ROLE=officer   # then village-officer, then state-admin
-   IDT=$(curl -s -X POST "http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=x" \
-     -H 'Content-Type: application/json' \
-     -d "{\"email\":\"$ROLE@landsetu.test\",\"password\":\"DemoPass2026x\",\"returnSecureToken\":true}" \
-     | python3 -c 'import sys,json;print(json.load(sys.stdin)["idToken"])')
-   curl -s -c /tmp/cj-$ROLE -X POST localhost:8000/auth/firebase-login -H 'Content-Type: application/json' -d "{\"id_token\":\"$IDT\"}" >/dev/null
-   ```
-2. Open the transaction (officer):
-   ```bash
-   H='Origin: http://localhost:5173'; C='Content-Type: application/json'
-   curl -s -b /tmp/cj-officer -H "$H" -H "$C" -X POST localhost:8000/transactions \
-     -d '{"ulpin":"TN-CHN-0042-1187","transaction_type":"sale","deed_reference":"REG-2019-88213"}'
-   ```
-   The Registration stage auto-approves. Status: "Waiting for handoff to Revenue".
-3. Hand off to Revenue (officer):
-   ```bash
-   curl -s -b /tmp/cj-officer -H "$H" -H "$C" -X POST localhost:8000/transactions/1/handoff \
-     -d '{"to_department":"REVENUE","reason":"Deed verified, forward to Revenue"}'
-   ```
-4. Village officer approves:
-   ```bash
-   curl -s -b /tmp/cj-village-officer -H "$H" -H "$C" -X PATCH localhost:8000/transactions/1/stage -d '{"action":"approve","remarks":"Field verified"}'
-   ```
-5. State admin approves (this completes the chain; Municipal then re-keys the tax):
-   ```bash
-   curl -s -b /tmp/cj-state-admin -H "$H" -H "$C" -X PATCH localhost:8000/transactions/1/stage -d '{"action":"approve","remarks":"Approved"}'
-   ```
-6. In the browser, signed in as any officer role, open `#/map?ulpin=TN-CHN-0042-1187`, reload, and click the **History** tab. The timeline shows the sale as APPROVED, with Registration, Revenue and Municipal each COMPLETE, the handoffs, and "Notifications sent (6)".
+1. Sign in as `officer@landsetu.test`. Click **Start transaction for deed DEED-2023-221**. The card shows "Waiting for handoff" and Registration COMPLETE (the deed matched the registration record).
+2. Click **Hand off to Revenue**. The card shows "Now: Patwari field verification" and "Waiting for Village officer".
+3. Sign out. Sign in as `village-officer@landsetu.test`. Open the same parcel > **History**. Click **Advance: approve Patwari field verification**. Now: "Kanungo / Circle Officer review", waiting for Supervisor.
+4. Sign out. Sign in as `auditor@landsetu.test`. Same parcel > **History**. Click **Advance: approve Kanungo / Circle Officer review**. Now: "Tehsildar approval", waiting for State officer.
+5. Sign out. Sign in as `state-admin@landsetu.test`. Same parcel > **History**. Click **Advance: approve Tehsildar approval**. The card turns **APPROVED**: Registration, Revenue and Municipal (property tax re-keyed automatically) are all COMPLETE, and "Notifications sent" lists the messages. Reload and open the **Record** tab to see the owner updated.
 
-If you reset the database, the transaction ID is 1 again. Otherwise use the ID the open call returns. The `Origin` header is required: the API refuses cross-site requests without it.
+Reject variant (shorter, good for a second take): after step 2, sign in as the village officer and click **Reject with remarks**. The **Reject transaction** button stays disabled until the remarks reach 10 characters. Type `Field visit found the plot boundary does not match the deed.` and click **Reject transaction**. The card shows REJECTED with the remarks under the Patwari stage.
+
+Notes:
+- Separation of duties is enforced by the API. The person who opened a transaction cannot decide a stage on it, and nobody can act twice in the same department. The API's message is shown in red under the buttons if it refuses.
+- **Tamil Nadu** parcels (for example `TN-CHN-0042-1188`) have no auditor stage: officer, village officer, state admin.
+- Each parcel takes one transaction per deed. To repeat the scene, use another parcel or reset the database.
+- After the transaction completes, the **State activity** dialog (scene 8) lists `transaction_opened`, `department_handoff`, `stage_approved` (or `stage_rejected`), `mutation_applied`, `municipal_tax_rekeyed` and `transaction_completed`.
 
 ### Scene 8: State activity (audit log)
 

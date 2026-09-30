@@ -156,7 +156,7 @@ export default function ParcelPanel({ ulpin, onClose, onNotFound, role, onReshap
 
               {tab === 'history' ? (
                 <>
-                  <TransactionTimeline ulpin={ulpin} />
+                  <TransactionTimeline ulpin={ulpin} role={role} deedReference={parcel?.layers?.registration?.last_transaction_id} />
                   <ParcelTimeline ulpin={ulpin} />
                 </>
               ) : (
