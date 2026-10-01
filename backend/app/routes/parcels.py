@@ -12,7 +12,8 @@ from app.models import Parcel, ProtectedZone, BoundaryChangeRequest
 from app.schemas import ParcelListItem, CanonicalParcelResponse, FlagItem
 from app.rules import RuleEngine, parse_geometry_shape, invalidate_neighbor_flags, geodesic_area_sqm
 from app.routes.auth import get_current_role, get_current_payload, get_optional_role, require_roles, SECRET_KEY, ALGORITHM
-from app.states import INDIAN_STATES, detect_state_from_coords
+from app.states import INDIAN_STATES
+from app.state_boundaries import detect_state_for_point, detect_state_for_geometry
 from app.workflow import (advance_request, apply_request, archive_parcel, NEW_TYPES,
                           FAST_STATUS)
 from app import audit
@@ -42,9 +43,9 @@ def get_all_states():
     return INDIAN_STATES
 
 @router.get("/identify-state")
-def identify_state_by_coords(lat: float = Query(...), lng: float = Query(...)):
+def identify_state_by_coords(lat: float = Query(...), lng: float = Query(...), db: Session = Depends(get_db)):
     """Automatically identifies the exact Indian state from pointer latitude and longitude coordinates."""
-    return detect_state_from_coords(lat, lng)
+    return detect_state_for_point(db, lat, lng)
 
 STATE_CODES = {s["code"]: s["name"] for s in INDIAN_STATES}
 
@@ -53,20 +54,19 @@ def server_area_and_state(db: Session, s_shape, ulpin: str) -> tuple:
     """Area and state of a boundary as the records service computes them from the polygon.
 
     Whatever a browser sends for area or state is never stored: area is ST_Area on the WGS84 geography
-    (the same geodesic measure the boundary-overlap check uses), and state is point-in-polygon on the
-    centroid. A ULPIN whose state code names a different state than the one the boundary lies in is
-    refused rather than guessed.
+    (the same geodesic measure the boundary-overlap check uses), and state is whichever real state
+    polygon (ST_Intersects against state_boundaries) the boundary overlaps most. A ULPIN whose state
+    code names a different state than the one the boundary lies in is refused rather than guessed.
     """
     area = round(geodesic_area_sqm(db, s_shape), 2)
-    centroid = s_shape.centroid
-    detected = detect_state_from_coords(centroid.y, centroid.x)
+    detected = detect_state_for_geometry(db, s_shape)
     prefix = ulpin.split("-", 1)[0].upper()
     if prefix in STATE_CODES and prefix != detected["code"]:
         raise HTTPException(
             status_code=409,
             detail=f"ULPIN '{ulpin}' belongs to {STATE_CODES[prefix]}, but this boundary lies in {detected['name']}.",
         )
-    return area, detected["name"]
+    return area, detected["name"], detected.get("crosses_state_boundary", False)
 
 
 def filter_fields_by_role(parcel_dict: dict, role: str) -> dict:
@@ -362,7 +362,7 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get
             )
 
     # Area and state come from the polygon, computed here. req.area_sqm and req.state are ignored.
-    area_sqm, target_state = server_area_and_state(db, s_shape, req.ulpin)
+    area_sqm, target_state, crosses_state_boundary = server_area_and_state(db, s_shape, req.ulpin)
 
     # Every boundary marking is a request. Nobody, whatever their role, saves a boundary directly, and a new
     # marking never approves someone else's pending request. A village officer's marking counts as the village
@@ -407,7 +407,8 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get
         "request_id": change_req.id,
         "is_approval_pending": True,
         "ulpin": req.ulpin,
-        "state": target_state
+        "state": target_state,
+        "crosses_state_boundary": crosses_state_boundary,
     }
 
 
@@ -761,7 +762,7 @@ def approve_boundary_request(request_id: int, record: Optional[ApprovalRecordEnt
 
     # Recompute at approval from the geometry being approved. The area and state stored on the request are
     # not trusted either: requests filed before this check carried the browser's values.
-    area_sqm, state = server_area_and_state(db, s_shape, req.ulpin)
+    area_sqm, state, crosses_state_boundary = server_area_and_state(db, s_shape, req.ulpin)
 
     existing = db.query(Parcel).filter(Parcel.ulpin == req.ulpin).first()
     old_geom, old_state = None, None
@@ -800,7 +801,11 @@ def approve_boundary_request(request_id: int, record: Optional[ApprovalRecordEnt
     req.approver_role = role
     db.commit()
 
-    return {"status": "APPROVED", "message": f"Boundary change request #{request_id} for ULPIN '{req.ulpin}' approved and committed!"}
+    return {
+        "status": "APPROVED",
+        "message": f"Boundary change request #{request_id} for ULPIN '{req.ulpin}' approved and committed!",
+        "crosses_state_boundary": crosses_state_boundary,
+    }
 
 class RejectRequest(BaseModel):
     # Shown to the person who filed the request, so they know what to fix. Kept on the request, not in the public

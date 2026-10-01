@@ -163,6 +163,34 @@ INDIAN_STATES = [
         ]
     },
     {
+        "name": "Haryana",
+        "label": "Haryana",
+        "code": "HR",
+        "capital": "Chandigarh",
+        "center": [29.1983, 76.3403],
+        "bbox": {"min_lat": 27.65, "max_lat": 30.93, "min_lng": 74.48, "max_lng": 77.6},
+        # This polygon field is an approximation used only by the legacy point-in-polygon fallback
+        # (app.states.detect_state_from_coords) for environments without PostGIS. Real detection for
+        # this state goes through the state_boundaries table (see app/state_boundaries.py).
+        "polygon": [
+            [74.48, 27.65], [74.6, 29.9], [75.8, 30.93], [77.0, 30.4], [77.6, 28.5],
+            [76.9, 27.8], [75.8, 27.7], [74.48, 27.65]
+        ]
+    },
+    {
+        "name": "AndhraPradesh",
+        "label": "Andhra Pradesh",
+        "code": "AP",
+        "capital": "Amaravati",
+        "center": [15.7557, 79.9657],
+        "bbox": {"min_lat": 12.62, "max_lat": 19.17, "min_lng": 76.76, "max_lng": 84.76},
+        # Approximation for the legacy fallback only; see the Haryana note above.
+        "polygon": [
+            [76.76, 15.0], [77.6, 13.0], [79.0, 12.62], [80.3, 13.5], [84.76, 17.0],
+            [83.5, 18.5], [81.5, 19.17], [78.5, 18.0], [77.2, 16.5], [76.76, 15.0]
+        ]
+    },
+    {
         "name": "MadhyaPradesh",
         "label": "Madhya Pradesh",
         "code": "MP",

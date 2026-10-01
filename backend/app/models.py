@@ -12,10 +12,14 @@ if not IS_SQLITE:
         # CREATE INDEX idx_<table>_geometry ... USING gist on create_table/create_all.
         # Alembic migration 0002 creates the same index name for existing databases.
         GeometryType = Geometry("POLYGON", srid=4326, spatial_index=True)
+        # State boundaries are MultiPolygon (a state can be, or become, disjoint parts).
+        MultiGeometryType = Geometry("MULTIPOLYGON", srid=4326, spatial_index=True)
     except ImportError:
         GeometryType = JSON
+        MultiGeometryType = JSON
 else:
     GeometryType = JSON
+    MultiGeometryType = JSON
 
 class Parcel(Base):
     __tablename__ = "parcels"
@@ -39,6 +43,18 @@ class Parcel(Base):
     # When this record was entered into LandSetu, as opposed to dates inside the source records.
     created_at = Column(String, nullable=True)
     district = Column(String, nullable=True, index=True)
+
+class StateBoundary(Base):
+    """Real state/UT boundary polygons, used for ST_Intersects-based state detection and
+    border-crossing checks. Seeded from backend/seed/boundaries/state_boundaries.geojson
+    (geoBoundaries IND ADM1) by the alembic migration that creates this table; covers the
+    pilot states and their neighbours, not every Indian state/UT."""
+    __tablename__ = "state_boundaries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    state_code = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    geometry = Column(MultiGeometryType, nullable=False)
 
 class ProtectedZone(Base):
     __tablename__ = "protected_zones"
