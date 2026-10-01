@@ -1,15 +1,5 @@
 import axios from 'axios';
-import {
-  saveBoundaryRequestToFirestore,
-  updateBoundaryRequestInFirestore,
-  getFirestorePendingRequests,
-  getFirestoreCustomParcels,
-  getFirestoreBoundaryRequest,
-  markParcelDeletedInFirestore,
-  getFirestoreDeletedUlpins
-} from './firebaseFirestore';
 import { auth } from './firebase';
-import { notifySyncIssue } from './syncNotice';
 import { KNOWN_ROLES } from './roles';
 
 // Confidence for values this browser made up or copied from bundled samples. Only the records service,
@@ -119,7 +109,19 @@ export const wakeBackend = () => {
 let roleDiagnostic = { source: 'none', server: null, claim: null };
 export const getRoleDiagnostic = () => roleDiagnostic;
 
-export const resolveRole = async (user) => {
+// Resolved once per signed-in account per session: onAuthStateChanged fires on every token refresh, and each
+// resolution costs a session exchange with the records service.
+const roleCache = new Map();   // uid -> Promise<role>
+
+export const resolveRole = (user) => {
+  if (!user) return Promise.resolve('citizen');
+  if (!roleCache.has(user.uid)) roleCache.set(user.uid, resolveRoleOnce(user));
+  return roleCache.get(user.uid);
+};
+
+export const forgetRole = () => roleCache.clear();
+
+const resolveRoleOnce = async (user) => {
   const diag = { source: 'default (no role found)', server: null, claim: null };
   let role = 'citizen';
   try {
@@ -139,7 +141,6 @@ export const resolveRole = async (user) => {
     }
   }
   roleDiagnostic = diag;
-  console.info('LandSetu role check', { email: user?.email, role, ...diag });
   return role;
 };
 
@@ -153,116 +154,50 @@ export const listParcels = async (state) => {
   return res.data;
 };
 
-// The records service is the only source of parcels on the map. Its answer is used even when it is empty: a
-// state with no records shows no parcels, rather than parcels made up in this browser. The bundled sample is
-// used only when the service cannot be reached, and is marked `source: 'offline_sample'`.
-// Parcels and deletion markers written by browsers to Firestore or localStorage before the rules were locked
-// (see docs/security-posture.md, C4) are not applied: the service already leaves archived parcels out.
-export const getParcelsGeoJSON = async (state) => {
-  if (!isLocalhostBackendForbidden()) {
-    const params = state ? { state } : {};
-    try {
-      const res = await client.get('/parcels/geojson/all', { params });
-      if (res.data && Array.isArray(res.data.features)) {
-        return { ...res.data, source: 'service' };
-      }
-    } catch (err) {
-      noticeOnce('LandSetu: records service not reachable, showing the bundled sample parcels.');
-    }
+// The records service is the only source of parcel data. There is no browser copy, no Firestore copy and no
+// bundled or generated sample: a state with no records shows no parcels, and an unreachable service is an error
+// the map shows as such.
+export class ParcelNotFoundError extends Error {
+  constructor(ulpin) {
+    super(`Parcel ${ulpin} is not in the land records service.`);
+    this.name = 'ParcelNotFoundError';
+    this.ulpin = ulpin;
   }
-  return { ...getFallbackSeedParcelsGeoJSON(state || 'TamilNadu'), source: 'offline_sample' };
+}
+
+export const getParcelsGeoJSON = async (state) => {
+  const res = await client.get('/parcels/geojson/all', { params: state ? { state } : {} }).catch((err) => {
+    throw restError(err, 'Loading parcels');
+  });
+  return { type: 'FeatureCollection', features: Array.isArray(res.data?.features) ? res.data.features : [] };
 };
 
 export const getProtectedZonesGeoJSON = async (state) => {
-  if (!isLocalhostBackendForbidden()) {
-    const params = state ? { state } : {};
-    try {
-      const res = await client.get('/parcels/protected-zones/geojson', { params });
-      // The service's answer stands even when empty; no zone is made up for a state it holds none for.
-      if (res.data && Array.isArray(res.data.features)) {
-        return res.data;
-      }
-    } catch (err) {
-      noticeOnce('LandSetu: records service not reachable, showing the bundled sample parcels.');
-    }
-  }
-  return getFallbackProtectedZonesGeoJSON(state || 'TamilNadu');
+  const res = await client.get('/parcels/protected-zones/geojson', { params: state ? { state } : {} }).catch((err) => {
+    throw restError(err, 'Loading protected zones');
+  });
+  return { type: 'FeatureCollection', features: Array.isArray(res.data?.features) ? res.data.features : [] };
 };
 
-// Browser-written parcel copies are no longer shown: none of them went through the records service, and
-// the rules now refuse new ones. The local cache of them is cleared.
-export const getApprovedCustomParcels = async () => {
-  try { localStorage.removeItem('landsetu_custom_parcels'); } catch (e) { /* storage unavailable */ }
-  return {};
+// One request. A 404 means the records service holds no such parcel: ParcelNotFoundError, and callers must not
+// go on to request its intelligence, audit chain or passport.
+// Identical requests already in flight share one network call (a component mounting twice, two panels asking at
+// once). Settled results are not cached, so the next open always reads the current record.
+const inflight = new Map();
+const once = (key, fn) => {
+  if (!inflight.has(key)) inflight.set(key, fn().finally(() => inflight.delete(key)));
+  return inflight.get(key);
 };
 
-// From the records service. A parcel the service does not hold is reported as not found; the bundled sample
-// record is shown only when the service cannot be reached.
-export const getParcelDetail = async (ulpin) => {
-  if (!isLocalhostBackendForbidden()) {
-    try {
-      const res = await client.get(`/parcels/${encodeURIComponent(ulpin)}`);
-      return res.data;
-    } catch (err) {
-      if (err.response?.status === 404) {
-        throw new Error(`Parcel ${ulpin} is not in the land records service.`);
-      }
-      if (err.response) throw restError(err, 'Loading the parcel record');
-      // No response: the service is unreachable, so fall back to the bundled sample below.
-    }
+export const getParcelDetail = (ulpin) => once(`detail:${ulpin}`, async () => {
+  try {
+    const res = await client.get(`/parcels/${encodeURIComponent(ulpin)}`);
+    return res.data;
+  } catch (err) {
+    if (err.response?.status === 404) throw new ParcelNotFoundError(ulpin);
+    throw restError(err, 'Loading the parcel record');
   }
-
-  // Look up in static seed parcels fallback
-  const tnSeed = getFallbackSeedParcelsGeoJSON('TamilNadu').features.find(f => f.properties.ulpin === ulpin);
-  const chdSeed = getFallbackSeedParcelsGeoJSON('Chandigarh').features.find(f => f.properties.ulpin === ulpin);
-  const seedFeature = tnSeed || chdSeed;
-
-  if (seedFeature) {
-    return {
-      ulpin,
-      state: seedFeature.properties.state || 'TamilNadu',
-      geometry: seedFeature.geometry,
-      area_sqm: 452.3,
-      layers: {
-        ror: { owner_name: seedFeature.properties.owner_name, owner_share: '1/1', khata_no: 'KH-1187', source: 'registration_dept', last_verified: '2023-03-14', confidence: UNVERIFIED_PLACEHOLDER },
-        registration: { last_transaction_id: 'REG-2023-88213', transaction_type: 'sale', date: '2023-03-14', source: 'sub_registrar', confidence: UNVERIFIED_PLACEHOLDER },
-        zoning: { land_use: seedFeature.properties.land_use || 'residential', permitted_fsi: 1.5, eco_sensitive: false, source: 'master_plan_2023', confidence: UNVERIFIED_PLACEHOLDER },
-        building_permit: { status: 'approved', permit_id: 'BP-2023-441', approved_fsi: 1.5, source: 'municipal_corp', confidence: UNVERIFIED_PLACEHOLDER },
-        tax: { annual_value: 42000, source: 'revenue_dept', confidence: UNVERIFIED_PLACEHOLDER, last_verified: '2023-01-01' },
-        encumbrance: { active: false, type: null, source: 'sub_registrar', confidence: UNVERIFIED_PLACEHOLDER }
-      },
-      flags: [],
-      offline_sample: true
-    };
-  }
-
-  // Synthetic seed parcels for the other states: find the one this ULPIN belongs to.
-  let synth = null;
-  let synthState = null;
-  for (const st of LOCAL_STATES) {
-    const hit = generateSyntheticSeedParcelsForState(st).features.find((f) => f.properties.ulpin === ulpin);
-    if (hit) { synth = hit; synthState = st; break; }
-  }
-  const prefix = String(ulpin).split('-')[0];
-  const stateName = synthState?.name || LOCAL_STATES.find((st) => st.code === prefix)?.name || 'TamilNadu';
-
-  return {
-    ulpin,
-    state: stateName,
-    geometry: synth?.geometry || null,
-    area_sqm: 500,
-    layers: {
-      ror: { owner_name: synth?.properties.owner_name || 'Land Owner', owner_share: '1/1', khata_no: 'KH-712', source: 'revenue_dept', last_verified: '2024-01-01', confidence: UNVERIFIED_PLACEHOLDER },
-      registration: { last_transaction_id: 'REG-2024-001', transaction_type: 'sale', date: '2024-01-01', source: 'sub_registrar', confidence: UNVERIFIED_PLACEHOLDER },
-      zoning: { land_use: synth?.properties.land_use || 'residential', permitted_fsi: 1.5, eco_sensitive: false, source: 'master_plan', confidence: UNVERIFIED_PLACEHOLDER },
-      building_permit: { status: 'approved', permit_id: 'BP-2024-101', approved_fsi: 1.5, source: 'municipal_corp', confidence: UNVERIFIED_PLACEHOLDER },
-      tax: { annual_value: 48000, source: 'revenue_dept', confidence: UNVERIFIED_PLACEHOLDER, last_verified: '2024-01-01' },
-      encumbrance: { active: false, type: null, source: 'sub_registrar', confidence: UNVERIFIED_PLACEHOLDER }
-    },
-    flags: [],
-    offline_sample: true
-  };
-};
+});
 
 export const getParcelFlags = async (ulpin) => {
   try {
@@ -312,12 +247,6 @@ export const getParcelPassport = async (ulpin) => {
   };
 };
 
-// Split, merge and correction requests exist only in the backend database. The Firestore
-// and localStorage fallbacks cannot apply them, so they never go through those paths.
-export const REST_ONLY_REQUEST_TYPES = ['SPLIT', 'MERGE', 'CORRECTION'];
-// Requests that came from the records service carry `permissions`; those are always decided there.
-const isRestOnlyRequest = (req) => !!req && (REST_ONLY_REQUEST_TYPES.includes(req.type) || !!req.permissions);
-
 const restError = (err, action) => {
   if (err.response) return new Error(err.response.data?.detail || `${action} failed (${err.response.status}).`);
   return new Error(`${action} needs the live LandSetu API, which is not reachable right now.`);
@@ -334,179 +263,10 @@ const restCall = async (method, url, action, data) => {
 };
 const restPost = (url, action, data) => restCall('post', url, action, data);
 
-const OPEN_REQUEST_STATUSES = ['PENDING_VILLAGE_REVIEW', 'PENDING_AUDITOR_REVIEW', 'PENDING_STATE_ADMIN', 'PENDING_APPROVAL', 'PENDING', 'PENDING_DELETION_VILLAGE', 'PENDING_DELETION_AUDITOR', 'PENDING_FAST_REVIEW'];
-const DELETED_ULPINS_KEY = 'landsetu_deleted_ulpins';
-
-const requestTypeFromStatus = (status, fallbackType) => {
-  if (fallbackType) return fallbackType;
-  return String(status || '').includes('DELETION') ? 'DELETION' : 'BOUNDARY';
-};
-
-// Write to the shared Firestore copy of the approval queue. When the records service already accepted the
-// action (`accepted`), a failed write does not undo it: the user is told the shared copy was not updated.
-// When the shared copy is the only record of the action, a failed write means the action did not happen,
-// so it is thrown for the caller to show.
-const writeSharedCopy = async (write, action, accepted) => {
-  try {
-    await write();
-  } catch (err) {
-    if (!accepted) throw new Error(`${action} did not go through. ${err.message}`);
-    notifySyncIssue(action, err.message);
-  }
-};
-
-export const recordDeletedUlpin = async (ulpin, requestId, accepted = false) => {
-  if (!ulpin) return;
-  await writeSharedCopy(() => markParcelDeletedInFirestore(ulpin, requestId), 'Recording the deletion', accepted);
-  const local = JSON.parse(localStorage.getItem(DELETED_ULPINS_KEY) || '[]');
-  if (!local.includes(ulpin)) {
-    local.push(ulpin);
-    localStorage.setItem(DELETED_ULPINS_KEY, JSON.stringify(local));
-  }
-};
-
-export const getDeletedUlpins = async () => {
-  const local = JSON.parse(localStorage.getItem(DELETED_ULPINS_KEY) || '[]');
-  const remote = await getFirestoreDeletedUlpins();
-  return [...new Set([...local, ...remote])];
-};
-
-export const requestParcelDeletion = async (ulpin, reason = "State Admin requested parcel deletion") => {
-  const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
-  if (currentRole !== 'state_admin' && currentRole !== 'super_admin') {
-    throw new Error('Permission Denied: Only State Administration Officers (state_admin) can request land parcel deletion.');
-  }
-
-  const pending = await getPendingRequests();
-  const alreadyOpen = pending.find((r) => r.ulpin === ulpin && String(r.status || '').includes('DELETION'));
-  if (alreadyOpen) {
-    throw new Error(`A deletion request for ULPIN '${ulpin}' is already pending (${alreadyOpen.status}).`);
-  }
-
-  const targetP = await getParcelDetail(ulpin).catch(() => ({})) || {};
-
-  let backendId = null;
-  let backendMessage = null;
-  if (!isLocalhostBackendForbidden()) {
-    try {
-      const res = await client.post(`/parcels/${encodeURIComponent(ulpin)}/request-deletion`, { reason });
-      backendId = res.data?.request_id ?? null;
-      backendMessage = res.data?.message || null;
-    } catch (err) {
-      if (err.response?.status === 409 || err.response?.status === 403) {
-        throw new Error(err.response?.data?.detail || err.message);
-      }
-      console.warn('Backend deletion request notice, continuing with local governance pipeline:', err.message);
-    }
-  }
-
-  const delReq = {
-    id: backendId != null ? String(backendId) : ('DEL-' + Date.now()),
-    ulpin,
-    state: targetP.state || 'TamilNadu',
-    owner_name: targetP.layers?.ror?.owner_name || 'Parcel Owner',
-    requester_role: 'state_admin',
-    requested_by: 'State Admin Officer',
-    type: 'DELETION',
-    area_sqm: targetP.area_sqm || 500,
-    reason,
-    status: 'PENDING_DELETION_VILLAGE',
-    created_at: new Date().toISOString()
-  };
-
-  await writeSharedCopy(() => saveBoundaryRequestToFirestore(delReq), 'Filing the deletion request', backendId != null);
-
-  const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
-  reqs.push(delReq);
-  localStorage.setItem('landsetu_pending_reqs', JSON.stringify(reqs));
-
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new Event('landsetu-pipeline-updated'));
-  }
-
-  return {
-    status: 'PENDING_DELETION_VILLAGE',
-    message: backendMessage || `Land deletion request for ULPIN '${ulpin}' submitted. Village Land Officer must approve (stage 1), then the Compliance Auditor (stage 2), before the parcel is removed.`,
-    request: delReq
-  };
-};
-
-export const villageApproveDeletion = async (requestId) => {
-  const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
-  if (currentRole !== 'village_officer' && currentRole !== 'super_admin') {
-    throw new Error('Permission Denied: Only Village Land Officers can approve Stage 1 deletion. State Admin cannot self-approve.');
-  }
-
-  let accepted = false;
-  if (!isLocalhostBackendForbidden()) {
-    try {
-      await client.post(`/parcels/requests/${requestId}/village-approve-deletion`);
-      accepted = true;
-    } catch (err) {
-      if (err.response?.status === 403 || err.response?.status === 400) {
-        throw new Error(err.response?.data?.detail || err.message);
-      }
-      console.warn('Backend village deletion approval notice:', err.message);
-    }
-  }
-
-  await writeSharedCopy(() => updateBoundaryRequestInFirestore(requestId, 'PENDING_DELETION_AUDITOR', currentRole), 'Village approval', accepted);
-
-  const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
-  const req = reqs.find(r => String(r.id) === String(requestId));
-  if (req) {
-    req.status = 'PENDING_DELETION_AUDITOR';
-    localStorage.setItem('landsetu_pending_reqs', JSON.stringify(reqs));
-  }
-  return {
-    status: 'PENDING_DELETION_AUDITOR',
-    message: `Deletion request #${requestId} approved at Village Level. Stage 2: forwarded to Compliance Auditor.`
-  };
-};
-
-export const auditorApproveDeletion = async (requestId) => {
-  const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
-  if (currentRole !== 'auditor' && currentRole !== 'super_admin') {
-    throw new Error('Permission Denied: Only Compliance Auditors can issue final deletion authorization. State Admin cannot self-approve.');
-  }
-
-  const fsReq = await getFirestoreBoundaryRequest(requestId).catch(() => null);
-  const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
-  const req = fsReq || reqs.find(r => String(r.id) === String(requestId));
-
-  let accepted = false;
-  if (!isLocalhostBackendForbidden()) {
-    try {
-      await client.post(`/parcels/requests/${requestId}/auditor-approve-deletion`);
-      accepted = true;
-    } catch (err) {
-      if (err.response?.status === 403 || err.response?.status === 400) {
-        throw new Error(err.response?.data?.detail || err.message);
-      }
-      console.warn('Backend auditor deletion approval notice:', err.message);
-    }
-  }
-
-  await writeSharedCopy(() => updateBoundaryRequestInFirestore(requestId, 'DELETED', currentRole), 'Final deletion approval', accepted);
-
-  if (req && req.ulpin) {
-    await recordDeletedUlpin(req.ulpin, requestId, accepted);
-
-    const customParcels = JSON.parse(localStorage.getItem('landsetu_custom_parcels') || '{}');
-    delete customParcels[req.ulpin];
-    localStorage.setItem('landsetu_custom_parcels', JSON.stringify(customParcels));
-  }
-
-  if (reqs.length > 0) {
-    const localReq = reqs.find(r => String(r.id) === String(requestId));
-    if (localReq) localReq.status = 'DELETED';
-    localStorage.setItem('landsetu_pending_reqs', JSON.stringify(reqs));
-  }
-
-  return {
-    status: 'DELETED',
-    message: `Land deletion for ULPIN '${req?.ulpin || requestId}' authorized by Village Officer and Auditor. Parcel removed from the GIS database.`
-  };
+// Archival (deletion) requests go through the records service like every other request.
+export const requestParcelDeletion = async (ulpin, reason = 'State Admin requested parcel archival') => {
+  const res = await restPost(`/parcels/${encodeURIComponent(ulpin)}/request-deletion`, 'Filing the archival request', { reason });
+  return { status: res.status, message: res.message || `Archival request for ULPIN '${ulpin}' filed. The village land officer reviews it first, then the auditor.`, request_id: res.request_id };
 };
 
 const MOCK_STATE_RAW_SAMPLES = {
@@ -859,114 +619,26 @@ export const getAllStates = async () => {
 };
 
 // Open requests; `limit` pages the records service's list. The returned array carries `.total`.
+// Open requests from the records service; `limit` pages the list. The returned array carries `.total`.
 export const getPendingRequests = async (limit = 50) => {
-  const local = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]')
-    .filter((r) => OPEN_REQUEST_STATUSES.includes(r.status));
-
-  let remote = [];
-  try {
-    remote = await getFirestorePendingRequests();
-  } catch (err) {
-    remote = [];
-  }
-
-  let backend = [];
-  if (!isLocalhostBackendForbidden()) {
-    try {
-      const res = await client.get('/parcels/requests/pending', { params: { limit } });
-      backend = Array.isArray(res.data) ? res.data : [];
-      backend.total = Number(res.headers?.['x-total-count']) || backend.length;
-    } catch (err) {
-      backend = [];
-    }
-  }
-
-  const serviceTotal = backend.total;
-  const byId = new Map();
-  for (const r of [...local, ...remote, ...backend]) {
-    if (!r || r.id == null) continue;
-    byId.set(String(r.id), {
-      ...r,
-      id: r.id,
-      type: requestTypeFromStatus(r.status, r.type)
-    });
-  }
-  const all = Array.from(byId.values());
-  all.total = Math.max(serviceTotal || 0, all.length);
-  return all;
+  const res = await client.get('/parcels/requests/pending', { params: { limit } }).catch((err) => {
+    throw restError(err, 'Loading the approval queue');
+  });
+  const items = Array.isArray(res.data) ? res.data : [];
+  items.total = Number(res.headers?.['x-total-count']) || items.length;
+  return items;
 };
 
-export const auditorPassRequest = async (requestId, request = null) => {
-  const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
-  if (currentRole !== 'auditor' && currentRole !== 'super_admin') {
-    throw new Error('Permission Denied: Only Compliance Auditors can pass compliance audit.');
-  }
-  if (isRestOnlyRequest(request)) {
-    return restPost(`/parcels/requests/${requestId}/auditor-pass`, 'Auditor review');
-  }
-
-  await writeSharedCopy(() => updateBoundaryRequestInFirestore(requestId, 'PENDING_STATE_ADMIN', currentRole), 'Passing the audit', false);
-
-  const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
-  const req = reqs.find(r => r.id === requestId);
-  if (req) {
-    req.status = 'PENDING_STATE_ADMIN';
-    req.audited_by = 'Land Inspector & Compliance Auditor';
-    localStorage.setItem('landsetu_pending_reqs', JSON.stringify(reqs));
-  }
-  return { status: 'PENDING_STATE_ADMIN', message: `Request #${requestId} passed compliance audit and forwarded to State Admin!`, ulpin: req?.ulpin };
-};
+export const auditorPassRequest = (requestId) => restPost(`/parcels/requests/${requestId}/auditor-pass`, 'Auditor review');
 
 // `record` is required when approval creates a new parcel (request.needs_record_entry): the approving officer's
 // entry of owner, zoning, tax_value and encumbrance_status, stored as officer_provided.
-export const approveBoundaryRequest = async (requestId, request = null, record = null) => {
-  const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
-  if (currentRole !== 'state_admin' && currentRole !== 'super_admin') {
-    throw new Error('Permission Denied: Only State Administration Officers (state_admin) have final approval authority.');
-  }
-  if (isRestOnlyRequest(request)) {
-    return restPost(`/parcels/requests/${requestId}/approve`, 'Final approval', record || undefined);
-  }
-
-  // A request held only in the browser copy (Firestore or this device) never reached the records service.
-  // Approving it here could not compute the parcel's area or state on the server or attest any departmental
-  // record, so it cannot change a parcel. It can still be rejected.
-  throw new Error(`Request ${requestId} exists only in the browser copy of the queue, so it cannot be applied to a parcel. Reject it and file the boundary again; it will then go through the records service.`);
-};
+export const approveBoundaryRequest = (requestId, request = null, record = null) =>
+  restPost(`/parcels/requests/${requestId}/approve`, 'Final approval', record || undefined);
 
 // Rejecting needs remarks (at least 5 characters). The requester sees them with the request's status.
-export const rejectBoundaryRequest = async (requestId, request = null, remarks = '') => {
-  const currentRole = localStorage.getItem('landsetu_role') || 'citizen';
-  if (!['auditor', 'state_admin', 'village_officer', 'super_admin'].includes(currentRole)) {
-    throw new Error('Permission Denied: Only Village Officers, Auditors, or State Administration Officers can reject requests.');
-  }
-  if (isRestOnlyRequest(request)) {
-    return restPost(`/parcels/requests/${requestId}/reject`, 'Rejection', { remarks });
-  }
-
-  let accepted = false;
-  if (!isLocalhostBackendForbidden()) {
-    try {
-      await client.post(`/parcels/requests/${requestId}/reject`, { remarks });
-      accepted = true;
-    } catch (err) {
-      if (err.response?.status === 403) {
-        throw new Error(err.response?.data?.detail || err.message);
-      }
-      console.warn('Backend reject request notice:', err.message);
-    }
-  }
-
-  await writeSharedCopy(() => updateBoundaryRequestInFirestore(requestId, 'REJECTED', currentRole), 'Rejecting the request', accepted);
-
-  const reqs = JSON.parse(localStorage.getItem('landsetu_pending_reqs') || '[]');
-  const req = reqs.find(r => r.id === requestId);
-  if (req) {
-    req.status = 'REJECTED';
-    localStorage.setItem('landsetu_pending_reqs', JSON.stringify(reqs));
-  }
-  return { status: 'REJECTED', message: `Request ${requestId} rejected by ${currentRole}.` };
-};
+export const rejectBoundaryRequest = (requestId, request = null, remarks = '') =>
+  restPost(`/parcels/requests/${requestId}/reject`, 'Rejection', { remarks });
 
 const LOCAL_STATES = [
   { name: "TamilNadu", label: "Tamil Nadu", code: "TN", capital: "Chennai", center: [13.0827, 80.2707], bbox: { min_lat: 8.0, max_lat: 13.6, min_lng: 76.2, max_lng: 80.4 } },
@@ -1020,112 +692,6 @@ export const identifyStateByCoords = async (lat, lng) => {
   return closest;
 };
 
-const generateSyntheticSeedParcelsForState = (stateObj) => {
-  const [cLat, cLng] = stateObj.center;
-  const code = stateObj.code;
-  const sName = stateObj.name;
-
-  return {
-    type: "FeatureCollection",
-    features: [
-      {
-        type: "Feature",
-        properties: { ulpin: `${code}-SEC-0101`, state: sName, owner_name: "Ramesh Sharma", land_use: "residential" },
-        geometry: { type: "Polygon", coordinates: [[[cLng - 0.003, cLat - 0.003], [cLng - 0.0005, cLat - 0.003], [cLng - 0.0005, cLat - 0.001], [cLng - 0.003, cLat - 0.001], [cLng - 0.003, cLat - 0.003]]] }
-      },
-      {
-        type: "Feature",
-        properties: { ulpin: `${code}-SEC-0102`, state: sName, owner_name: "Priya Patel", land_use: "residential" },
-        geometry: { type: "Polygon", coordinates: [[[cLng + 0.0005, cLat - 0.003], [cLng + 0.003, cLat - 0.003], [cLng + 0.003, cLat - 0.001], [cLng + 0.0005, cLat - 0.001], [cLng + 0.0005, cLat - 0.003]]] }
-      },
-      {
-        type: "Feature",
-        properties: { ulpin: `${code}-SEC-0103`, state: sName, owner_name: "Suresh Reddy", land_use: "commercial" },
-        geometry: { type: "Polygon", coordinates: [[[cLng - 0.003, cLat + 0.0005], [cLng - 0.0005, cLat + 0.0005], [cLng - 0.0005, cLat + 0.0025], [cLng - 0.003, cLat + 0.0025], [cLng - 0.003, cLat + 0.0005]]] }
-      },
-      {
-        type: "Feature",
-        properties: { ulpin: `${code}-SEC-0104`, state: sName, owner_name: "Anita Menon", land_use: "residential" },
-        geometry: { type: "Polygon", coordinates: [[[cLng + 0.0005, cLat + 0.0005], [cLng + 0.003, cLat + 0.0005], [cLng + 0.003, cLat + 0.0025], [cLng + 0.0005, cLat + 0.0025], [cLng + 0.0005, cLat + 0.0005]]] }
-      },
-      {
-        type: "Feature",
-        properties: { ulpin: `${code}-SEC-0105`, state: sName, owner_name: "Vikram Chatterjee", land_use: "residential" },
-        geometry: { type: "Polygon", coordinates: [[[cLng - 0.0055, cLat - 0.003], [cLng - 0.0035, cLat - 0.003], [cLng - 0.0035, cLat - 0.001], [cLng - 0.0055, cLat - 0.001], [cLng - 0.0055, cLat - 0.003]]] }
-      },
-      {
-        type: "Feature",
-        properties: { ulpin: `${code}-SEC-0106`, state: sName, owner_name: "Sunita Deshmukh", land_use: "residential" },
-        geometry: { type: "Polygon", coordinates: [[[cLng + 0.0035, cLat - 0.003], [cLng + 0.0055, cLat - 0.003], [cLng + 0.0055, cLat - 0.001], [cLng + 0.0035, cLat - 0.001], [cLng + 0.0035, cLat - 0.003]]] }
-      }
-    ]
-  };
-};
-
-const getFallbackSeedParcelsGeoJSON = (stateName) => {
-  const normState = String(stateName || '').toLowerCase().replace(/[^a-z]/g, '');
-
-  if (normState.includes('chandigarh')) {
-    return {
-      type: "FeatureCollection",
-      features: [
-        { type: "Feature", properties: { ulpin: "CHD-SEC-0017-0201", state: "Chandigarh", owner_name: "Harpreet Singh", land_use: "residential" }, geometry: { type: "Polygon", coordinates: [[[76.774817, 30.732139], [76.777632, 30.731902], [76.777498, 30.73398], [76.776005, 30.734128], [76.775076, 30.734115], [76.775065, 30.733047], [76.774817, 30.732139]]] } },
-        { type: "Feature", properties: { ulpin: "CHD-SEC-0017-0202", state: "Chandigarh", owner_name: "Gurpreet Kaur", land_use: "residential" }, geometry: { type: "Polygon", coordinates: [[[76.778098, 30.731907], [76.780651, 30.732036], [76.780301, 30.733927], [76.778667, 30.733874], [76.777761, 30.73406], [76.778069, 30.732987], [76.778098, 30.731907]]] } },
-        { type: "Feature", properties: { ulpin: "CHD-SEC-0017-0203", state: "Chandigarh", owner_name: "Rajesh Sharma", land_use: "ecological" }, geometry: { type: "Polygon", coordinates: [[[76.784176, 30.737021], [76.785938, 30.737071], [76.786087, 30.737879], [76.786104, 30.739181], [76.78502, 30.738961], [76.784171, 30.738966], [76.784176, 30.737021]]] } },
-        { type: "Feature", properties: { ulpin: "CHD-SEC-0017-0204", state: "Chandigarh", owner_name: "Simranjeet Singh", land_use: "residential" }, geometry: { type: "Polygon", coordinates: [[[76.775218, 30.734469], [76.776421, 30.734661], [76.777665, 30.734568], [76.777463, 30.735485], [76.777402, 30.736535], [76.775191, 30.736638], [76.775218, 30.734469]]] } },
-        { type: "Feature", properties: { ulpin: "CHD-SEC-0017-0205", state: "Chandigarh", owner_name: "Amit Verma", land_use: "commercial" }, geometry: { type: "Polygon", coordinates: [[[76.777934, 30.734653], [76.779474, 30.7346], [76.780638, 30.734595], [76.780293, 30.736566], [76.779208, 30.736269], [76.777804, 30.736365], [76.777934, 30.734653]]] } },
-        { type: "Feature", properties: { ulpin: "CHD-SEC-0017-0206", state: "Chandigarh", owner_name: "Neha Gupta", land_use: "residential" }, geometry: { type: "Polygon", coordinates: [[[76.772057, 30.732031], [76.77366, 30.731974], [76.774574, 30.731867], [76.774363, 30.733805], [76.773158, 30.734121], [76.77185, 30.734168], [76.772057, 30.732031]]] } },
-        { type: "Feature", properties: { ulpin: "CHD-SEC-0017-0207", state: "Chandigarh", owner_name: "Kuldeep Malhotra", land_use: "residential" }, geometry: { type: "Polygon", coordinates: [[[76.772024, 30.734683], [76.773124, 30.734576], [76.774253, 30.734613], [76.77466, 30.736654], [76.773352, 30.73637], [76.77212, 30.736624], [76.772024, 30.734683]]] } },
-        { type: "Feature", properties: { ulpin: "CHD-SEC-0017-0208", state: "Chandigarh", owner_name: "Manpreet Kaur", land_use: "residential" }, geometry: { type: "Polygon", coordinates: [[[76.780965, 30.732125], [76.781971, 30.731805], [76.782966, 30.731801], [76.783016, 30.734115], [76.780932, 30.73404], [76.780968, 30.733318], [76.780965, 30.732125]]] } }
-      ]
-    };
-  }
-
-  if (normState.includes('tamil') || normState === 'tn' || normState === 'tamilnadu') {
-    return {
-      type: "FeatureCollection",
-      features: [
-        { type: "Feature", properties: { ulpin: "TN-CHN-0042-1187", state: "TamilNadu", owner_name: "R. Kannan", land_use: "residential" }, geometry: { type: "Polygon", coordinates: [[[80.269817, 13.082139], [80.272632, 13.081902], [80.272498, 13.08398], [80.271005, 13.084128], [80.270076, 13.084115], [80.270065, 13.083047], [80.269817, 13.082139]]] } },
-        { type: "Feature", properties: { ulpin: "TN-CHN-0042-1188", state: "TamilNadu", owner_name: "M. Selvam", land_use: "residential" }, geometry: { type: "Polygon", coordinates: [[[80.272098, 13.082907], [80.274651, 13.083036], [80.274301, 13.084927], [80.272667, 13.084874], [80.271761, 13.08506], [80.272069, 13.083987], [80.272098, 13.082907]]] } },
-        { type: "Feature", properties: { ulpin: "TN-CHN-0042-1189", state: "TamilNadu", owner_name: "V. Ramanathan", land_use: "residential" }, geometry: { type: "Polygon", coordinates: [[[80.275176, 13.082021], [80.276938, 13.082071], [80.277087, 13.082879], [80.277104, 13.084181], [80.27602, 13.083961], [80.275171, 13.083966], [80.275176, 13.082021]]] } },
-        { type: "Feature", properties: { ulpin: "TN-CHN-0042-1190", state: "TamilNadu", owner_name: "S. Lakshmi", land_use: "commercial" }, geometry: { type: "Polygon", coordinates: [[[80.270218, 13.084469], [80.271421, 13.084661], [80.272665, 13.084568], [80.272463, 13.085485], [80.272402, 13.086535], [80.270191, 13.086638], [80.270218, 13.084469]]] } },
-        { type: "Feature", properties: { ulpin: "TN-CHN-0042-1191", state: "TamilNadu", owner_name: "P. Murugan", land_use: "residential" }, geometry: { type: "Polygon", coordinates: [[[80.272934, 13.085653], [80.274474, 13.0856], [80.275638, 13.085595], [80.275293, 13.087566], [80.274208, 13.087269], [80.272804, 13.087365], [80.272934, 13.085653]]] } },
-        { type: "Feature", properties: { ulpin: "TN-CHN-0042-1192", state: "TamilNadu", owner_name: "K. Jayaraman", land_use: "commercial" }, geometry: { type: "Polygon", coordinates: [[[80.276057, 13.084531], [80.27766, 13.084474], [80.278574, 13.084367], [80.278363, 13.086305], [80.277158, 13.086621], [80.27585, 13.086668], [80.276057, 13.084531]]] } },
-        { type: "Feature", properties: { ulpin: "TN-CHN-0042-1193", state: "TamilNadu", owner_name: "D. Anitha", land_use: "residential" }, geometry: { type: "Polygon", coordinates: [[[80.267024, 13.082183], [80.268124, 13.082076], [80.269253, 13.082113], [80.26966, 13.084154], [80.268352, 13.08387], [80.26712, 13.084124], [80.267024, 13.082183]]] } },
-        { type: "Feature", properties: { ulpin: "TN-CHN-0042-1194", state: "TamilNadu", owner_name: "G. Balaji", land_use: "residential" }, geometry: { type: "Polygon", coordinates: [[[80.266957, 13.084625], [80.26822, 13.084266], [80.269457, 13.084301], [80.26952, 13.086615], [80.266916, 13.08654], [80.266955, 13.085818], [80.266957, 13.084625]]] } },
-        { type: "Feature", properties: { ulpin: "TN-CHN-0042-1195", state: "TamilNadu", owner_name: "T. Radhakrishnan", land_use: "residential" }, geometry: { type: "Polygon", coordinates: [[[80.279176, 13.082172], [80.281266, 13.082177], [80.281215, 13.082932], [80.281285, 13.084147], [80.278976, 13.084102], [80.278867, 13.083206], [80.279176, 13.082172]]] } }
-      ]
-    };
-  }
-
-  // Find matching state from LOCAL_STATES
-  const matchedState = LOCAL_STATES.find(s => s.name.toLowerCase() === normState || s.label.toLowerCase().replace(/[^a-z]/g, '') === normState) || LOCAL_STATES[0];
-  return generateSyntheticSeedParcelsForState(matchedState);
-};
-
-const getFallbackProtectedZonesGeoJSON = (stateName) => {
-  if (stateName === 'Chandigarh') {
-    return {
-      type: "FeatureCollection",
-      features: [
-        { type: "Feature", properties: { zone_id: "ECO-ZONE-CHD-01", name: "Sample protected zone (placeholder)", type: "protected_zone" }, geometry: { type: "Polygon", coordinates: [[[76.782126, 30.742293], [76.782689, 30.742331], [76.78356, 30.742104], [76.784555, 30.741762], [76.78535, 30.740306], [76.786393, 30.740054], [76.787067, 30.740002], [76.787912, 30.742356], [76.788056, 30.736445], [76.787069, 30.736608], [76.786284, 30.734843], [76.785361, 30.73553], [76.784678, 30.735275], [76.783626, 30.73669], [76.783029, 30.737397], [76.781975, 30.737427], [76.782126, 30.742293]]] } }
-      ]
-    };
-  }
-
-  return {
-    type: "FeatureCollection",
-    features: [
-      { type: "Feature", properties: { zone_id: "ECO-ZONE-TN-01", name: "Sample protected zone (placeholder)", type: "protected_zone" }, geometry: { type: "Polygon", coordinates: [[[80.276567, 13.08], [80.276088, 13.080312], [80.275795, 13.080709], [80.274342, 13.080673], [80.273122, 13.080842], [80.27204, 13.080625], [80.271623, 13.080297], [80.27079, 13.08], [80.271647, 13.079706], [80.271984, 13.079355], [80.273259, 13.079328], [80.274347, 13.079321], [80.275608, 13.079358], [80.276892, 13.079578], [80.276567, 13.08]]] } }
-    ]
-  };
-};
-
-
-// ---------------------------------------------------------------------------
-// Split / merge / correction requests, history, search, analytics
-// ---------------------------------------------------------------------------
-
 export const villagePassRequest = (requestId) =>
   restPost(`/parcels/requests/${requestId}/village-pass`, 'Village verification');
 
@@ -1152,29 +718,10 @@ export const requestCorrection = (ulpin, { layer, field, requestedValue, evidenc
 export const getAnalyticsSummary = () => restCall('get', '/parcels/analytics/summary', 'Analytics');
 
 // Offline history: only the department layers are available, no request trail.
-const historyFromLayers = (parcel) => {
-  const L = parcel?.layers || {};
-  const events = [];
-  const add = (date, kind, title, detail, source, confidence) =>
-    events.push({ date: date || null, kind, title, detail: detail || '', source, confidence });
-  if (L.ror) add(L.ror.last_verified, 'ror', `Record of Rights: owner ${L.ror.owner_name || 'not recorded'}`, `Khata ${L.ror.khata_no || 'not recorded'}`, L.ror.source, L.ror.confidence);
-  if (L.registration) add(L.registration.date, 'registration', `Registration: ${L.registration.transaction_type || 'transaction'} ${L.registration.last_transaction_id || ''}`.trim(), L.registration.buyer_name ? `Buyer ${L.registration.buyer_name}` : '', L.registration.source, L.registration.confidence);
-  if (L.building_permit) add(L.building_permit.date, 'permit', `Building permit ${L.building_permit.permit_id || ''} ${L.building_permit.status || ''}`.trim(), L.building_permit.approved_fsi != null ? `Approved FSI ${L.building_permit.approved_fsi}` : '', L.building_permit.source, L.building_permit.confidence);
-  if (L.tax) add(L.tax.last_verified, 'tax', 'Property tax assessed', L.tax.annual_value ? `Annual value Rs ${L.tax.annual_value}` : '', L.tax.source, L.tax.confidence);
-  events.sort((a, b) => (a.date === null) - (b.date === null) || String(a.date).localeCompare(String(b.date)));
-  return events;
-};
-
-export const getParcelHistory = async (ulpin) => {
-  if (!isLocalhostBackendForbidden()) {
-    try {
-      const res = await client.get(`/parcels/${encodeURIComponent(ulpin)}/history`);
-      if (Array.isArray(res.data?.events)) return { events: res.data.events, source: 'live' };
-    } catch (err) { /* fall through to layer-only history */ }
-  }
-  const parcel = await getParcelDetail(ulpin);
-  return { events: historyFromLayers(parcel), source: 'offline' };
-};
+export const getParcelHistory = (ulpin) => once(`history:${ulpin}`, async () => {
+  const data = await restCall('get', `/parcels/${encodeURIComponent(ulpin)}/history`, 'Loading the parcel history');
+  return { events: Array.isArray(data?.events) ? data.events : [], source: 'live' };
+});
 
 // One page of search results from the records service: { items, total }.
 export const searchParcelsPage = async (q, offset = 0, limit = 20) => {
@@ -1185,33 +732,10 @@ export const searchParcelsPage = async (q, offset = 0, limit = 20) => {
 export const searchParcels = async (q, state) => {
   const term = String(q || '').trim();
   if (term.length < 2) return [];
-  if (!isLocalhostBackendForbidden()) {
-    try {
-      const res = await client.get('/parcels/search', { params: { q: term, state: state || undefined } });
-      if (Array.isArray(res.data)) return res.data;
-    } catch (err) { /* offline fallback below */ }
-  }
-  const needle = term.toLowerCase();
-  const local = JSON.parse(localStorage.getItem('landsetu_custom_parcels') || '{}');
-  const seeds = ['TamilNadu', 'Chandigarh'].flatMap((st) => getFallbackSeedParcelsGeoJSON(st).features.map((f) => ({
-    ulpin: f.properties.ulpin, state: f.properties.state, owner_name: f.properties.owner_name, khata_no: null, geometry: f.geometry,
-  })));
-  const custom = Object.values(local).map((p) => ({
-    ulpin: p.ulpin, state: p.state, owner_name: p.layers?.ror?.owner_name, khata_no: p.layers?.ror?.khata_no, geometry: p.geometry,
-  }));
-  return [...seeds, ...custom]
-    .filter((p) => [p.ulpin, p.owner_name, p.khata_no].some((v) => String(v || '').toLowerCase().includes(needle)))
-    .slice(0, 20)
-    .map((p) => {
-      const ring = p.geometry?.coordinates?.[0] || [];
-      const n = Math.max(ring.length - 1, 1);
-      const centroid = ring.length ? [ring.slice(0, n).reduce((a, c) => a + c[0], 0) / n, ring.slice(0, n).reduce((a, c) => a + c[1], 0) / n] : null;
-      const matched_on = String(p.ulpin).toLowerCase().includes(needle) ? 'ulpin' : String(p.owner_name || '').toLowerCase().includes(needle) ? 'owner' : 'khata';
-      return { ulpin: p.ulpin, state: p.state, owner_name: p.owner_name, khata_no: p.khata_no, centroid, matched_on };
-    });
+  const data = await restCall('get', `/parcels/search?${new URLSearchParams({ q: term, ...(state ? { state } : {}) })}`, 'Searching parcels');
+  return Array.isArray(data) ? data : [];
 };
 
-// Account and role administration (super administrators). These need the live records service.
 const adminCall = async (method, url, data) => {
   try {
     const res = await client.request({ method, url, data });
@@ -1236,7 +760,7 @@ export const acknowledgeConcern = (flagId) => restPost(`/parcels/flags/${flagId}
 export const resolveConcern = (flagId, note) => restPost(`/parcels/flags/${flagId}/resolve`, 'Resolving a concern', { note });
 
 // Statistical signals (officers only) and their state-wide summary (state admin).
-export const getParcelIntelligence = (ulpin) => restCall('get', `/parcels/${encodeURIComponent(ulpin)}/intelligence`, 'Statistical signals');
+export const getParcelIntelligence = (ulpin) => once(`intel:${ulpin}`, () => restCall('get', `/parcels/${encodeURIComponent(ulpin)}/intelligence`, 'Statistical signals'));
 export const getIntelligenceSummary = () => restCall('get', '/parcels/analytics/intelligence', 'Statistical summary');
 
 // Cross-department land transactions (Registration, Revenue, Estate Office, Municipal, Planning, Dispute).

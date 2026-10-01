@@ -24,7 +24,7 @@ import AnalyticsPage from './pages/officer/AnalyticsPage';
 import ImportPage from './pages/officer/ImportPage';
 import EditorPage from './pages/officer/EditorPage';
 import UsersPage from './pages/officer/UsersPage';
-import { logout, resolveRole, wakeBackend } from './api';
+import { logout, resolveRole, forgetRole, wakeBackend } from './api';
 import { SYNC_NOTICE_EVENT } from './syncNotice';
 import { auth, signOut as firebaseSignOut, onAuthStateChanged } from './firebase';
 
@@ -33,7 +33,6 @@ const MapView = lazy(() => import('./components/MapView'));
 const ParcelPanel = lazy(() => import('./components/ParcelPanel'));
 const StateLogModal = lazy(() => import('./components/StateLogModal'));
 const CitizenServiceTrackerModal = lazy(() => import('./components/CitizenServiceTrackerModal'));
-const SatelliteAiChangeDetectionModal = lazy(() => import('./components/SatelliteAiChangeDetectionModal'));
 const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard'));
 
 export default function App() {
@@ -53,6 +52,31 @@ export default function App() {
   };
   const [selectedState, setSelectedState] = useState('TamilNadu');
   const [selectedUlpin, setSelectedUlpin] = useState(null);
+  const [mapNotice, setMapNotice] = useState(null);
+
+  // The open parcel is mirrored in the URL (#/map?ulpin=...), so a parcel can be linked to and reloaded.
+  const selectParcel = (ulpin) => {
+    setMapNotice(null);
+    setSelectedUlpin(ulpin);
+    if (ulpin) window.history.replaceState(null, '', `#/map?ulpin=${encodeURIComponent(ulpin)}`);
+  };
+  const clearParcel = () => {
+    setSelectedUlpin(null);
+    if (window.location.hash.startsWith('#/map?')) window.history.replaceState(null, '', '#/map');
+  };
+  // The records service holds no such parcel: say so, and drop the selection and the link.
+  const parcelNotFound = (ulpin) => {
+    clearParcel();
+    setMapNotice(`Parcel ${ulpin} is not in the land records service. Check the ULPIN, or search by owner name or khata number.`);
+  };
+
+  // Deep link: #/map?ulpin=... opens that parcel.
+  useEffect(() => {
+    if (route.path === '/map' && route.params.ulpin && route.params.ulpin !== selectedUlpin) {
+      setMapNotice(null);
+      setSelectedUlpin(route.params.ulpin);
+    }
+  }, [route.path, route.params.ulpin]);
   const [editingParcel, setEditingParcel] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [currentRole, setCurrentRole] = useState(() => localStorage.getItem('landsetu_role') || 'citizen');
@@ -64,7 +88,6 @@ export default function App() {
   // Modals
   const [showStateLogs, setShowStateLogs] = useState(false);
   const [showCitizenTracker, setShowCitizenTracker] = useState(false);
-  const [showSatelliteAi, setShowSatelliteAi] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [restructure, setRestructure] = useState(null); // { mode: 'split' | 'merge', parcel }
   const [focusPoint, setFocusPoint] = useState(null);
@@ -132,6 +155,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    forgetRole();
     localStorage.removeItem('landsetu_role');
     firebaseSignOut(auth).catch(() => {});
     logout().catch(() => {});
@@ -145,7 +169,7 @@ export default function App() {
     setActiveView('map');
     if (hit.state && hit.state !== selectedState) setSelectedState(hit.state);
     if (hit.centroid) setFocusPoint({ center: [hit.centroid[1], hit.centroid[0]], nonce: Date.now() });
-    setSelectedUlpin(hit.ulpin);
+    selectParcel(hit.ulpin);
   };
 
   const handleStartRestructure = (mode, parcelData) => {
@@ -234,7 +258,7 @@ export default function App() {
             <MapView
               selectedState={selectedState}
               selectedUlpin={selectedUlpin}
-              onSelectParcel={(ulpin) => setSelectedUlpin(ulpin)}
+              onSelectParcel={selectParcel}
               editingParcel={editingParcel}
               onClearEditingParcel={() => setEditingParcel(null)}
               onAutoDetectState={changeState}
@@ -244,13 +268,20 @@ export default function App() {
               onRestructureClose={() => setRestructure(null)}
               focusPoint={focusPoint}
             />
+            {mapNotice && (
+              <div className="map-notice callout" role="status">
+                <span>{mapNotice}</span>
+                <button className="btn" onClick={() => setMapNotice(null)}>Dismiss</button>
+              </div>
+            )}
             {selectedUlpin && (
               <ParcelPanel
                 ulpin={selectedUlpin}
                 role={effectiveRole}
-                onClose={() => setSelectedUlpin(null)}
+                onClose={clearParcel}
+                onNotFound={parcelNotFound}
                 onReshapeBoundary={handleReshapeBoundary}
-                onDeletionRequested={() => setSelectedUlpin(null)}
+                onDeletionRequested={clearParcel}
                 onStartRestructure={handleStartRestructure}
                 onRequestCorrection={() => setShowCitizenTracker(true)}
               />
@@ -277,13 +308,6 @@ export default function App() {
           <AnalyticsDashboard onClose={() => setShowAnalytics(false)} />
         )}
 
-        {showSatelliteAi && (
-          <SatelliteAiChangeDetectionModal
-            ulpin={selectedUlpin}
-            state={selectedState}
-            onClose={() => setShowSatelliteAi(false)}
-          />
-        )}
 
         </Suspense>
         {activeView !== 'map' && <SiteFooter />}

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import PageShell from '../components/PageShell';
-import { searchParcels } from '../api';
+import { searchParcelsPage } from '../api';
 import { navigate } from '../router';
 
 const MATCH = { ulpin: 'ULPIN', owner: 'Owner name', khata: 'Khata number' };
@@ -8,21 +8,30 @@ const MATCH = { ulpin: 'ULPIN', owner: 'Owner name', khata: 'Khata number' };
 export default function SearchPage({ initialQuery = '', onPick }) {
   const [q, setQ] = useState(initialQuery);
   const [results, setResults] = useState(null);
+  const [total, setTotal] = useState(0);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     const term = q.trim();
-    if (term.length < 2) { setResults(null); return undefined; }
+    if (term.length < 2) { setResults(null); setTotal(0); return undefined; }
     let live = true;
     setBusy(true);
     const timer = setTimeout(() => {
-      searchParcels(term, null)
-        .then((r) => live && setResults(Array.isArray(r) ? r : []))
+      searchParcelsPage(term, 0)
+        .then((r) => { if (live) { setResults(r.items); setTotal(r.total || r.items.length); } })
         .catch(() => live && setResults([]))
         .finally(() => live && setBusy(false));
     }, 250);
     return () => { live = false; clearTimeout(timer); };
   }, [q]);
+
+  const loadMore = () => {
+    setBusy(true);
+    searchParcelsPage(q.trim(), results.length)
+      .then((r) => setResults((prev) => [...prev, ...r.items]))
+      .catch(() => {})
+      .finally(() => setBusy(false));
+  };
 
   const onChange = (value) => {
     setQ(value);
@@ -54,6 +63,11 @@ export default function SearchPage({ initialQuery = '', onPick }) {
               ))}
             </tbody>
           </table>
+        )}
+        {results && results.length > 0 && (
+          <p className="subtle">Showing {results.length} of {total}.{' '}
+            {results.length < total && <button className="btn" onClick={loadMore} disabled={busy}>Load more</button>}
+          </p>
         )}
         {results === null && <p className="subtle">Type at least two characters.</p>}
       </div>
