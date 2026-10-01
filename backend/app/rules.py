@@ -116,6 +116,18 @@ def _pg_geom(geom_shape):
     return func.ST_SetSRID(func.ST_GeomFromGeoJSON(json.dumps(mapping(geom_shape))), 4326)
 
 
+def geodesic_area_sqm(db: Session, geom_shape) -> float:
+    """Authoritative area in square metres: ST_Area on the WGS84 geography (ellipsoid), same measure the
+    boundary-overlap check uses, so a parcel's own area and its overlap with a neighbor agree.
+
+    SQLite dev mode has no PostGIS, so it falls back to the spherical formula (compute_geodesic_area_sqm),
+    which is within fractions of a percent of the ellipsoid figure at parcel scale.
+    """
+    if IS_SQLITE:
+        return compute_geodesic_area_sqm(geom_shape)
+    return db.query(func.ST_Area(cast(_pg_geom(geom_shape), Geography))).scalar()
+
+
 def _overlap_flag(ulpin: str, area_sqm: float) -> Dict[str, Any]:
     return {
         "rule": "boundary_overlap",

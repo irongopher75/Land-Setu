@@ -10,13 +10,13 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import Parcel, ProtectedZone, BoundaryChangeRequest
 from app.schemas import ParcelListItem, CanonicalParcelResponse, FlagItem
-from app.rules import RuleEngine, parse_geometry_shape, invalidate_neighbor_flags, compute_geodesic_area_sqm
+from app.rules import RuleEngine, parse_geometry_shape, invalidate_neighbor_flags, geodesic_area_sqm
 from app.routes.auth import get_current_role, get_current_payload, get_optional_role, require_roles, SECRET_KEY, ALGORITHM
 from app.states import INDIAN_STATES, detect_state_from_coords
 from app.workflow import (advance_request, apply_request, archive_parcel, NEW_TYPES,
                           FAST_STATUS)
 from app import audit
-from app.adapter import OFFICER_PROVIDED
+from app.adapter import OFFICER_PROVIDED, adapter_engine, convert_area_sqm, state_display_unit
 from app import permissions
 from app.flags import flag_views, flag_rows_for
 from app.models import RequestFlag
@@ -49,14 +49,15 @@ def identify_state_by_coords(lat: float = Query(...), lng: float = Query(...)):
 STATE_CODES = {s["code"]: s["name"] for s in INDIAN_STATES}
 
 
-def server_area_and_state(s_shape, ulpin: str) -> tuple:
+def server_area_and_state(db: Session, s_shape, ulpin: str) -> tuple:
     """Area and state of a boundary as the records service computes them from the polygon.
 
-    Whatever a browser sends for area or state is never stored: area is the geodesic area of the polygon
-    (the same spherical formula Turf.js uses), and state is point-in-polygon on the centroid. A ULPIN whose
-    state code names a different state than the one the boundary lies in is refused rather than guessed.
+    Whatever a browser sends for area or state is never stored: area is ST_Area on the WGS84 geography
+    (the same geodesic measure the boundary-overlap check uses), and state is point-in-polygon on the
+    centroid. A ULPIN whose state code names a different state than the one the boundary lies in is
+    refused rather than guessed.
     """
-    area = round(compute_geodesic_area_sqm(s_shape), 2)
+    area = round(geodesic_area_sqm(db, s_shape), 2)
     centroid = s_shape.centroid
     detected = detect_state_from_coords(centroid.y, centroid.x)
     prefix = ulpin.split("-", 1)[0].upper()
@@ -103,6 +104,7 @@ def filter_fields_by_role(parcel_dict: dict, role: str) -> dict:
             "state": parcel_dict["state"],
             "geometry": parcel_dict.get("geometry"),
             "area_sqm": parcel_dict.get("area_sqm"),
+            "area_display": parcel_dict.get("area_display"),
             "layers": cleaned_layers,
             "flags": parcel_dict.get("flags", []),
             "raw_record": None,
@@ -217,11 +219,24 @@ def get_parcel_detail(ulpin: str, role: str = Depends(get_optional_role), db: Se
     # An archived or superseded parcel stays readable. Its rule flags are not evaluated.
     flags = RuleEngine.evaluate_parcel_rules(db, parcel) if parcel.status == "active" else []
 
+    try:
+        state_cfg = adapter_engine.get_config(parcel.state)
+    except ValueError:
+        state_cfg = {}
+    display_unit = state_display_unit(state_cfg)
+
     full_canonical = {
         "ulpin": parcel.ulpin,
         "state": parcel.state,
         "geometry": geom_shape.__geo_interface__ if geom_shape else None,
         "area_sqm": parcel.area_sqm,
+        # area_sqm is the source of truth; these are the same figure in units a reader expects.
+        "area_display": {
+            "unit": display_unit,
+            "value": convert_area_sqm(parcel.area_sqm, display_unit),
+            "hectare": convert_area_sqm(parcel.area_sqm, "hectare"),
+            "acre": convert_area_sqm(parcel.area_sqm, "acre"),
+        },
         "layers": parcel.layers or {},
         "flags": flags,
         "raw_record": parcel.raw_record,
@@ -347,7 +362,7 @@ def create_custom_parcel(req: CreateCustomParcelRequest, role: str = Depends(get
             )
 
     # Area and state come from the polygon, computed here. req.area_sqm and req.state are ignored.
-    area_sqm, target_state = server_area_and_state(s_shape, req.ulpin)
+    area_sqm, target_state = server_area_and_state(db, s_shape, req.ulpin)
 
     # Every boundary marking is a request. Nobody, whatever their role, saves a boundary directly, and a new
     # marking never approves someone else's pending request. A village officer's marking counts as the village
@@ -746,7 +761,7 @@ def approve_boundary_request(request_id: int, record: Optional[ApprovalRecordEnt
 
     # Recompute at approval from the geometry being approved. The area and state stored on the request are
     # not trusted either: requests filed before this check carried the browser's values.
-    area_sqm, state = server_area_and_state(s_shape, req.ulpin)
+    area_sqm, state = server_area_and_state(db, s_shape, req.ulpin)
 
     existing = db.query(Parcel).filter(Parcel.ulpin == req.ulpin).first()
     old_geom, old_state = None, None

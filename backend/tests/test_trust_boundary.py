@@ -81,12 +81,12 @@ def test_forged_area_and_state_at_filing_are_ignored(client):
     with SessionLocal() as db:
         req = db.get(BoundaryChangeRequest, body["request_id"])
         assert req.state == "TamilNadu"
-        assert req.area_sqm == pytest.approx(compute_geodesic_area_sqm(shape(TN_GEOM)), abs=0.01)  # stored to the centimetre
+        assert req.area_sqm == pytest.approx(compute_geodesic_area_sqm(shape(TN_GEOM)), rel=0.01)  # PostGIS ST_Area on the geography (ellipsoid) vs this sphere-formula reference
 
     assert walk_to_approval(client, body["request_id"], RECORD).status_code == 200
     p = parcel("TB-FORGE-1")
     assert p.state == "TamilNadu"
-    assert p.area_sqm == pytest.approx(compute_geodesic_area_sqm(shape(TN_GEOM)), abs=0.01)  # stored to the centimetre
+    assert p.area_sqm == pytest.approx(compute_geodesic_area_sqm(shape(TN_GEOM)), rel=0.01)  # PostGIS ST_Area on the geography (ellipsoid) vs this sphere-formula reference
     assert p.area_sqm != 1.0
 
 
@@ -102,7 +102,7 @@ def test_values_stored_on_a_request_are_recomputed_at_approval(client):
     assert walk_to_approval(client, rid, RECORD).status_code == 200
     p = parcel("TB-FORGE-2")
     assert p.state == "TamilNadu"
-    assert p.area_sqm == pytest.approx(compute_geodesic_area_sqm(shape(square(77.42, 11.00))), abs=0.01)  # stored to the centimetre
+    assert p.area_sqm == pytest.approx(compute_geodesic_area_sqm(shape(square(77.42, 11.00))), rel=0.01)  # PostGIS ST_Area on the geography (ellipsoid) vs this sphere-formula reference
 
 
 def test_approval_cannot_move_an_existing_parcel_to_another_state(client):
@@ -127,7 +127,7 @@ def test_reshaping_keeps_the_recorded_extent(client):
     assert walk_to_approval(client, r.json()["request_id"]).status_code == 200
     p = parcel("TB-RESHAPE-1")
     assert p.layers["ror"]["recorded_extent_sqm"] == 12_000.0
-    assert p.area_sqm == pytest.approx(compute_geodesic_area_sqm(shape(square(77.46, 11.00, size=0.0005))), abs=0.01)  # stored to the centimetre
+    assert p.area_sqm == pytest.approx(compute_geodesic_area_sqm(shape(square(77.46, 11.00, size=0.0005))), rel=0.01)  # PostGIS ST_Area on the geography (ellipsoid) vs this sphere-formula reference
 
 
 # --- Approval invents nothing -----------------------------------------------------------------------------

@@ -13,6 +13,37 @@ CONVERSIONS = {
     "bigha_to_sqm": lambda val: round(float(val) * 2529.29, 2) if val is not None else None,
 }
 
+# Display-side unit conversion: the backend's area_sqm is the single source of truth (ST_Area on the WGS84
+# geography); this converts it to the unit a reader expects, never the other way around. One source of
+# conversion factors used everywhere an area is shown in something other than square metres.
+SQM_PER_UNIT = {
+    "sqm": 1.0,
+    "hectare": 10000.0,
+    "acre": 4046.8564224,
+    "sqyd": 0.836127,
+    "sqft": 0.092903,
+    "marla": 25.2929,
+    "guntha": 101.171,
+    "bigha": 2529.29,
+}
+
+
+def convert_area_sqm(area_sqm, unit: str):
+    """area_sqm (the stored, geodesic figure) expressed in `unit`. None if either input is missing or
+    `unit` is not one of SQM_PER_UNIT."""
+    if area_sqm is None:
+        return None
+    factor = SQM_PER_UNIT.get(unit)
+    if factor is None:
+        return None
+    return round(float(area_sqm) / factor, 4)
+
+
+def state_display_unit(state_config: Dict[str, Any]) -> str:
+    """The unit a state's own records are kept in, from its adapter config (`display_unit`), or hectare
+    when the config does not say — SVAMITVA rural records and most RoR extents are in hectares."""
+    return (state_config or {}).get("display_unit") or "hectare"
+
 # Confidence labels. Only the adapter, importing a department's own record, assigns VERIFIED or STALE.
 VERIFIED = "verified"
 STALE = "stale"

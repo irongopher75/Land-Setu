@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.db import IS_SQLITE
 from app.models import Parcel, BoundaryChangeRequest
-from app.rules import RuleEngine, parse_geometry_shape, invalidate_neighbor_flags
+from app.rules import RuleEngine, parse_geometry_shape, invalidate_neighbor_flags, compute_geodesic_area_sqm
 from app import audit
 from app.adapter import CORRECTED_BY_OFFICER
 
@@ -154,21 +154,21 @@ def validate_split(source: Parcel, parts: List[Dict[str, Any]]) -> List[Dict[str
         raise HTTPException(status_code=422, detail="A split needs exactly two parts.")
     src = parse_geometry_shape(source.geometry)
     shapes = [_require_polygon(p.get("geometry"), f"Part {i + 1}") for i, p in enumerate(parts)]
-    if shapes[0].intersection(shapes[1]).area > src.area * 0.001:
+    src_geo_area = compute_geodesic_area_sqm(src) or 1.0
+    if compute_geodesic_area_sqm(shapes[0].intersection(shapes[1])) > src_geo_area * 0.001:
         raise HTTPException(status_code=422, detail="The two parts overlap each other.")
-    mismatch = src.symmetric_difference(unary_union(shapes)).area / src.area
+    mismatch = compute_geodesic_area_sqm(src.symmetric_difference(unary_union(shapes))) / src_geo_area
     if mismatch > SPLIT_COVERAGE_TOLERANCE:
         raise HTTPException(
             status_code=422,
             detail=f"The two parts must together cover the original parcel ({mismatch:.1%} differs, limit {SPLIT_COVERAGE_TOLERANCE:.0%}).",
         )
     total_area = float(source.area_sqm or 0)
-    src_geo_area = src.area or 1.0
     return [
         {
             "ulpin": f"{source.ulpin}-S{i + 1}",
             "geometry": mapping(sh),
-            "area_sqm": round(total_area * sh.area / src_geo_area, 2),
+            "area_sqm": round(total_area * compute_geodesic_area_sqm(sh) / src_geo_area, 2),
         }
         for i, sh in enumerate(shapes)
     ]
