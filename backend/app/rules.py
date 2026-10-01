@@ -12,7 +12,6 @@ if not IS_SQLITE:
     from geoalchemy2 import Geography
 
 EARTH_RADIUS_M = 6378137.0  # same radius Turf.js uses
-MIN_OVERLAP_SQM = 0.5
 
 
 def _area_tolerance() -> float:
@@ -26,9 +25,23 @@ def _area_tolerance() -> float:
     return value
 
 
+def _min_overlap_sqm() -> float:
+    raw = os.getenv("MIN_OVERLAP_SQM", "1")
+    try:
+        value = float(raw)
+    except ValueError:
+        raise RuntimeError(f"MIN_OVERLAP_SQM must be a number such as 1, got {raw!r}")
+    if value < 0:
+        raise RuntimeError(f"MIN_OVERLAP_SQM must not be negative, got {value}")
+    return value
+
+
 # Largest allowed difference between a parcel's recorded extent and the area of its boundary, as a fraction of
 # the recorded extent. 0.10 means 10%. Set AREA_MISMATCH_TOLERANCE to change it.
 AREA_MISMATCH_TOLERANCE = _area_tolerance()
+
+# Overlap area below this is a digitisation sliver, not a real boundary conflict. Set MIN_OVERLAP_SQM to change it.
+MIN_OVERLAP_SQM = _min_overlap_sqm()
 
 
 def _ring_area_sqm(coords) -> float:
