@@ -24,7 +24,6 @@ services:
     environment:
       - NODE_ID=backend-single-node
       - DATABASE_URL=${DATABASE_URL:-postgresql://landsetu:landsetu_pass@db:5432/landsetu_db}
-      - ALLOW_SQLITE_FALLBACK=false
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in environment or .env}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost,http://localhost:5173,https://landsetu-e4e5e.web.app}
       - DEMO_LOGIN_ENABLED=${DEMO_LOGIN_ENABLED:-false}

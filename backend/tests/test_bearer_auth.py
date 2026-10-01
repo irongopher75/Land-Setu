@@ -1,7 +1,6 @@
 import os
 
 os.environ.setdefault("JWT_SECRET", "test_secret_key_minimum_32_chars_long_for_security_test")
-os.environ.setdefault("ALLOW_SQLITE_FALLBACK", "true")
 
 from fastapi.testclient import TestClient
 

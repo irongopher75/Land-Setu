@@ -9,7 +9,6 @@
 import os
 
 os.environ.setdefault("JWT_SECRET", "test_secret_key_minimum_32_chars_long_for_security_test")
-os.environ.setdefault("ALLOW_SQLITE_FALLBACK", "true")
 
 import pytest
 from conftest import insert_parcel
@@ -20,7 +19,7 @@ from app.adapter import SchemaAdapter
 from app.db import Base, engine, SessionLocal
 from app.main import app
 from app.models import BoundaryChangeRequest, Parcel
-from app.rules import AREA_MISMATCH_TOLERANCE, RuleEngine, compute_geodesic_area_sqm
+from app.rules import AREA_MISMATCH_TOLERANCE, RuleEngine, compute_geodesic_area_sqm, parse_geometry_shape
 from app.seed import seed_database
 import app.routes.auth as auth_mod
 
@@ -113,7 +112,7 @@ def test_approval_cannot_move_an_existing_parcel_to_another_state(client):
     assert walk_to_approval(client, r.json()["request_id"]).status_code == 409
     p = parcel("TB-MOVE-1")
     assert p.state == "TamilNadu"
-    assert shape(p.geometry).equals(shape(square(77.44, 11.00)))
+    assert parse_geometry_shape(p.geometry).equals(shape(square(77.44, 11.00)))
 
 
 def test_ulpin_state_code_must_match_where_the_boundary_lies(client):

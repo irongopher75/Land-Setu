@@ -13,8 +13,6 @@ env:
     secret: LANDSETU_JWT_SECRET
   - variable: DEMO_LOGIN_ENABLED
     value: "false"
-  - variable: ALLOW_SQLITE_FALLBACK
-    value: "true"
   - variable: ENVIRONMENT
     value: "production"
   - variable: VITE_FIREBASE_API_KEY

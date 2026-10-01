@@ -26,8 +26,6 @@ services:
         generateValue: true
       - key: ENVIRONMENT
         value: production
-      - key: ALLOW_SQLITE_FALLBACK
-        value: "false"
       - key: DEMO_LOGIN_ENABLED
         value: "false"
       # The site and the API are on different domains, so the session cookie must be cross-site.

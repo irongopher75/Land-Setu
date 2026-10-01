@@ -2,7 +2,6 @@ import math
 import os
 
 os.environ.setdefault("JWT_SECRET", "test_secret_key_minimum_32_chars_long_for_security_test")
-os.environ.setdefault("ALLOW_SQLITE_FALLBACK", "true")
 
 import pytest
 from shapely.geometry import box, mapping
@@ -11,6 +10,7 @@ from app.db import SessionLocal, Base, engine
 from app.models import Parcel
 from app.rules import RuleEngine, compute_geodesic_area_sqm, invalidate_neighbor_flags
 from app.routes.parcels import _refresh_flags_after_change
+from app.workflow import geom_column_value
 
 STATE = "FlagCacheTestState"
 LAYERS = {"ror": {"owner_name": "A"}, "registration": {"buyer_name": "A"}}
@@ -30,7 +30,7 @@ def db():
 
 def _mk(db, ulpin, geom):
     # Recorded extent matches the boundary, so only the neighbour rules under test can raise a flag.
-    p = Parcel(ulpin=ulpin, state=STATE, area_sqm=compute_geodesic_area_sqm(geom), geometry=mapping(geom), layers=LAYERS)
+    p = Parcel(ulpin=ulpin, state=STATE, area_sqm=compute_geodesic_area_sqm(geom), geometry=geom_column_value(geom), layers=LAYERS)
     db.add(p)
     _refresh_flags_after_change(db, p)
     db.commit()
@@ -61,9 +61,10 @@ def test_new_overlapping_parcel_flags_neighbor(db):
     assert a.flags is None  # neighbor invalidated, not stale-false
     RuleEngine.evaluate_parcel_rules(db, a)
     assert a.flags[0]["evidence"]["overlapping_parcel"] == "FC-B"
-    # overlap is a 0.0005 x 0.0005 deg square
+    # overlap is a 0.0005 x 0.0005 deg square. The flag's area comes from PostGIS ST_Area on the WGS84
+    # geography (ellipsoid); this reference is the sphere formula, so allow the ellipsoid/sphere gap (~1%).
     expected = compute_geodesic_area_sqm(box(77.0005, 12.0005, 77.001, 12.001))
-    assert a.flags[0]["evidence"]["overlap_area_sqm"] == pytest.approx(expected, abs=0.01)
+    assert a.flags[0]["evidence"]["overlap_area_sqm"] == pytest.approx(expected, rel=0.01)
 
 
 def test_moving_boundary_clears_old_and_new_neighbors(db):
@@ -72,7 +73,7 @@ def test_moving_boundary_clears_old_and_new_neighbors(db):
     b = _mk(db, "FC-B", box(77.0005, 12.0005, 77.0015, 12.0015))
     RuleEngine.evaluate_parcels_batch(db, [a, far])
     old = b.geometry
-    b.geometry = mapping(box(77.5005, 12.5005, 77.5015, 12.5015))  # move onto FAR
+    b.geometry = geom_column_value(box(77.5005, 12.5005, 77.5015, 12.5015))  # move onto FAR
     _refresh_flags_after_change(db, b, old, STATE)
     db.commit()
     db.refresh(a); db.refresh(far)

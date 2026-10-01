@@ -6,7 +6,6 @@ from shapely.geometry import box
 # Set required environment variables before importing app
 os.environ["JWT_SECRET"] = "test_secret_key_minimum_32_chars_long_for_security_test"
 os.environ["DEMO_LOGIN_ENABLED"] = "false"
-os.environ["ALLOW_SQLITE_FALLBACK"] = "true"
 
 from app.db import engine, Base
 from app.seed import seed_database
