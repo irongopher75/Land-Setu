@@ -61,3 +61,18 @@ class AuthLoginResponse(BaseModel):
 
 class FirebaseLoginRequest(BaseModel):
     id_token: str
+
+class OfficerLoginRequest(BaseModel):
+    username: str
+    password: str
+
+class CitizenLoginRequest(BaseModel):
+    citizen_uid: str
+    password: str
+
+class SessionLoginResponse(BaseModel):
+    """Response for the Postgres-native /auth/login and /auth/citizen-login — deliberately separate
+    from AuthLoginResponse (the legacy flat-role shape): no `role` field, since the session JWT itself
+    carries no role (app/session.py) and a client must not infer one from the login response either."""
+    user_id: int
+    token: str

@@ -20,6 +20,26 @@ class ScopeDenied(Exception):
     """Raise this, not HTTPException, from policy code — routes translate it to a 404."""
 
 
+class SessionAccountError(Exception):
+    """Raised by `load_context_for_user` when the session's account itself can't be resolved to a
+    UserContext — never a parcel-shaped decision, so never confused with ScopeDenied (which routes
+    always turn into 404). Callers map this to 401/403 instead; see subclasses for which."""
+
+
+class AccountInactive(SessionAccountError):
+    """Maps to 401 — the account was deactivated after the session was issued."""
+
+
+class NoActiveAssignment(SessionAccountError):
+    """Maps to 403 — an officer account exists but currently holds no active officer_assignments row."""
+
+
+class AmbiguousRole(SessionAccountError):
+    """Maps to 501 — the account currently holds more than one distinct active role simultaneously.
+    Deciding which role a session should act as in that case is a product decision this migration pass
+    does not make; see docs/rbac-migration-plan.md Part B."""
+
+
 @dataclass
 class UserContext:
     user_id: int
@@ -56,6 +76,45 @@ def load_context(db: Session, user_id: int, user_type: str, role: str | None) ->
     paths = [path for _assignment, path in rows]
     return UserContext(user_id=user_id, user_type="officer", role=role,
                         scope_paths=paths, scope_level=SCOPE_LEVEL.get(role))
+
+
+def load_context_for_user(db: Session, user_id: int) -> UserContext:
+    """Build a UserContext straight from a Postgres-native session's `sub` (see app/session.py) — what
+    every retrofitted route calls on each request, since that session's JWT carries no role/scope by
+    design. Active status is already re-checked by `app.session.decode_session_token` before this runs,
+    but is checked again here too since this function is also meant to be callable on its own.
+
+    Raises a `SessionAccountError` subclass (never ScopeDenied — this isn't a parcel-shaped decision)
+    when the account itself can't be resolved to a single usable role: no active officer_assignments
+    row, or more than one distinct currently-active role. A single session can only act as one role
+    today; a genuinely multi-role officer needs a product decision this migration pass does not make,
+    not a guess at which role to pick.
+    """
+    from app.models import User  # local import: avoids a module-level cycle with app.session
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None or not user.is_active:
+        raise AccountInactive(f"user {user_id} not found or inactive")
+
+    if user.user_type == "citizen":
+        return load_context(db, user_id, "citizen", None)
+
+    if user.user_type == "officer":
+        now = _now_iso()
+        roles = sorted({
+            role for (role,) in db.query(OfficerAssignment.role)
+            .filter(OfficerAssignment.user_id == user_id)
+            .filter(OfficerAssignment.valid_from <= now)
+            .filter(or_(OfficerAssignment.valid_to.is_(None), OfficerAssignment.valid_to > now))
+            .distinct()
+        })
+        if not roles:
+            raise NoActiveAssignment(f"user {user_id} has no active officer assignment")
+        if len(roles) > 1:
+            raise AmbiguousRole(f"user {user_id} holds multiple simultaneous roles: {', '.join(roles)}")
+        return load_context(db, user_id, "officer", roles[0])
+
+    raise AccountInactive(f"user {user_id} has unsupported user_type {user.user_type!r}")
 
 
 def _covers(scope_paths: list[str], admin_path: str | None) -> bool:

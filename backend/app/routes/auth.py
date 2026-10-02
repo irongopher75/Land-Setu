@@ -2,7 +2,15 @@ import os
 from datetime import datetime, timedelta, timezone
 import jwt
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response
-from app.schemas import AuthLoginRequest, AuthLoginResponse, FirebaseLoginRequest
+from sqlalchemy.orm import Session
+from app.db import get_db
+from app.models import Citizen, OfficerAssignment, User
+from app.password import verify_password
+from app.schemas import (
+    AuthLoginRequest, AuthLoginResponse, CitizenLoginRequest, FirebaseLoginRequest,
+    OfficerLoginRequest, SessionLoginResponse,
+)
+from app.session import issue_session, set_pg_session_cookie
 
 ALGORITHM = "HS256"
 COOKIE_NAME = "landsetu_session"
@@ -149,6 +157,71 @@ def firebase_login(req: FirebaseLoginRequest, response: Response):
     
     access_token, refresh_token = set_auth_cookies(response, role, uid)
     return AuthLoginResponse(role=role, token=access_token, refresh_token=refresh_token)
+
+PG_LOCKOUT_THRESHOLD = 5
+PG_LOCKOUT_MINUTES = 15
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _check_not_locked(user: "User | None") -> None:
+    if user and user.locked_until and user.locked_until > _now_iso():
+        raise HTTPException(status_code=423, detail="Account temporarily locked. Try again later.")
+
+
+def _record_failed_login(db: Session, user: "User | None") -> None:
+    if user is None:
+        return
+    user.failed_logins = (user.failed_logins or 0) + 1
+    if user.failed_logins >= PG_LOCKOUT_THRESHOLD:
+        user.locked_until = (datetime.now(timezone.utc) + timedelta(minutes=PG_LOCKOUT_MINUTES)).isoformat()
+    db.commit()
+
+
+def _reset_failed_logins(db: Session, user: User) -> None:
+    user.failed_logins = 0
+    user.locked_until = None
+    db.commit()
+
+
+@router.post("/login", response_model=SessionLoginResponse)
+def officer_login(req: OfficerLoginRequest, response: Response, db: Session = Depends(get_db)):
+    """Postgres-native officer login (docs/rbac-migration-plan.md Phase 2 Part B). Coexists with
+    /auth/firebase-login (dual-path, 2026-10 decision) — this does not replace it."""
+    user = db.query(User).filter(User.username == req.username, User.user_type == "officer").first()
+    _check_not_locked(user)
+    if user is None or not user.is_active or not verify_password(user.password_hash, req.password):
+        _record_failed_login(db, user)
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    has_assignment = db.query(OfficerAssignment.id).filter(OfficerAssignment.user_id == user.id).first() is not None
+    if not has_assignment:
+        raise HTTPException(status_code=403, detail="Account has no officer assignment")
+
+    _reset_failed_logins(db, user)
+    token = issue_session(db, user.id)
+    set_pg_session_cookie(response, token)
+    return SessionLoginResponse(user_id=user.id, token=token)
+
+
+@router.post("/citizen-login", response_model=SessionLoginResponse)
+def citizen_login(req: CitizenLoginRequest, response: Response, db: Session = Depends(get_db)):
+    """Postgres-native citizen login (docs/rbac-migration-plan.md Phase 2 Part B). Coexists with
+    /auth/firebase-login (dual-path, 2026-10 decision) — this does not replace it."""
+    citizen = db.query(Citizen).filter(Citizen.citizen_uid == req.citizen_uid).first()
+    user = db.query(User).filter(User.id == citizen.user_id, User.user_type == "citizen").first() if citizen else None
+    _check_not_locked(user)
+    if user is None or not user.is_active or not verify_password(user.password_hash, req.password):
+        _record_failed_login(db, user)
+        raise HTTPException(status_code=401, detail="Invalid citizen ID or password")
+
+    _reset_failed_logins(db, user)
+    token = issue_session(db, user.id)
+    set_pg_session_cookie(response, token)
+    return SessionLoginResponse(user_id=user.id, token=token)
+
 
 @router.post("/refresh")
 def refresh_session():
