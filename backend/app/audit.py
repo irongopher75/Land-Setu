@@ -85,6 +85,15 @@ def verify(rows: Iterable[Any]) -> Tuple[bool, Optional[int]]:
     return True, None
 
 
+def record_break_glass_read(db: Session, actor_user_id: Optional[int], ulpin: str, reason: str) -> ParcelAuditLog:
+    """High-severity audit entry for a system_admin break-glass read (docs/rbac-migration-plan.md
+    Phase 2). The caller commits."""
+    entry = append(db, ulpin, "break_glass_read", "system_admin",
+                   note=f"BREAK-GLASS READ: {reason}", actor_uid=str(actor_user_id) if actor_user_id else None)
+    db.commit()
+    return entry
+
+
 def chain(db: Session, ulpin: str) -> List[ParcelAuditLog]:
     return db.query(ParcelAuditLog).filter(ParcelAuditLog.ulpin == ulpin).order_by(ParcelAuditLog.seq).all()
 

@@ -44,3 +44,22 @@ terminology_map:
   "rtc": "record_of_rights"
   "mutation_register": "mutation_record"
   "bhoomi": "land_governance_system"
+
+# Localised role titles shown by the UI for this state (docs/rbac-migration-plan.md Phase 2).
+# The backend always authorizes against the canonical role name on the left; this block is display-only.
+role_titles_verified: true
+role_titles:
+  village_officer: "Village Accountant"
+  surveyor: "Surveyor"
+  revenue_inspector: "Revenue Inspector"
+  tehsildar: "Tahsildar"
+  naib_tehsildar: "Deputy Tahsildar"
+  sdo: "Assistant Commissioner"
+  district_collector: "Deputy Commissioner"
+  additional_collector: "Additional DC"
+  sub_registrar: "Sub-Registrar"
+  state_land_records_admin: "Commissioner, Survey Settlement & Land Records"
+  state_auditor: "State Auditor"
+  national_viewer: "National Viewer"
+  system_admin: "System Admin"
+  citizen: "Citizen"

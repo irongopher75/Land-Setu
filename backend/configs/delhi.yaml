@@ -44,3 +44,22 @@ terminology_map:
   "khatoni": "record_of_rights"
   "khasra": "parcel_id"
   "far": "floor_area_ratio"
+
+# Localised role titles shown by the UI for this state (docs/rbac-migration-plan.md Phase 2).
+# The backend always authorizes against the canonical role name on the left; this block is display-only.
+role_titles_verified: false
+role_titles:
+  village_officer: "Village Officer"
+  surveyor: "Surveyor"
+  revenue_inspector: "Revenue Inspector"
+  tehsildar: "Tehsildar"
+  naib_tehsildar: "Naib Tehsildar"
+  sdo: "Sdo"
+  district_collector: "District Collector"
+  additional_collector: "Additional Collector"
+  sub_registrar: "Sub Registrar"
+  state_land_records_admin: "State Land Records Admin"
+  state_auditor: "State Auditor"
+  national_viewer: "National Viewer"
+  system_admin: "System Admin"
+  citizen: "Citizen"

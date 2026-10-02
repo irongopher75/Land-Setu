@@ -1,0 +1,252 @@
+# Administrative geography seed list for backend/scripts/load_admin_units.py.
+#
+# This file is the SOURCE OF TRUTH for which admin_units rows get created — editable, not hardcoded in
+# Python (see docs/rbac-migration-plan.md Phase 1). It does NOT contain LGD codes or boundary polygons:
+# - lgd_code stays null everywhere here. Real LGD (Local Government Directory) codes must come from an
+#   export placed in data/lgd/ (see data/lgd/README expectations in the loader); none exists in this repo
+#   yet, so every unit's lgd_code is null and the ltree path uses the slug instead.
+# - geom stays unset here. Real boundary polygons come from data/boundaries/*.geojson, loaded by
+#   scripts/load_boundaries.py. None exist in this repo yet, so every unit below state level is created
+#   with geom NULL and boundary_verified: false (a deliberately unmapped placeholder) — fabricating a
+#   polygon is explicitly forbidden (see docs/rbac-migration-plan.md).
+#
+# tier: deep   -> full hierarchy down to village, mock parcels exist (seeded by backend/app/seed.py).
+# tier: shallow -> district + at least one tehsil, no mock parcels yet.
+#
+# slug rules: lowercase, [a-z0-9_] only (must be a valid Postgres ltree label — no hyphens).
+
+country:
+  code: IN
+  name: India
+
+states:
+  - code: CH
+    name: Chandigarh
+    tier: deep
+    note: "Union Territory, single district, same name as state."
+    districts:
+      - slug: chandigarh
+        name: Chandigarh
+        subdivisions:
+          - slug: chandigarh_subdivision_a
+            name: "Chandigarh Subdivision A"
+            tehsils:
+              - slug: chandigarh_tehsil_a
+                name: "Chandigarh Tehsil A"
+                circles:
+                  - slug: chandigarh_circle_a
+                    name: "Chandigarh Circle A"
+                    villages:
+                      - slug: kishangarh
+                        name: "Kishangarh Revenue Village"
+                      - slug: sector_17_urban
+                        name: "Sector 17 Commercial Urban Zone"
+
+  - code: TN
+    name: Tamil Nadu
+    tier: deep
+    districts:
+      - slug: chennai
+        name: Chennai
+        subdivisions:
+          - slug: chennai_subdivision_a
+            name: "Chennai Subdivision A"
+            tehsils:
+              - slug: chennai_tehsil_a
+                name: "Chennai Tehsil A"
+                circles:
+                  - slug: chennai_circle_a
+                    name: "Chennai Circle A"
+                    villages:
+                      - slug: chennai_metro_corp
+                        name: "Chennai Metropolitan Corp"
+                      - slug: nemili
+                        name: "Nemili Revenue Village"
+      - slug: coimbatore
+        name: Coimbatore
+        subdivisions:
+          - slug: coimbatore_subdivision_a
+            name: "Coimbatore Subdivision A"
+            tehsils:
+              - slug: coimbatore_tehsil_a
+                name: "Coimbatore Tehsil A"
+                circles:
+                  - slug: coimbatore_circle_a
+                    name: "Coimbatore Circle A"
+                    villages:
+                      - slug: coimbatore_village_a
+                        name: "Coimbatore Village A"
+                      - slug: coimbatore_village_b
+                        name: "Coimbatore Village B"
+      - slug: madurai
+        name: Madurai
+        subdivisions:
+          - slug: madurai_subdivision_a
+            name: "Madurai Subdivision A"
+            tehsils:
+              - slug: madurai_tehsil_a
+                name: "Madurai Tehsil A"
+                circles:
+                  - slug: madurai_circle_a
+                    name: "Madurai Circle A"
+                    villages:
+                      - slug: madurai_village_a
+                        name: "Madurai Village A"
+                      - slug: madurai_village_b
+                        name: "Madurai Village B"
+      - slug: tiruchirappalli
+        name: Tiruchirappalli
+        subdivisions:
+          - slug: tiruchirappalli_subdivision_a
+            name: "Tiruchirappalli Subdivision A"
+            tehsils:
+              - slug: tiruchirappalli_tehsil_a
+                name: "Tiruchirappalli Tehsil A"
+                circles:
+                  - slug: tiruchirappalli_circle_a
+                    name: "Tiruchirappalli Circle A"
+                    villages:
+                      - slug: tiruchirappalli_village_a
+                        name: "Tiruchirappalli Village A"
+                      - slug: tiruchirappalli_village_b
+                        name: "Tiruchirappalli Village B"
+      - slug: salem
+        name: Salem
+        subdivisions:
+          - slug: salem_subdivision_a
+            name: "Salem Subdivision A"
+            tehsils:
+              - slug: salem_tehsil_a
+                name: "Salem Tehsil A"
+                circles:
+                  - slug: salem_circle_a
+                    name: "Salem Circle A"
+                    villages:
+                      - slug: salem_village_a
+                        name: "Salem Village A"
+                      - slug: salem_village_b
+                        name: "Salem Village B"
+      - slug: tirunelveli
+        name: Tirunelveli
+        subdivisions:
+          - slug: tirunelveli_subdivision_a
+            name: "Tirunelveli Subdivision A"
+            tehsils:
+              - slug: tirunelveli_tehsil_a
+                name: "Tirunelveli Tehsil A"
+                circles:
+                  - slug: tirunelveli_circle_a
+                    name: "Tirunelveli Circle A"
+                    villages:
+                      - slug: tirunelveli_village_a
+                        name: "Tirunelveli Village A"
+                      - slug: tirunelveli_village_b
+                        name: "Tirunelveli Village B"
+      - slug: chengalpattu
+        name: Chengalpattu
+        subdivisions:
+          - slug: chengalpattu_subdivision_a
+            name: "Chengalpattu Subdivision A"
+            tehsils:
+              - slug: chengalpattu_tehsil_a
+                name: "Chengalpattu Tehsil A"
+                circles:
+                  - slug: chengalpattu_circle_a
+                    name: "Chengalpattu Circle A"
+                    villages:
+                      - slug: chengalpattu_village_a
+                        name: "Chengalpattu Village A"
+                      - slug: chengalpattu_village_b
+                        name: "Chengalpattu Village B"
+      - slug: kancheepuram
+        name: Kancheepuram
+        subdivisions:
+          - slug: kancheepuram_subdivision_a
+            name: "Kancheepuram Subdivision A"
+            tehsils:
+              - slug: kancheepuram_tehsil_a
+                name: "Kancheepuram Tehsil A"
+                circles:
+                  - slug: kancheepuram_circle_a
+                    name: "Kancheepuram Circle A"
+                    villages:
+                      - slug: kancheepuram_village_a
+                        name: "Kancheepuram Village A"
+                      - slug: kancheepuram_village_b
+                        name: "Kancheepuram Village B"
+
+  - code: MH
+    name: Maharashtra
+    tier: shallow
+    districts:
+      - {slug: mumbai_city, name: "Mumbai City", tehsils: [{slug: mumbai_city_tehsil_a, name: "Mumbai City Tehsil A"}]}
+      - {slug: mumbai_suburban, name: "Mumbai Suburban", tehsils: [{slug: mumbai_suburban_tehsil_a, name: "Mumbai Suburban Tehsil A"}]}
+      - {slug: pune, name: "Pune", tehsils: [{slug: pune_tehsil_a, name: "Pune Tehsil A"}]}
+      - {slug: nagpur, name: "Nagpur", tehsils: [{slug: nagpur_tehsil_a, name: "Nagpur Tehsil A"}]}
+      - {slug: thane, name: "Thane", tehsils: [{slug: thane_tehsil_a, name: "Thane Tehsil A"}]}
+
+  - code: KA
+    name: Karnataka
+    tier: shallow
+    districts:
+      - {slug: bengaluru_urban, name: "Bengaluru Urban", tehsils: [{slug: bengaluru_urban_tehsil_a, name: "Bengaluru Urban Tehsil A"}]}
+
+  - code: TG
+    name: Telangana
+    tier: shallow
+    districts:
+      - {slug: hyderabad, name: "Hyderabad", tehsils: [{slug: hyderabad_tehsil_a, name: "Hyderabad Tehsil A"}]}
+
+  - code: WB
+    name: West Bengal
+    tier: shallow
+    districts:
+      - {slug: kolkata, name: "Kolkata", tehsils: [{slug: kolkata_tehsil_a, name: "Kolkata Tehsil A"}]}
+
+  - code: DL
+    name: Delhi
+    tier: shallow
+    districts:
+      - {slug: new_delhi, name: "New Delhi", tehsils: [{slug: new_delhi_tehsil_a, name: "New Delhi Tehsil A"}]}
+
+  - code: UP
+    name: Uttar Pradesh
+    tier: shallow
+    districts:
+      - {slug: lucknow, name: "Lucknow", tehsils: [{slug: lucknow_tehsil_a, name: "Lucknow Tehsil A"}]}
+
+  - code: RJ
+    name: Rajasthan
+    tier: shallow
+    districts:
+      - {slug: jaipur, name: "Jaipur", tehsils: [{slug: jaipur_tehsil_a, name: "Jaipur Tehsil A"}]}
+
+  - code: GJ
+    name: Gujarat
+    tier: shallow
+    districts:
+      - {slug: ahmedabad, name: "Ahmedabad", tehsils: [{slug: ahmedabad_tehsil_a, name: "Ahmedabad Tehsil A"}]}
+
+  - code: BR
+    name: Bihar
+    tier: shallow
+    districts:
+      - {slug: patna, name: "Patna", tehsils: [{slug: patna_tehsil_a, name: "Patna Tehsil A"}]}
+
+  - code: MP
+    name: Madhya Pradesh
+    tier: shallow
+    districts:
+      - {slug: bhopal, name: "Bhopal", tehsils: [{slug: bhopal_tehsil_a, name: "Bhopal Tehsil A"}]}
+
+  - code: KL
+    name: Kerala
+    tier: shallow
+    districts:
+      - {slug: thiruvananthapuram, name: "Thiruvananthapuram", tehsils: [{slug: thiruvananthapuram_tehsil_a, name: "Thiruvananthapuram Tehsil A"}]}
+
+  - code: PB
+    name: Punjab
+    tier: shallow
+    districts:
+      - {slug: ludhiana, name: "Ludhiana", tehsils: [{slug: ludhiana_tehsil_a, name: "Ludhiana Tehsil A"}]}

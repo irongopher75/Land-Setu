@@ -44,6 +44,143 @@ class Parcel(Base):
     created_at = Column(String, nullable=True)
     district = Column(String, nullable=True, index=True)
 
+class AdminUnit(Base):
+    """Administrative geography hierarchy: country -> state -> district -> subdivision -> tehsil ->
+    circle -> village. `path` is a Postgres ltree (e.g. IN.TN.CHENNAI.<subdiv>.<tehsil>) used for
+    ancestor/descendant scope queries (`path @> parcel.admin_path`); on SQLite it is a plain '.'-joined
+    string and scope checks use a prefix match instead (see app/authz.py).
+
+    `geom` is NULL for any unit without a real boundary polygon on file — see
+    docs/rbac-migration-plan.md: fabricating a polygon is explicitly forbidden, so an unmapped unit stays
+    NULL/unverified rather than getting an invented shape. `lgd_code` is NULL unless it came from a real
+    LGD (Local Government Directory) export in data/lgd/ — never invented.
+    """
+    __tablename__ = "admin_units"
+
+    id = Column(Integer, primary_key=True, index=True)
+    level = Column(String, nullable=False, index=True)  # country | state | district | subdivision | tehsil | circle | village
+    name = Column(String, nullable=False)
+    local_name = Column(String, nullable=True)
+    lgd_code = Column(String, nullable=True, unique=True)
+    parent_id = Column(Integer, ForeignKey("admin_units.id"), nullable=True, index=True)
+    slug = Column(String, nullable=False, index=True)  # ltree-safe label, unique among siblings
+    path = Column(String, nullable=False, unique=True, index=True)  # ltree on Postgres, '.'-joined text on SQLite
+    geom = Column(MultiGeometryType, nullable=True)
+    boundary_source = Column(String, nullable=True)
+    boundary_verified = Column(Boolean, nullable=False, default=False, server_default="false")
+
+
+class User(Base):
+    """Postgres-native account (docs/rbac-migration-plan.md Phase 2/6). Officers sign in with
+    `username`; citizens sign in with their `citizens.citizen_uid` (see Citizen below) — the Citizen row's
+    user_id points back here. `system` accounts are for break-glass/service use only.
+    """
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True, nullable=True)  # NULL for citizen accounts
+    user_type = Column(String, nullable=False, index=True)  # officer | citizen | system
+    password_hash = Column(String, nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
+    must_change_password = Column(Boolean, nullable=False, default=True, server_default="true")
+    failed_logins = Column(Integer, nullable=False, default=0, server_default="0")
+    locked_until = Column(String, nullable=True)
+    created_at = Column(String, nullable=False)
+    deactivation_reason = Column(String, nullable=True)  # e.g. "needs_assignment" (legacy import, Phase 4)
+
+
+class OfficerAssignment(Base):
+    """One active or historical posting: `user_id` held `role` over `admin_unit_id` from `valid_from` to
+    `valid_to` (NULL while active). A transfer ends one row (sets valid_to) and starts a new one — never
+    edits a row in place — so a historical approval still shows the assignment the officer actually had
+    at the time (see app/workflow.py transition checks).
+    """
+    __tablename__ = "officer_assignments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    role = Column(String, nullable=False, index=True)
+    admin_unit_id = Column(Integer, ForeignKey("admin_units.id"), nullable=False, index=True)
+    valid_from = Column(String, nullable=False)
+    valid_to = Column(String, nullable=True, index=True)
+    assigned_by = Column(String, nullable=True)  # username of the admin who made the assignment
+
+
+class Citizen(Base):
+    """A citizen's placeholder identity. `citizen_uid` is a 12-digit placeholder for Aadhaar (Verhoeff
+    check digit, never starting with 0 or 1) — never a real Aadhaar number, and never logged unmasked.
+    `masked_display` is the only form shown in any UI or log, e.g. 'XXXX-XXXX-1234'.
+    """
+    __tablename__ = "citizens"
+
+    citizen_uid = Column(String, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True, index=True)
+    name = Column(String, nullable=False)
+    masked_display = Column(String, nullable=False)
+
+
+class ParcelOwner(Base):
+    __tablename__ = "parcel_owners"
+    __table_args__ = (UniqueConstraint("ulpin", "citizen_uid", name="uq_parcel_owner"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    ulpin = Column(String, ForeignKey("parcels.ulpin"), nullable=False, index=True)
+    citizen_uid = Column(String, ForeignKey("citizens.citizen_uid"), nullable=False, index=True)
+    share_fraction = Column(Float, nullable=False, default=1.0)
+    owner_since = Column(String, nullable=True)
+    source = Column(String, nullable=False, default="seed")  # seed | legacy_import | mutation
+
+
+class CitizenMergeCandidate(Base):
+    """Legacy free-text owners that normalise to the same name + village are never auto-merged
+    (Phase 4.7) — they land here for a human to confirm or reject."""
+    __tablename__ = "citizen_merge_candidates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    normalised_name = Column(String, nullable=False, index=True)
+    village_admin_unit_id = Column(Integer, ForeignKey("admin_units.id"), nullable=True)
+    citizen_uids = Column(JSON, nullable=False)  # the candidate citizen_uid rows that may be duplicates
+    status = Column(String, nullable=False, default="pending", index=True)  # pending | merged | rejected
+    created_at = Column(String, nullable=False)
+    resolved_at = Column(String, nullable=True)
+    resolved_by = Column(String, nullable=True)
+
+
+class RefreshToken(Base):
+    """Server-side refresh token record, so a token can be revoked (transfer, deactivation, logout
+    everywhere) instead of trusted until expiry. The cookie carries only `sub` + `session_id`; this row
+    is looked up by `session_id`, never by the raw token value.
+    """
+    __tablename__ = "refresh_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String, unique=True, index=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    token_hash = Column(String, nullable=False)
+    issued_at = Column(String, nullable=False)
+    expires_at = Column(String, nullable=False)
+    revoked_at = Column(String, nullable=True)
+
+
+class JurisdictionReconciliation(Base):
+    """One row per parcel whose jurisdiction could not be auto-resolved (Phase 4.5): straddles a district
+    boundary, has no geometry, falls outside every polygon, or its district is unmapped. Visible only to
+    a state_land_records_admin for `best_known_state` (or system_admin break-glass) until a human assigns
+    the real admin_unit_id and the parcel leaves quarantine.
+    """
+    __tablename__ = "jurisdiction_reconciliation"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ulpin = Column(String, ForeignKey("parcels.ulpin"), nullable=False, unique=True, index=True)
+    reason_code = Column(String, nullable=False)  # boundary_straddle | no_geometry | outside_all_polygons | district_unmapped
+    best_known_state = Column(String, nullable=True, index=True)
+    candidate_admin_unit_ids = Column(JSON, nullable=True)  # for boundary_straddle: the overlapping districts
+    created_at = Column(String, nullable=False)
+    resolved_at = Column(String, nullable=True)
+    resolved_by = Column(String, nullable=True)
+    resolution_note = Column(String, nullable=True)
+
+
 class StateBoundary(Base):
     """Real state/UT boundary polygons, used for ST_Intersects-based state detection and
     border-crossing checks. Seeded from backend/seed/boundaries/state_boundaries.geojson

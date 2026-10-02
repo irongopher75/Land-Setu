@@ -43,3 +43,22 @@ terminology_map:
   "jamabandi": "record_of_rights"
   "wasika": "sale_deed"
   "inteqal": "mutation"
+
+# Localised role titles shown by the UI for this state (docs/rbac-migration-plan.md Phase 2).
+# The backend always authorizes against the canonical role name on the left; this block is display-only.
+role_titles_verified: true
+role_titles:
+  village_officer: "Patwari"
+  surveyor: "Surveyor"
+  revenue_inspector: "Kanungo"
+  tehsildar: "Tehsildar"
+  naib_tehsildar: "Naib Tehsildar"
+  sdo: "SDM"
+  district_collector: "Deputy Commissioner"
+  additional_collector: "ADC"
+  sub_registrar: "Sub-Registrar"
+  state_land_records_admin: "Director Land Records"
+  state_auditor: "State Auditor"
+  national_viewer: "National Viewer"
+  system_admin: "System Admin"
+  citizen: "Citizen"

@@ -6,6 +6,7 @@ psycopg2-binary==2.9.9
 shapely==2.0.6
 pyyaml==6.0.2
 pyjwt==2.9.0
+argon2-cffi==23.1.0
 pydantic==2.9.2
 python-multipart==0.0.9
 firebase-admin==6.5.0

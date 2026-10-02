@@ -44,3 +44,22 @@ terminology_map:
   "7_12_extract": "record_of_rights"
   "ferfar": "mutation_register"
   "boja": "encumbrance"
+
+# Localised role titles shown by the UI for this state (docs/rbac-migration-plan.md Phase 2).
+# The backend always authorizes against the canonical role name on the left; this block is display-only.
+role_titles_verified: true
+role_titles:
+  village_officer: "Talathi"
+  surveyor: "Surveyor (DILR)"
+  revenue_inspector: "Circle Officer"
+  tehsildar: "Tahsildar"
+  naib_tehsildar: "Naib Tahsildar"
+  sdo: "SDO"
+  district_collector: "Collector"
+  additional_collector: "Additional Collector"
+  sub_registrar: "Sub-Registrar"
+  state_land_records_admin: "Settlement Commissioner & Director of Land Records"
+  state_auditor: "State Auditor"
+  national_viewer: "National Viewer"
+  system_admin: "System Admin"
+  citizen: "Citizen"
