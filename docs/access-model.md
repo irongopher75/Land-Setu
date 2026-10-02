@@ -39,3 +39,13 @@ window expires) and `X-RateLimit-Remaining: 0`. A successful request under the l
 overrides (`RATE_LIMIT_READ`, `RATE_LIMIT_READ_ANON`, etc.) — a future test should keep using the env
 var override pattern rather than hardcoding the default numbers, since those defaults are a tuning knob,
 not a contract.
+
+**Resolved — firebase-login rate-limit discrepancy (2026-10-02)**: an earlier diagnosis flagged that the
+live (`main`/prod) `/auth/firebase-login` behavior didn't match what this document describes. Confirmed
+by diffing `main` against `feat/rbac-district-scoping` on `backend/app/security.py`: `main` still has the
+pre-`b67ad63` single IP-keyed `_bucket`/`client_key` (no per-user split, no `_ANON` tier). This branch's
+`b67ad63` is what introduced the per-user key, the `_ANON` ceilings, and this file. `/auth` and `/admin`
+are identical on both sides of that diff — always `RATE_LIMIT_AUTH`, IP-keyed, default 20 — so
+`/auth/firebase-login` itself behaves the same on `main` and here. The discrepancy was this document
+describing branch-only code that hasn't reached `main` yet, not a runtime bug. No fix needed; it resolves
+itself when this branch merges.
