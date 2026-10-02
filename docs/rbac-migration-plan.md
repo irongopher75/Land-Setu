@@ -27,12 +27,17 @@ available for this pass):
 
 **Part B (`auth.py` Postgres-native rewrite) — not started.** Current `auth.py` is still the flat-role
 `mock-login`/`firebase-login` pair from before Phase 1/2; no officer-table login, no citizen login, no
-argon2id. `frontend/src/api.js` (lines 72, 90, 128) actively calls `/auth/firebase-login` for both initial
-sign-in and session refresh — removing it before the frontend has a replacement would break login
-entirely. `backend/config/legacy_role_map.yaml` (new) maps the legacy flat roles to the new ladder:
-`citizen`, `village_officer`, `super_admin` map directly; `officer`, `auditor`, `state_admin`, `bank` get
-`action: deactivate_pending_review` (each spans multiple new roles or has no analog — see the file's
-per-role `reason` for why a direct guess would be wrong).
+argon2id anywhere in `app/` (confirmed by grep). `frontend/src/api.js` (lines 72, 90, 128) actively calls
+`/auth/firebase-login` for both initial sign-in and session refresh — removing it before the frontend has
+a replacement would break login entirely.
+
+`config/legacy_role_map.yaml` (repo root, not `backend/`) already exists and is more thorough than a
+first pass would produce — it was evidently written in an earlier, unreported session: `village_officer`,
+`citizen`, `super_admin` map directly; `auditor`, `state_admin`, `officer` are each flagged
+`deactivate_pending_review` with per-route evidence that the same legacy string covers *several*
+different real-world rungs (e.g. `auditor` is both a REVENUE-department `revenue_inspector` stage and a
+generic senior-reviewer gate depending on config/route); `bank` is flagged as having no analog in the new
+ladder at all, needing a product decision. Nothing to add here — this item was already done.
 
 **Important finding — Phase 2's list-endpoint jurisdiction filter depends on Part B, not on the N+1
 batching fix.** `app/authz.py`'s `scope_filter_sql(ctx)` needs a `UserContext`, which `authz.load_context`
