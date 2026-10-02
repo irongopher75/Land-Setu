@@ -1,0 +1,89 @@
+# Draft legacy role map (docs/rbac-migration-plan.md Phase 2/4/6 review). For human review before any
+# account migration runs.
+#
+# Source: every role string actually found by grep in this repo as of this review —
+#   backend/app/routes/auth.py:23  VALID_ROLES = {citizen, village_officer, auditor, state_admin,
+#                                                 officer, bank, super_admin}
+#   backend/app/routes/{parcels,workflow,transactions,admin,intelligence}.py — require_roles(...) call sites
+#   backend/app/workflow.py:332, backend/app/routes/parcels.py:73, backend/app/routes/workflow.py:187 — "bank"
+#   backend/configs/*.yaml transaction_workflow stages — role: officer | village_officer | auditor | state_admin
+#
+# `action: map` means every legacy account with this role string becomes the given canonical role.
+# `action: deactivate_pending_review` means no single canonical role is a safe guess — set
+# is_active=false, deactivation_reason='needs_assignment', and leave the real mapping to a human (Phase
+# 4.6: "a legacy user with no determinable jurisdiction is set is_active=false").
+#
+# Two of these (officer, state_admin) are legacy roles *used for several different real-world rungs*
+# depending on context, not one rung under a different name. Guessing which rung a specific account
+# meant from the role string alone would be exactly the kind of wrong-but-confident migration this file
+# exists to prevent.
+
+village_officer:
+  action: map
+  canonical_role: village_officer
+  note: >
+    Exact name match already. Used as-is in every state's transaction_workflow (Patwari/VAO/Talathi/
+    Lekhpal field verification stages) and in require_roles() call sites.
+
+citizen:
+  action: map
+  canonical_role: citizen
+  note: Exact name match already.
+
+super_admin:
+  action: map
+  canonical_role: system_admin
+  note: >
+    Old super_admin bypassed every require_roles() check (see require_roles() in auth.py: "super_admin
+    passes every role check"). The new system_admin is explicitly NOT that — no land-record read at
+    all, break-glass only. Any account holding super_admin today needs a human decision about which
+    real-world rung it should actually become (most likely state_land_records_admin or
+    district_collector, not system_admin) — map to system_admin only if the account truly is a
+    technical/user-management admin, not a land-records approver.
+
+auditor:
+  action: deactivate_pending_review
+  note: >
+    Two incompatible real uses found. (1) In every state's transaction_workflow REVENUE department
+    stage ("Kanungo / Circle Officer review" — Chandigarh/Punjab; "Revenue Inspector review", TN,
+    when ri_required) it functions as revenue_inspector. (2) In require_roles() call sites
+    (parcels.py:296 parcel passport, workflow.py:275 fast-track approval) it functions as a generic
+    senior-reviewer gate alongside state_admin, closer to state_land_records_admin's read/oversight
+    role or additional_collector. These are different rungs with different scope levels (circle vs.
+    state vs. district) — a single blanket mapping would be a guess, not a migration. Likely candidate
+    per account: revenue_inspector for anyone who actually reviews REVENUE-department mutation stages;
+    state_land_records_admin for anyone only ever seen approving at the state/senior level. Confirm
+    per account before assigning.
+
+state_admin:
+  action: deactivate_pending_review
+  note: >
+    Three incompatible real uses found in backend/configs/*.yaml transaction_workflow alone: "Tahsildar/
+    Tehsildar approval" (REVENUE department final stage → tehsildar), "Estate Office transfer
+    permission" / "Property tax re-keyed" (→ naib_tehsildar or tehsildar depending on department), and
+    "SDM / District Collector hearing" / "RDO / District Collector hearing" (dispute escalation → sdo or
+    district_collector). Also used directly in require_roles() for analytics_summary (intelligence.py:39,
+    workflow.py:232) as a state-wide oversight gate, closer to state_land_records_admin. No single
+    canonical role is correct for every account that currently holds state_admin — the real rung depends
+    on which admin_unit and which stage the account actually acts at, which this file cannot infer.
+
+officer:
+  action: deactivate_pending_review
+  note: >
+    Already flagged as legacy inside the codebase itself (auth.py:24: "officer is a legacy role and is
+    not assignable"). Used for the REGISTRATION department's "Sub-Registrar deed verification" stage in
+    every state config (→ sub_registrar) AND as a generic elevated-read role in require_roles() call
+    sites (parcels.py:296 passport, transactions.py:45, workflow.py:98/110/124, intelligence.py:72 via
+    OFFICERS). Same problem as auditor/state_admin: one string, several real rungs. Likely candidate per
+    account: sub_registrar for anyone who actually records deeds; otherwise needs a human to pick the
+    right rung from the ladder.
+
+bank:
+  action: deactivate_pending_review
+  note: >
+    Not in the new role ladder at all (docs/rbac-migration-plan.md Phase 2 table has no external-viewer
+    rung). Used today only for a restricted read of the parcel passport (parcels.py:73,
+    parcels.py:296) and is explicitly excluded from workflow actions (workflow.py:187,
+    app/workflow.py:332: "role not in (citizen, bank)"). The new ladder has no equivalent — this needs a
+    product decision (a new non-ladder "external_verifier" user_type, or drop the feature), not a role
+    mapping. Flagging rather than guessing.

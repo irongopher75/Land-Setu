@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.db import IS_SQLITE
 from app.models import Citizen, JurisdictionReconciliation, OfficerAssignment, AdminUnit, Parcel, ParcelOwner
 from app.roles import READ_ONLY_STATE_ROLES, SCOPE_LEVEL
 
@@ -94,15 +95,24 @@ def scope_filter_sql(ctx: UserContext) -> tuple[str, dict] | None:
     `ctx.scope_paths` (each a prefix match: the unit itself or any descendant). Returns None when the
     caller has no admin-unit scope (citizen, or an officer role with zero active assignments) — callers
     must treat None as "match nothing", not "match everything". Values are always bound, never
-    interpolated, even though `path` is loader-controlled (slugs only) — paths never reach SQL as raw text."""
+    interpolated, even though `path` is loader-controlled (slugs only) — paths never reach SQL as raw text.
+
+    On Postgres this casts admin_path to ltree and uses `<@` (descendant-or-self), which
+    idx_parcels_admin_path_gist (migration 0012, a GiST index on the `admin_path::ltree` expression) can
+    serve — confirmed with EXPLAIN in the Phase 1/2 review, see docs/rbac-migration-plan.md. The SQLite
+    dev fallback has no ltree type, so it falls back to an equivalent LIKE-prefix match there.
+    """
     if not ctx.scope_paths:
         return None
     clauses = []
     params = {}
     for i, p in enumerate(ctx.scope_paths):
-        clauses.append(f"(admin_path = :scope_{i} OR admin_path LIKE :scope_{i}_prefix)")
+        if IS_SQLITE:
+            clauses.append(f"(admin_path = :scope_{i} OR admin_path LIKE :scope_{i}_prefix)")
+            params[f"scope_{i}_prefix"] = p + ".%"
+        else:
+            clauses.append(f"admin_path::ltree <@ :scope_{i}::ltree")
         params[f"scope_{i}"] = p
-        params[f"scope_{i}_prefix"] = p + ".%"
     return " OR ".join(clauses), params
 
 
@@ -124,14 +134,47 @@ def conflict_of_interest(db: Session, ctx: UserContext, ulpin: str) -> bool:
     ).first() is not None
 
 
+def can_resolve_jurisdiction(ctx: UserContext, reconciliation_state: str | None) -> bool:
+    """Only a state_land_records_admin for the parcel's best-known state, or a system_admin break-glass
+    (handled separately — break_glass_read is the only system_admin path, and it's read-only), may touch
+    a jurisdiction_reconciliation row. District/tehsil/village-scoped officers never can, regardless of
+    whether the row's best-known state happens to overlap their own scope — quarantine is deliberately
+    outside the normal scope check (see can_read_parcel above).
+
+    Not wired into any route yet — there is no reconciliation endpoint to call this from yet (Phase 4/6).
+    This function exists now so the rule lives in one place before that endpoint is written, per
+    docs/rbac-migration-plan.md: the schema alone enforces nothing without this.
+
+    `reconciliation_state` must be an admin_units STATE CODE (e.g. "TN"), the same value that appears as
+    the second path segment ("IN.TN...") — not Parcel.state's display name ("TamilNadu"). The Phase 4
+    migration script that populates JurisdictionReconciliation.best_known_state is responsible for that
+    mapping; this function does not guess it.
+    """
+    if ctx.user_type != "officer" or ctx.role != "state_land_records_admin":
+        return False
+    if not reconciliation_state:
+        return False
+    # ctx.scope_paths for a state_land_records_admin are state-level admin_unit paths, e.g. "IN.TN".
+    return any(p.endswith("." + reconciliation_state) or p == reconciliation_state for p in ctx.scope_paths)
+
+
 def is_read_only_role(role: str) -> bool:
     return role in READ_ONLY_STATE_ROLES
 
 
 def break_glass_read(db: Session, ctx: UserContext, ulpin: str, reason: str) -> None:
-    """system_admin read of a land record outside the normal policy, gated on a reason string and a
-    high-severity audit entry (Phase 2 "break-glass read")."""
-    from app.audit import record_break_glass_read
-    if not reason or not reason.strip():
-        raise ScopeDenied("break-glass read requires a reason")
-    record_break_glass_read(db, actor_user_id=ctx.user_id, ulpin=ulpin, reason=reason.strip())
+    """system_admin read of a land record outside the normal policy, gated on system_admin role, a
+    mandatory reason string, and a high-severity audit entry (Phase 2 "break-glass read").
+
+    HARD-DISABLED for now. The review that found this function had no role check at all (any
+    UserContext with a non-empty reason string would pass) also found no wired caller and no route that
+    reaches it. Rather than fix the role check alone and leave an unused, untested privilege-escalation
+    path live, this raises unconditionally until Phase 6 wires a real caller (auth.py's system_admin
+    session + an actual route) and that caller's test suite exercises the allow path, not just this
+    deny path. Flip this back on only alongside that route and its tests — see
+    docs/rbac-migration-plan.md Phase 6/2.
+    """
+    raise ScopeDenied(
+        "break-glass read is disabled: not yet wired to a real system_admin session or route "
+        "(docs/rbac-migration-plan.md Phase 6)"
+    )

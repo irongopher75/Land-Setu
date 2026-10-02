@@ -43,6 +43,13 @@ class Parcel(Base):
     # When this record was entered into LandSetu, as opposed to dates inside the source records.
     created_at = Column(String, nullable=True)
     district = Column(String, nullable=True, index=True)
+    # Jurisdiction (docs/rbac-migration-plan.md Phase 1/4). admin_path mirrors admin_units.path: ltree on
+    # Postgres (GiST-indexed, migration 0012), plain '.'-joined text on SQLite. admin_unit_id is the
+    # resolved leaf unit (usually a village); NULL/`unresolved` means Phase 4 jurisdiction resolution
+    # hasn't placed this parcel yet — see JurisdictionReconciliation.
+    admin_unit_id = Column(Integer, ForeignKey("admin_units.id"), nullable=True, index=True)
+    admin_path = Column(String, nullable=True, index=True)
+    jurisdiction_status = Column(String, nullable=False, default="unresolved", server_default="unresolved")
 
 class AdminUnit(Base):
     """Administrative geography hierarchy: country -> state -> district -> subdivision -> tehsil ->
