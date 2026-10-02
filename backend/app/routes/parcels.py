@@ -11,7 +11,9 @@ from app.db import get_db
 from app.models import Parcel, ProtectedZone, BoundaryChangeRequest
 from app.schemas import ParcelListItem, CanonicalParcelResponse, FlagItem
 from app.rules import RuleEngine, parse_geometry_shape, invalidate_neighbor_flags, geodesic_area_sqm
-from app.routes.auth import get_current_role, get_current_payload, get_optional_role, require_roles, SECRET_KEY, ALGORITHM
+from app.routes.auth import get_current_role, get_current_payload, require_roles, SECRET_KEY, ALGORITHM
+from app.authz import UserContext, can_read_parcel
+from app.session import get_user_context
 from app.states import INDIAN_STATES
 from app.state_boundaries import detect_state_for_point, detect_state_for_geometry
 from app.workflow import (advance_request, apply_request, archive_parcel, NEW_TYPES,
@@ -210,9 +212,9 @@ def get_all_parcels_geojson(state: Optional[str] = Query(None), offset: int = Qu
     }
 
 @router.get("/{ulpin}")
-def get_parcel_detail(ulpin: str, role: str = Depends(get_optional_role), db: Session = Depends(get_db)):
+def get_parcel_detail(ulpin: str, ctx: UserContext = Depends(get_user_context), db: Session = Depends(get_db)):
     parcel = db.query(Parcel).filter(Parcel.ulpin == ulpin).first()
-    if not parcel:
+    if not parcel or not can_read_parcel(ctx, parcel, db):
         raise HTTPException(status_code=404, detail=f"Parcel with ULPIN '{ulpin}' not found")
 
     geom_shape = parse_geometry_shape(parcel.geometry)
@@ -246,14 +248,17 @@ def get_parcel_detail(ulpin: str, role: str = Depends(get_optional_role), db: Se
         "superseded_by": parcel.superseded_by,
     }
 
-    return filter_fields_by_role(full_canonical, role)
+    return filter_fields_by_role(full_canonical, ctx.role)
 
 
 @router.get("/{ulpin}/audit-chain")
-def get_audit_chain(ulpin: str, db: Session = Depends(get_db)):
-    """The tamper-evident audit log of one parcel. Roles only, no personal data, so it is public.
+def get_audit_chain(ulpin: str, ctx: UserContext = Depends(get_user_context), db: Session = Depends(get_db)):
+    """The tamper-evident audit log of one parcel. Contains roles only, no personal data — formerly
+    public on that basis, now scoped like every other read path here (docs/rbac-migration-plan.md Part
+    B item 7): a parcel outside the caller's jurisdiction (or, for a citizen, not theirs) is a 404.
     The hashes are recomputed here on every call; `verified` is false if any entry was altered."""
-    if not db.query(Parcel.id).filter(Parcel.ulpin == ulpin).first():
+    parcel = db.query(Parcel).filter(Parcel.ulpin == ulpin).first()
+    if not parcel or not can_read_parcel(ctx, parcel, db):
         raise HTTPException(status_code=404, detail=f"Parcel with ULPIN '{ulpin}' not found")
     rows = audit.chain(db, ulpin)
     ok, broken_at = audit.verify(rows)
@@ -269,9 +274,9 @@ def get_audit_chain(ulpin: str, db: Session = Depends(get_db)):
     }
 
 @router.get("/{ulpin}/geometry")
-def get_parcel_geometry(ulpin: str, db: Session = Depends(get_db)):
+def get_parcel_geometry(ulpin: str, ctx: UserContext = Depends(get_user_context), db: Session = Depends(get_db)):
     parcel = db.query(Parcel).filter(Parcel.ulpin == ulpin).first()
-    if not parcel:
+    if not parcel or not can_read_parcel(ctx, parcel, db):
         raise HTTPException(status_code=404, detail=f"Parcel with ULPIN '{ulpin}' not found")
 
     geom_shape = parse_geometry_shape(parcel.geometry)
@@ -285,17 +290,17 @@ def get_parcel_geometry(ulpin: str, db: Session = Depends(get_db)):
     }
 
 @router.get("/{ulpin}/flags", response_model=List[FlagItem])
-def get_parcel_flags(ulpin: str, role: str = Depends(get_optional_role), db: Session = Depends(get_db)):
+def get_parcel_flags(ulpin: str, ctx: UserContext = Depends(get_user_context), db: Session = Depends(get_db)):
     parcel = db.query(Parcel).filter(Parcel.ulpin == ulpin).first()
-    if not parcel:
+    if not parcel or not can_read_parcel(ctx, parcel, db):
         raise HTTPException(status_code=404, detail=f"Parcel with ULPIN '{ulpin}' not found")
 
     return RuleEngine.evaluate_parcel_rules(db, parcel)
 
 @router.get("/{ulpin}/passport")
-def get_parcel_passport(ulpin: str, role: str = Depends(require_roles("officer", "bank", "auditor", "state_admin")), db: Session = Depends(get_db)):
+def get_parcel_passport(ulpin: str, ctx: UserContext = Depends(get_user_context), db: Session = Depends(get_db)):
     parcel = db.query(Parcel).filter(Parcel.ulpin == ulpin).first()
-    if not parcel:
+    if not parcel or not can_read_parcel(ctx, parcel, db):
         raise HTTPException(status_code=404, detail=f"Parcel with ULPIN '{ulpin}' not found")
 
     flags = RuleEngine.evaluate_parcel_rules(db, parcel)

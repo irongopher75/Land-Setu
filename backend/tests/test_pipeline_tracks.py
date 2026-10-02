@@ -3,7 +3,7 @@ import os
 os.environ.setdefault("JWT_SECRET", "test_secret_key_minimum_32_chars_long_for_security_test")
 
 import pytest
-from conftest import insert_parcel
+from conftest import insert_parcel, pg_citizen_headers, pg_officer_headers
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
@@ -32,8 +32,11 @@ def square(x, y, w=0.001, h=0.001):
     return {"type": "Polygon", "coordinates": [[[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y]]]}
 
 
+TEST_ADMIN_PATH = "pipeline_tracks.test_unit"
+
+
 def make_parcel(c, ulpin, x, owner="Asha Rao"):
-    insert_parcel(ulpin, square(x, 12.0), owner)
+    insert_parcel(ulpin, square(x, 12.0), owner, admin_path=TEST_ADMIN_PATH)
 
 
 def correction(c, ulpin, field, value, role="citizen", uid=None):
@@ -136,7 +139,7 @@ def test_deletion_archives_and_keeps_the_record(client):
     assert client.get("/parcels/search", params={"q": "PT-A1"}).json() == []
 
     # still readable, with its status and history
-    d = client.get("/parcels/PT-A1")
+    d = client.get("/parcels/PT-A1", headers=pg_officer_headers(admin_path=TEST_ADMIN_PATH))
     assert d.status_code == 200 and d.json()["status"] == "archived" and d.json()["flags"] == []
     assert any("ARCHIVED" in str(e).upper() or "archived" in str(e) for e in
                client.get("/parcels/PT-A1/history", headers=hdr("citizen")).json()["events"])
@@ -150,7 +153,7 @@ def test_audit_chain_records_transitions_and_verifies(client):
     make_parcel(client, "PT-C1", 76.20)
     rid = correction(client, "PT-C1", "owner_name", "Asha Raoo").json()["request_id"]
     client.post(f"/parcels/requests/{rid}/fast-approve", headers=hdr("auditor"))
-    body = client.get("/parcels/PT-C1/audit-chain").json()
+    body = client.get("/parcels/PT-C1/audit-chain", headers=pg_officer_headers(admin_path=TEST_ADMIN_PATH)).json()
     assert body["verified"] is True and body["broken_at"] is None
     events = [e["event"] for e in body["entries"]]
     assert "submitted" in events and events[-1] == "approved"
@@ -162,7 +165,10 @@ def test_audit_chain_records_transitions_and_verifies(client):
 
 
 def test_seeded_parcels_have_an_imported_first_entry(client):
-    body = client.get("/parcels/TN-CHN-0042-1187/audit-chain").json()
+    # Seeded parcels have no admin_path yet (Phase 4 jurisdiction backfill hasn't run), so only a citizen
+    # owner of this specific parcel can read it under the new auth — grant that directly for the test.
+    headers = pg_citizen_headers("TN-CHN-0042-1187")
+    body = client.get("/parcels/TN-CHN-0042-1187/audit-chain", headers=headers).json()
     assert body["entries"][0]["event"] == "imported" and body["verified"] is True
 
 

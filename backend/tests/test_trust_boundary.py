@@ -11,7 +11,7 @@ import os
 os.environ.setdefault("JWT_SECRET", "test_secret_key_minimum_32_chars_long_for_security_test")
 
 import pytest
-from conftest import insert_parcel
+from conftest import insert_parcel, pg_citizen_headers
 from fastapi.testclient import TestClient
 from shapely.geometry import shape
 
@@ -184,7 +184,7 @@ def test_the_officers_entry_is_stored_labelled_officer_provided_never_verified(c
 
 
 def test_citizens_see_the_officer_entry_and_its_label(client):
-    detail = client.get("/parcels/TB-NEW-3").json()
+    detail = client.get("/parcels/TB-NEW-3", headers=pg_citizen_headers("TB-NEW-3")).json()
     assert detail["layers"]["ror"]["owner_name"] == "Kavitha Subramanian"
     assert detail["layers"]["ror"]["confidence"] == "officer_provided"
     assert detail["layers"]["encumbrance"]["active"] is True
@@ -210,7 +210,7 @@ def test_pending_list_says_which_approvals_need_a_record(client):
 def test_citizens_do_not_see_the_unverified_owner_claim(client):
     r = file_boundary(client, "TB-NEW-2", square(77.50, 11.00))
     assert walk_to_approval(client, r.json()["request_id"], RECORD).status_code == 200
-    detail = client.get("/parcels/TB-NEW-2").json()
+    detail = client.get("/parcels/TB-NEW-2", headers=pg_citizen_headers("TB-NEW-2")).json()
     assert "claimed_owner_name" not in detail["layers"].get("ror", {})
 
 
@@ -251,20 +251,25 @@ def test_no_seeded_parcel_has_an_area_mismatch(client):
     exercised with synthetic parcels below."""
     # Seeded ULPINs only: other tests in this module add their own parcels to the same database.
     seeded = ("TN-CHN-0042-", "CHD-SEC-0017-", "TN-KPM-0107-", "TN-CGL-", "TN-TVL-", "TN-CHN-0051-")
-    checked = 0
+    matched = []
     for state in ("TamilNadu", "Chandigarh"):
         for feature in client.get(f"/parcels/geojson/all?state={state}").json()["features"]:
             ulpin = feature["properties"]["ulpin"]
-            if not ulpin.startswith(seeded):
-                continue
-            rules = [f["rule"] for f in client.get(f"/parcels/{ulpin}/flags").json()]
-            assert "area_mismatch" not in rules, ulpin
-            checked += 1
-    assert checked >= 17
+            if ulpin.startswith(seeded):
+                matched.append(ulpin)
+    assert len(matched) >= 17
+
+    # /flags now requires a session (docs/rbac-migration-plan.md Part B item 7) -- one citizen "owning"
+    # every matched seeded parcel reads all of them for this check.
+    headers = pg_citizen_headers(*matched)
+    for ulpin in matched:
+        rules = [f["rule"] for f in client.get(f"/parcels/{ulpin}/flags", headers=headers).json()]
+        assert "area_mismatch" not in rules, ulpin
 
 
 def test_planted_overlap_and_zone_fixtures_survive_the_geometry_fix(client):
-    rules = lambda u: {f["rule"] for f in client.get(f"/parcels/{u}/flags").json()}
+    headers = pg_citizen_headers("TN-CHN-0042-1187", "TN-CHN-0042-1190", "CHD-SEC-0017-0203")
+    rules = lambda u: {f["rule"] for f in client.get(f"/parcels/{u}/flags", headers=headers).json()}
     assert "boundary_overlap" in rules("TN-CHN-0042-1187")
     assert "boundary_overlap" in rules("TN-CHN-0042-1190")
     assert "protected_zone_containment" in rules("CHD-SEC-0017-0203")
@@ -331,7 +336,7 @@ def test_fast_track_correction_is_also_not_verified(client):
 
 
 def test_citizens_see_that_a_field_was_corrected(client):
-    detail = client.get("/parcels/TB-COR-1").json()   # corrected in the HIGH-track test above
+    detail = client.get("/parcels/TB-COR-1", headers=pg_citizen_headers("TB-COR-1")).json()   # corrected in the HIGH-track test above
     assert detail["layers"]["ror"]["confidence"] == "corrected_by_officer"
     assert detail["layers"]["ror"]["corrected_fields"] == ["owner_name"]
 
@@ -360,7 +365,7 @@ def test_requester_sees_own_requests_with_status_and_rejection_remarks(client):
                        json={"remarks": "Sale deed not attached"}).status_code == 200
     item = client.get("/parcels/requests/mine", headers=hdr("citizen", "cit-track")).json()["items"][0]
     assert item["status"] == "REJECTED" and item["remarks"] == "Sale deed not attached"
-    chain = client.get("/parcels/TB-TRACK-1/audit-chain").json()["entries"]
+    chain = client.get("/parcels/TB-TRACK-1/audit-chain", headers=pg_citizen_headers("TB-TRACK-1")).json()["entries"]
     assert "Sale deed" not in str(chain)   # remarks stay off the public audit log
 
 

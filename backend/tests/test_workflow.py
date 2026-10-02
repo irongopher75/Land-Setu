@@ -3,7 +3,7 @@ import os
 os.environ.setdefault("JWT_SECRET", "test_secret_key_minimum_32_chars_long_for_security_test")
 
 import pytest
-from conftest import insert_parcel
+from conftest import insert_parcel, pg_citizen_headers
 from fastapi.testclient import TestClient
 
 from app.db import Base, engine, SessionLocal
@@ -106,7 +106,7 @@ def test_citizen_correction_full_pipeline_and_history(client):
     # auditor cannot act before the village officer
     assert as_role(client, "auditor").post(f"/parcels/requests/{rid}/auditor-pass").status_code == 400
     assert run_pipeline(client, rid, village_first=True).status_code == 200
-    d = as_role(client, "citizen").get("/parcels/WF-C1").json()
+    d = client.get("/parcels/WF-C1", headers=pg_citizen_headers("WF-C1")).json()
     assert d["layers"]["ror"]["owner_name"] == "Right Name"
     hist = as_role(client, "citizen").get("/parcels/WF-C1/history").json()["events"]
     titles = " | ".join(e["title"] for e in hist)

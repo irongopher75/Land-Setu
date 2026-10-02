@@ -157,10 +157,14 @@ def test_session_issued_before_a_role_change_is_refused(client):
     assert r.status_code == 401 and "Sign in again" in r.json()["detail"]
 
 
-def test_bank_sees_clearance_only(client):
-    body = client.get("/parcels/TN-CHN-0042-1189", headers=_hdr("bank", "bank-1")).json()
-    assert set(body["layers"]) == {"encumbrance"} and body["raw_record"] is None
-    assert "geometry" not in body and all(set(f) == {"rule", "flag"} for f in body["flags"])
+def test_bank_has_no_read_path_under_the_new_auth(client):
+    # docs/rbac-migration-plan.md Part B item 7 (2026-10 decision): GET /parcels/{ulpin} now requires a
+    # Postgres-native session (app.session.get_user_context). "bank" has no analog in the new role ladder
+    # (config/legacy_role_map.yaml: deactivate_pending_review, no sane mapping) and never will under an
+    # old-style flat-role token -- this used to return the clearance-only view; it is now simply 401,
+    # an accepted capability gap until a product decision gives bank (or an equivalent) a new-system role.
+    assert client.get("/parcels/TN-CHN-0042-1189", headers=_hdr("bank", "bank-1")).status_code == 401
+    # Unretrofitted (old-system) endpoints are unaffected.
     assert client.get("/parcels/requests/pending", headers=_hdr("bank", "bank-1")).status_code == 403
 
 

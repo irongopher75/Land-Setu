@@ -3,7 +3,7 @@ import os
 os.environ.setdefault("JWT_SECRET", "test_secret_key_minimum_32_chars_long_for_security_test")
 
 import pytest
-from conftest import insert_parcel
+from conftest import insert_parcel, pg_citizen_headers, pg_officer_headers
 from fastapi.testclient import TestClient
 
 from app.db import Base, engine, SessionLocal
@@ -30,8 +30,11 @@ def square(x, y):
     return {"type": "Polygon", "coordinates": [[[x, y], [x + .001, y], [x + .001, y + .001], [x, y + .001], [x, y]]]}
 
 
+TEST_ADMIN_PATH = "separation_of_duties.test_unit"
+
+
 def make_parcel(c, ulpin, x, owner="Asha Rao"):
-    insert_parcel(ulpin, square(x, 11.0), owner)
+    insert_parcel(ulpin, square(x, 11.0), owner, admin_path=TEST_ADMIN_PATH)
 
 
 def high_request(c, ulpin, filer="cit-1"):
@@ -136,9 +139,10 @@ def test_raise_block_acknowledge_resolve_then_approve(client):
     # once the request has moved on, the earlier reviewer cannot respond to anything on it
     assert post(client, f"/parcels/flags/{fid}/resolve", "village_officer", "vo-1", json={"note": "Never mind."}).status_code == 403
 
-    events = [e["event"] for e in client.get("/parcels/SD-5/audit-chain").json()["entries"]]
+    officer = pg_officer_headers(admin_path=TEST_ADMIN_PATH)
+    events = [e["event"] for e in client.get("/parcels/SD-5/audit-chain", headers=officer).json()["entries"]]
     assert events.count("concern_raised") == 2 and events.count("concern_resolved") == 2
-    assert client.get("/parcels/SD-5/audit-chain").json()["verified"] is True
+    assert client.get("/parcels/SD-5/audit-chain", headers=officer).json()["verified"] is True
 
 
 def test_raiser_never_resolves_their_own_concern(client):
@@ -160,7 +164,7 @@ def test_rejecting_is_the_other_way_to_answer_a_concern(client):
 
 
 def test_audit_log_ties_entries_to_an_account_without_exposing_it(client):
-    body = client.get("/parcels/SD-5/audit-chain").json()
+    body = client.get("/parcels/SD-5/audit-chain", headers=pg_officer_headers(admin_path=TEST_ADMIN_PATH)).json()
     assert all("uid" not in e and "actor_ref" not in e for e in body["entries"])
     db = SessionLocal()
     refs = {r.actor_ref for r in audit.chain(db, "SD-5") if r.actor_ref}
@@ -258,7 +262,8 @@ def test_marking_is_a_request_for_every_role_and_never_saves_directly(client):
         r = marking(client, ulpin, role, f"{role}-m", x=77.40 + i * 0.01)
         assert r.status_code == 200 and r.json()["is_approval_pending"] is True, r.text
         assert r.json()["status"] == ("PENDING_APPROVAL" if role == "village_officer" else "PENDING_VILLAGE_REVIEW")
-        assert client.get(f"/parcels/{ulpin}").status_code == 404  # nothing on the map yet
+        # nothing on the map yet -- 404 either way, but needs a session now to even reach that check
+        assert client.get(f"/parcels/{ulpin}", headers=pg_officer_headers(admin_path=TEST_ADMIN_PATH)).status_code == 404
     assert marking(client, "LM-X", "citizen", "cit-m").status_code == 403
 
 
@@ -286,6 +291,9 @@ def test_approved_marking_creates_the_parcel_with_an_audit_entry(client):
     # A new parcel: the approver enters its record (see test_trust_boundary.py for the rules on that entry).
     record = {"owner_name": "Meena Iyer", "zoning": "residential", "tax_value": 12000, "encumbrance_status": "none"}
     assert post(client, f"/parcels/requests/{rid}/approve", "state_admin", "sa-c", json=record).status_code == 200
-    assert client.get("/parcels/LM-12").json()["status"] == "active"
-    events = [e["event"] for e in client.get("/parcels/LM-12/audit-chain").json()["entries"]]
-    assert "created" in events and client.get("/parcels/LM-12/audit-chain").json()["verified"] is True
+    # LM-12 is created by the approval workflow, not insert_parcel, so it has no admin_path yet (Phase 4
+    # jurisdiction backfill hasn't run) -- read it as its owning citizen instead of an officer.
+    citizen = pg_citizen_headers("LM-12")
+    assert client.get("/parcels/LM-12", headers=citizen).json()["status"] == "active"
+    events = [e["event"] for e in client.get("/parcels/LM-12/audit-chain", headers=citizen).json()["entries"]]
+    assert "created" in events and client.get("/parcels/LM-12/audit-chain", headers=citizen).json()["verified"] is True

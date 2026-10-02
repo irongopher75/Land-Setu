@@ -136,7 +136,14 @@ def test_super_admin_passes_every_role_gate(env):
     h = hdr("super_admin", "sa1")
     assert c.get("/parcels/analytics/summary", headers=h).status_code == 200
     assert c.get("/parcels/requests/pending", headers=h).status_code == 200
-    assert c.get("/parcels/TN-CHN-0042-1187/passport", headers=h).status_code == 200
     assert c.get("/parcels/analytics/summary", headers=hdr("auditor", "a1")).status_code == 403
-    d = c.get("/parcels/TN-CHN-0042-1187", headers=h).json()
-    assert d["raw_record"] is not None  # full record, not the citizen view
+
+    # docs/rbac-migration-plan.md Part B item 7 (2026-10 decision): /passport and GET /{ulpin} are
+    # retrofitted onto the new Postgres-native auth, which an old-style flat-role token (this one) can
+    # never satisfy. super_admin's new-ladder equivalent, system_admin, has no land-record read path at
+    # all by design (app/roles.py: scope_level None) until break_glass_read is wired up in Phase 6 (it is
+    # currently hard-disabled -- see app/authz.py and docs/rbac-migration-plan.md Part A). "super_admin
+    # passes every check" no longer holds for these two routes; this is an accepted capability gap, not a
+    # bug -- both are simply 401 now.
+    assert c.get("/parcels/TN-CHN-0042-1187/passport", headers=h).status_code == 401
+    assert c.get("/parcels/TN-CHN-0042-1187", headers=h).status_code == 401
