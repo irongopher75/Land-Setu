@@ -110,6 +110,28 @@ def test_spoofed_forwarded_for_does_not_escape_the_rate_limit(client, monkeypatc
     assert codes[3:] == [429, 429, 429]
 
 
+def test_shared_office_nat_does_not_share_one_officers_rate_limit(client, monkeypatch):
+    # Two different signed-in officers behind the same NAT (same CF-Connecting-IP) must not share one
+    # read-bucket: an authenticated caller is keyed on the JWT's sub, not the IP.
+    monkeypatch.setenv("RATE_LIMIT_READ", "3")
+    shared_ip = {"CF-Connecting-IP": "198.51.100.9"}
+    officer_a = _hdr("village_officer", "officer-a") | shared_ip
+    officer_b = _hdr("village_officer", "officer-b") | shared_ip
+    codes_a = [client.get("/parcels/states/all", headers=officer_a).status_code for _ in range(3)]
+    assert 429 not in codes_a
+    # officer_a is now at their own limit; officer_b, same IP, must still have their own budget.
+    assert client.get("/parcels/states/all", headers=officer_a).status_code == 429
+    assert client.get("/parcels/states/all", headers=officer_b).status_code != 429
+
+
+def test_unauthenticated_reads_get_a_stricter_ceiling_than_authenticated(client, monkeypatch):
+    monkeypatch.setenv("RATE_LIMIT_READ", "20")
+    monkeypatch.setenv("RATE_LIMIT_READ_ANON", "2")
+    anon_ip = {"CF-Connecting-IP": "198.51.100.10"}
+    codes = [client.get("/parcels/states/all", headers=anon_ip).status_code for _ in range(3)]
+    assert codes == [200, 200, 429]
+
+
 def test_cloudflare_client_ip_is_the_rate_limit_key(client, monkeypatch):
     monkeypatch.setenv("RATE_LIMIT_AUTH", "2")
     a = [client.post("/auth/logout", headers={"CF-Connecting-IP": "203.0.113.1"}).status_code for _ in range(3)]
