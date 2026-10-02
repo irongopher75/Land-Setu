@@ -8,7 +8,7 @@ from shapely.geometry import box, mapping
 
 from app.db import SessionLocal, Base, engine
 from app.models import Parcel
-from app.rules import RuleEngine, compute_geodesic_area_sqm, invalidate_neighbor_flags
+from app.rules import RuleEngine, compute_geodesic_area_sqm, geodesic_area_sqm, invalidate_neighbor_flags
 from app.routes.parcels import _refresh_flags_after_change
 from app.workflow import geom_column_value
 
@@ -81,6 +81,63 @@ def test_moving_boundary_clears_old_and_new_neighbors(db):
     RuleEngine.evaluate_parcels_batch(db, [a, far])
     assert a.flags == []
     assert far.flags[0]["evidence"]["overlapping_parcel"] == "FC-B"
+
+
+def test_touching_only_parcels_are_not_flagged(db):
+    # Share exactly one edge (x=77.001); interiors do not intersect, so this is not an overlap.
+    # Creating b invalidates a's cached flags (a neighbor changed), so a is re-evaluated before asserting.
+    a = _mk(db, "FC-TOUCH-A", box(77.0, 12.0, 77.001, 12.001))
+    b = _mk(db, "FC-TOUCH-B", box(77.001, 12.0, 77.002, 12.001))
+    assert b.flags == []
+    db.refresh(a)
+    assert RuleEngine.evaluate_parcel_rules(db, a) == []
+
+
+def test_sliver_overlap_below_threshold_is_ignored(db):
+    # A ~0.6 m^2 sliver, under the default MIN_OVERLAP_SQM (1 m^2) — a digitisation artifact,
+    # not a real boundary conflict.
+    a = _mk(db, "FC-SLIVER-A", box(77.0, 12.0, 77.001, 12.001))
+    b = _mk(db, "FC-SLIVER-B", box(77.00099995000001, 12.0, 77.002, 12.001))
+    assert b.flags == []
+    db.refresh(a)
+    assert RuleEngine.evaluate_parcel_rules(db, a) == []
+
+
+def test_postgis_area_within_tolerance_of_geodesic_reference(db):
+    # Backend area of a known polygon close to the expected geodesic value. The reference here is the
+    # sphere formula (compute_geodesic_area_sqm); PostGIS's ST_Area(geography) is WGS84-ellipsoid, which
+    # differs from the sphere by a fairly constant ~0.3-0.7% at these latitudes, so the tolerance is 1%,
+    # not the 0.5% a from-scratch ellipsoidal reference would allow.
+    geom = box(77.3, 11.5, 77.301, 11.501)
+    reference = compute_geodesic_area_sqm(geom)
+    assert geodesic_area_sqm(db, geom) == pytest.approx(reference, rel=0.01)
+
+
+def test_batched_overlap_matches_per_row_overlap(db):
+    # Fixture: A overlaps B, B overlaps A/C/E, D is isolated, E only slivers against A
+    # (below MIN_OVERLAP_SQM) but has a real overlap with B. Covers overlap/no-overlap/
+    # sliver in one batch, including a candidate with more than one real neighbor.
+    a = _mk(db, "FC-BATCH-A", box(77.0, 12.0, 77.001, 12.001))
+    b = _mk(db, "FC-BATCH-B", box(77.0005, 12.0005, 77.0025, 12.0025))
+    c = _mk(db, "FC-BATCH-C", box(77.002, 12.002, 77.003, 12.003))
+    d = _mk(db, "FC-BATCH-D", box(78.0, 13.0, 78.001, 13.001))
+    e = _mk(db, "FC-BATCH-E", box(77.00099995000001, 12.0, 77.002, 12.001))
+
+    for p in (a, b, c, d, e):
+        p.flags = None
+    db.commit()
+
+    per_row = {p.id: RuleEngine._check_boundary_overlap(db, p) for p in (a, b, c, d, e)}
+    batched = RuleEngine._check_boundary_overlap_batch(db, [a, b, c, d, e])
+
+    for p in (a, b, c, d, e):
+        assert batched.get(p.id) == per_row[p.id]
+
+    # Sanity: the fixture actually exercises overlap, no-overlap and sliver-below-threshold.
+    assert per_row[a.id]["evidence"]["overlapping_parcel"] == "FC-BATCH-B"
+    assert per_row[b.id]["evidence"]["overlapping_parcel"] in ("FC-BATCH-A", "FC-BATCH-C", "FC-BATCH-E")
+    assert per_row[d.id] is None
+    assert per_row[e.id]["evidence"]["overlapping_parcel"] == "FC-BATCH-B"
 
 
 def test_delete_clears_neighbors(db):

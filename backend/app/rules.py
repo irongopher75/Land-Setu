@@ -1,9 +1,10 @@
 import math
 import json
 import os
+from collections import defaultdict
 from typing import List, Dict, Any, Optional, Iterable
 from sqlalchemy import cast, func, and_, not_, update
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 from shapely.geometry import shape, mapping, box
 from app.db import IS_SQLITE
 from app.models import Parcel, ProtectedZone
@@ -193,13 +194,27 @@ def invalidate_state_flags(db: Session, state: str) -> None:
     db.execute(update(Parcel).where(Parcel.state == state).values(flags=None))
 
 
+_NO_OVERLAP_PRECOMPUTED = object()
+
+
 class RuleEngine:
     @staticmethod
-    def compute_flags(db: Session, parcel: Parcel) -> List[Dict[str, Any]]:
-        """Evaluate all rules now. No cache read, no write."""
+    def compute_flags(db: Session, parcel: Parcel, boundary_overlap: Any = _NO_OVERLAP_PRECOMPUTED) -> List[Dict[str, Any]]:
+        """Evaluate all rules now. No cache read, no write.
+
+        `boundary_overlap` lets a caller that already ran the batched overlap
+        query (see `evaluate_parcels_batch`) hand in the result instead of
+        triggering another one here. Left at the default, it is computed
+        standalone (one query, just for this parcel).
+        """
+        overlap = (
+            RuleEngine._check_boundary_overlap(db, parcel)
+            if boundary_overlap is _NO_OVERLAP_PRECOMPUTED
+            else boundary_overlap
+        )
         flags = []
         for check in (
-            RuleEngine._check_boundary_overlap(db, parcel),
+            overlap,
             RuleEngine._check_protected_zone(db, parcel),
             RuleEngine._check_ownership_mismatch(parcel),
             RuleEngine._check_fsi_violation(parcel),
@@ -211,9 +226,9 @@ class RuleEngine:
         return flags
 
     @staticmethod
-    def refresh_flags(db: Session, parcel: Parcel) -> List[Dict[str, Any]]:
+    def refresh_flags(db: Session, parcel: Parcel, boundary_overlap: Any = _NO_OVERLAP_PRECOMPUTED) -> List[Dict[str, Any]]:
         """Recompute and store in parcel.flags. Caller commits."""
-        parcel.flags = RuleEngine.compute_flags(db, parcel)
+        parcel.flags = RuleEngine.compute_flags(db, parcel, boundary_overlap=boundary_overlap)
         return parcel.flags
 
     @staticmethod
@@ -226,58 +241,99 @@ class RuleEngine:
 
     @staticmethod
     def evaluate_parcels_batch(db: Session, parcels: List[Parcel], force_refresh: bool = False) -> Dict[int, List[Dict[str, Any]]]:
-        """Flags for many parcels. Only cache misses are computed (one indexed query pair each)."""
-        results: Dict[int, List[Dict[str, Any]]] = {}
-        dirty = False
-        for p in parcels:
-            if force_refresh or p.flags is None:
-                RuleEngine.refresh_flags(db, p)
-                dirty = True
-            results[p.id] = p.flags
-        if dirty:
+        """Flags for many parcels. Only cache misses are computed, and their boundary-overlap
+        check runs as a single query for the whole miss set (see `_check_boundary_overlap_batch`),
+        not one query per parcel."""
+        misses = [p for p in parcels if force_refresh or p.flags is None]
+        if misses:
+            overlaps = RuleEngine._check_boundary_overlap_batch(db, misses)
+            for p in misses:
+                RuleEngine.refresh_flags(db, p, boundary_overlap=overlaps.get(p.id))
             db.commit()
-        return results
+        return {p.id: p.flags for p in parcels}
 
     @staticmethod
     def _check_boundary_overlap(db: Session, parcel: Parcel) -> Optional[Dict[str, Any]]:
-        parcel_shape = parse_geometry_shape(parcel.geometry)
-        if parcel_shape is None or parcel_shape.is_empty:
-            return None
+        return RuleEngine._check_boundary_overlap_batch(db, [parcel]).get(parcel.id)
+
+    @staticmethod
+    def _check_boundary_overlap_batch(db: Session, parcels: List[Parcel]) -> Dict[int, Dict[str, Any]]:
+        """Largest-overlap flag per parcel in `parcels`, computed in one query (Postgres) or
+        one query per distinct state touched (SQLite dev fallback) — never one query per parcel.
+        Parcels with no usable geometry, or no overlap above MIN_OVERLAP_SQM, are simply absent
+        from the returned dict (callers should use .get(parcel.id), which is None by default)."""
+        valid_shapes: Dict[int, Any] = {}
+        for p in parcels:
+            s = parse_geometry_shape(p.geometry)
+            if s is not None and not s.is_empty:
+                valid_shapes[p.id] = s
+        if not valid_shapes:
+            return {}
 
         if not IS_SQLITE:
-            # One indexed query. ST_Intersects is index-assisted (&& on the GIST index).
-            # Overlap = interiors intersect = intersects AND NOT touches. This
-            # also catches full containment, which ST_Overlaps alone misses.
-            # Area is geodesic on the WGS84 spheroid. Largest overlap wins.
-            g = _pg_geom(parcel_shape)
-            area = func.ST_Area(cast(func.ST_Intersection(Parcel.geometry, g), Geography))
-            row = (
-                db.query(Parcel.ulpin, area.label("overlap_sqm"))
+            # One indexed query for the whole miss set. ST_Intersects is index-assisted (&& on
+            # the GIST index) on both sides of the self-join. Overlap = interiors intersect =
+            # intersects AND NOT touches; this also catches full containment, which ST_Overlaps
+            # alone misses. Area is geodesic on the WGS84 spheroid. Largest overlap wins per
+            # candidate, picked with a window function instead of N separate ORDER BY/LIMIT 1s.
+            Cand = aliased(Parcel)
+            Other = aliased(Parcel)
+            area = func.ST_Area(cast(func.ST_Intersection(Cand.geometry, Other.geometry), Geography))
+            ranked = (
+                db.query(
+                    Cand.id.label("cand_id"),
+                    Other.ulpin.label("other_ulpin"),
+                    area.label("overlap_sqm"),
+                    func.row_number().over(partition_by=Cand.id, order_by=area.desc()).label("rn"),
+                )
+                .join(
+                    Other,
+                    and_(Other.state == Cand.state, Other.status == "active", Other.id != Cand.id),
+                )
                 .filter(
-                    Parcel.id != parcel.id,
-                    Parcel.state == parcel.state,
-                    Parcel.status == "active",
-                    func.ST_Intersects(Parcel.geometry, g),
-                    not_(func.ST_Touches(Parcel.geometry, g)),
+                    Cand.id.in_(list(valid_shapes.keys())),
+                    func.ST_Intersects(Cand.geometry, Other.geometry),
+                    not_(func.ST_Touches(Cand.geometry, Other.geometry)),
                     area > MIN_OVERLAP_SQM,
                 )
-                .order_by(area.desc())
-                .first()
+                .subquery()
             )
-            return _overlap_flag(row.ulpin, row.overlap_sqm) if row else None
+            rows = db.query(ranked.c.cand_id, ranked.c.other_ulpin, ranked.c.overlap_sqm).filter(ranked.c.rn == 1).all()
+            return {row.cand_id: _overlap_flag(row.other_ulpin, row.overlap_sqm) for row in rows}
 
-        # SQLite dev fallback: Shapely, bbox prefilter, spherical area.
-        p_box = box(*parcel_shape.bounds)
-        best = None
-        for other in db.query(Parcel).filter(Parcel.id != parcel.id, Parcel.state == parcel.state, Parcel.status == "active").all():
-            other_shape = parse_geometry_shape(other.geometry)
-            if other_shape is None or not p_box.intersects(box(*other_shape.bounds)):
-                continue
-            if _shapely_is_overlap(parcel_shape, other_shape):
-                a = compute_geodesic_area_sqm(parcel_shape.intersection(other_shape))
-                if a > MIN_OVERLAP_SQM and (best is None or a > best[1]):
-                    best = (other.ulpin, a)
-        return _overlap_flag(*best) if best else None
+        # SQLite dev fallback: Shapely, bbox prefilter, spherical area. Still batched — the
+        # candidate pool for each state touched by the miss set is fetched once, not once per
+        # candidate parcel in that state.
+        by_state: Dict[str, List[Parcel]] = defaultdict(list)
+        for p in parcels:
+            if p.id in valid_shapes:
+                by_state[p.state].append(p)
+
+        state_pool: Dict[str, List[Parcel]] = {
+            state: db.query(Parcel).filter(Parcel.state == state, Parcel.status == "active").all()
+            for state in by_state
+        }
+
+        results: Dict[int, Dict[str, Any]] = {}
+        for state, candidates in by_state.items():
+            pool = state_pool[state]
+            for p in candidates:
+                parcel_shape = valid_shapes[p.id]
+                p_box = box(*parcel_shape.bounds)
+                best = None
+                for other in pool:
+                    if other.id == p.id:
+                        continue
+                    other_shape = parse_geometry_shape(other.geometry)
+                    if other_shape is None or not p_box.intersects(box(*other_shape.bounds)):
+                        continue
+                    if _shapely_is_overlap(parcel_shape, other_shape):
+                        a = compute_geodesic_area_sqm(parcel_shape.intersection(other_shape))
+                        if a > MIN_OVERLAP_SQM and (best is None or a > best[1]):
+                            best = (other.ulpin, a)
+                if best is not None:
+                    results[p.id] = _overlap_flag(*best)
+        return results
 
     @staticmethod
     def _check_protected_zone(db: Session, parcel: Parcel) -> Optional[Dict[str, Any]]:
