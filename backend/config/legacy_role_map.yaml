@@ -1,0 +1,56 @@
+# Maps every legacy flat role (backend/app/routes/auth.py VALID_ROLES, grepped 2026-10-02) to the new
+# role ladder (backend/app/roles.py OFFICER_ROLES / CITIZEN_ROLE), for the one-time user migration that
+# Part B's Postgres-native auth needs (docs/rbac-migration-plan.md Phase 2).
+#
+# A legacy role gets a direct `new_role` mapping only when it has exactly one sane target in the new
+# ladder. Anything that split across several new roles, or has no analog at all, gets
+# `action: deactivate_pending_review` instead of a guess — a human picks the real role(s) and the
+# officer_assignments admin_unit(s) by hand, since the old flat role carried no scope information to
+# migrate automatically anyway.
+
+citizen:
+  new_role: citizen
+  reason: Direct match — same concept (parcel_owners-based identity), no scope to assign.
+
+village_officer:
+  new_role: village_officer
+  reason: >
+    Direct match. Same name, same scope_level ("village") in app/roles.py. The only legacy role that
+    maps 1:1 without ambiguity.
+
+super_admin:
+  new_role: system_admin
+  reason: >
+    Both are "manages users/technical config, no land-record scope" per app/roles.py's system_admin
+    docstring — matches super_admin's actual usage (role assignment, admin panel) in the legacy backend.
+
+officer:
+  action: deactivate_pending_review
+  reason: >
+    Already documented as "a legacy role and is not assignable" (app/routes/auth.py:24). Used
+    interchangeably with both village_officer-level actions and state_admin-level actions across routes
+    (e.g. workflow.py require_roles("village_officer", "officer", "state_admin")) — no single new-ladder
+    level fits; picking one would be a guess about a given user's actual post.
+
+auditor:
+  action: deactivate_pending_review
+  reason: >
+    Legacy "auditor" actively approves/passes workflow steps (auditor_approve_deletion,
+    auditor_pass_request in routes/parcels.py) — an acting role. The new ladder's closest-named role,
+    state_auditor, is explicitly READ_ONLY_STATE_ROLES (separation of duties, app/roles.py) and cannot
+    perform those actions. There is no new role that is both state-level and an active approver, so no
+    sane direct mapping exists; a human must decide the real post (e.g. district_collector) per user.
+
+state_admin:
+  action: deactivate_pending_review
+  reason: >
+    Legacy state_admin's powers (role assignment, state-wide analytics, final approvals, admin panel)
+    span what the new ladder splits into district_collector, state_land_records_admin, and system_admin.
+    No single new role covers the same set of actions, so no sane direct mapping exists.
+
+bank:
+  action: deactivate_pending_review
+  reason: >
+    Read-only external-party role (parcel passport verification) with no analog anywhere in the new
+    officer/citizen ladder (app/roles.py has no external-verifier concept). Needs a real design decision,
+    not a guess, before this role can exist again.

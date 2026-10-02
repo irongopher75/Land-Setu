@@ -1,7 +1,48 @@
 # RBAC / district-scoping migration plan
 
-Status: **Phase 0 (research) complete, nothing coded yet.** This doc is the pause point required
-before any schema or route changes — see "Scope decision needed" at the end.
+Status: **Phase 1/2 schema landed (migrations 0010-0012, `app/authz.py`, `app/roles.py`); Part B
+(Postgres-native auth.py rewrite + route retrofit) not started.** Option 2 from "Scope decision needed"
+below (full ladder + ltree + officer_assignments, deep-tier states) was the path taken. The
+"Phase 0, nothing coded yet" status further down predates that work and is kept for history — see the
+2026-10-02 status update immediately below for current state.
+
+## 2026-10-02 status update (consolidated cleanup pass)
+
+**Phase 1/2 schema — confirmed landed and correct**, verified by reading code/migrations (no live DB
+available for this pass):
+- `admin_units.path` is set by a DB trigger (`0012_admin_units_path_trigger.py`), not application code —
+  `path` cannot be set wrong by a careless insert.
+- `officer_assignments` has a DB-level `EXCLUDE USING gist` constraint (same migration) rejecting two
+  overlapping `(user_id, role, admin_unit_id)` assignment ranges. Different simultaneous assignments for
+  one user are still allowed (e.g. several tehsils), only an exact-triple overlap is rejected.
+- `citizen_uid` Verhoeff check digit is implemented (`app/citizen_uid.py`) and tested against a published
+  worked example, single-digit and transposition error detection, and leading-0/1 rejection
+  (`tests/test_citizen_uid.py`).
+- `app/authz.py`'s `break_glass_read` hard-fails unconditionally (`raise ScopeDenied(...)`) until a real
+  `system_admin` session and route exist to wire it to (Phase 6) — not a stub that silently allows.
+- `jurisdiction_reconciliation` / `citizen_merge_candidates`: no route anywhere in the codebase writes to
+  either table yet, so there is nothing to bypass today. `authz.can_resolve_jurisdiction` is already
+  written for exactly this gate and documented as "not wired into any route yet" — whoever adds the first
+  reconciliation route must call it; nothing to add now.
+
+**Part B (`auth.py` Postgres-native rewrite) — not started.** Current `auth.py` is still the flat-role
+`mock-login`/`firebase-login` pair from before Phase 1/2; no officer-table login, no citizen login, no
+argon2id. `frontend/src/api.js` (lines 72, 90, 128) actively calls `/auth/firebase-login` for both initial
+sign-in and session refresh — removing it before the frontend has a replacement would break login
+entirely. `backend/config/legacy_role_map.yaml` (new) maps the legacy flat roles to the new ladder:
+`citizen`, `village_officer`, `super_admin` map directly; `officer`, `auditor`, `state_admin`, `bank` get
+`action: deactivate_pending_review` (each spans multiple new roles or has no analog — see the file's
+per-role `reason` for why a direct guess would be wrong).
+
+**Important finding — Phase 2's list-endpoint jurisdiction filter depends on Part B, not on the N+1
+batching fix.** `app/authz.py`'s `scope_filter_sql(ctx)` needs a `UserContext`, which `authz.load_context`
+builds from a real `users.id` (`sub`). The current JWT (`auth.py`) carries only a flat `role` string, no
+`user_id` — so there is no way to construct a `UserContext` from a request today, and therefore no way to
+call `scope_filter_sql` from `routes/parcels.py`'s `list_parcels`/`get_all_parcels_geojson` yet. The
+boundary-overlap batching fix (`rules.py`'s `_check_boundary_overlap_batch`) is unrelated and already
+landed; the jurisdiction list-filter is blocked on Part B's auth rewrite shipping a `user_id`-bearing
+session, not on anything in `rules.py`. Not built this pass — building it against the current token shape
+would mean silently guessing at a user identity that doesn't exist in the token.
 
 ## 1. What exists today
 
